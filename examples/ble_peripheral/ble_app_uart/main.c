@@ -461,8 +461,12 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
 static void services_init(void)
 {
     uint32_t           err_code;
+    ble_hts_init_t     hts_init;
+    ble_bas_init_t     bas_init;
+    ble_dis_init_t     dis_init;
     ble_nus_init_t     nus_init;
     nrf_ble_qwr_init_t qwr_init = {0};
+    ble_dis_sys_id_t   sys_id;
 
     // Initialize Queued Write Module.
     qwr_init.error_handler = nrf_qwr_error_handler;
@@ -476,6 +480,51 @@ static void services_init(void)
     nus_init.data_handler = nus_data_handler;
 
     err_code = ble_nus_init(&m_nus, &nus_init);
+    APP_ERROR_CHECK(err_code);
+
+    // Initialize Health Thermometer Service
+    memset(&hts_init, 0, sizeof(hts_init));
+
+    hts_init.evt_handler                 = on_hts_evt;
+    hts_init.temp_type_as_characteristic = TEMP_TYPE_AS_CHARACTERISTIC;
+    hts_init.temp_type                   = BLE_HTS_TEMP_TYPE_BODY;
+
+    // Here the sec level for the Health Thermometer Service can be changed/increased.
+    hts_init.ht_meas_cccd_wr_sec = SEC_JUST_WORKS;
+    hts_init.ht_type_rd_sec      = SEC_OPEN;
+
+    err_code = ble_hts_init(&m_hts, &hts_init);
+    APP_ERROR_CHECK(err_code);
+
+    // Initialize Battery Service.
+    memset(&bas_init, 0, sizeof(bas_init));
+
+    // Here the sec level for the Battery Service can be changed/increased.
+    bas_init.bl_rd_sec        = SEC_OPEN;
+    bas_init.bl_cccd_wr_sec   = SEC_OPEN;
+    bas_init.bl_report_rd_sec = SEC_OPEN;
+
+    bas_init.evt_handler          = NULL;
+    bas_init.support_notification = true;
+    bas_init.p_report_ref         = NULL;
+    bas_init.initial_batt_level   = 100;
+
+    err_code = ble_bas_init(&m_bas, &bas_init);
+    APP_ERROR_CHECK(err_code);
+
+    // Initialize Device Information Service.
+    memset(&dis_init, 0, sizeof(dis_init));
+
+    ble_srv_ascii_to_utf8(&dis_init.manufact_name_str, MANUFACTURER_NAME);
+    ble_srv_ascii_to_utf8(&dis_init.model_num_str, MODEL_NUM);
+
+    sys_id.manufacturer_id            = MANUFACTURER_ID;
+    sys_id.organizationally_unique_id = ORG_UNIQUE_ID;
+    dis_init.p_sys_id                 = &sys_id;
+
+    dis_init.dis_char_rd_sec = SEC_OPEN;
+
+    err_code = ble_dis_init(&dis_init);
     APP_ERROR_CHECK(err_code);
 }
 
