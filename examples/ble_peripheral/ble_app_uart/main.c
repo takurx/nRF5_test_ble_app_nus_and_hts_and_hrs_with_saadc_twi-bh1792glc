@@ -97,7 +97,7 @@
 #define MANUFACTURER_NAME               "NordicSemiconductor"                       /**< Manufacturer. Will be passed to Device Information Service. */
 #define MODEL_NUM                       "NS-HTS-EXAMPLE"                            /**< Model number. Will be passed to Device Information Service. */
 #define MANUFACTURER_ID                 0x1122334455                                /**< Manufacturer ID, part of System ID. Will be passed to Device Information Service. */
-#define ORG_UNIQUE_ID                   0x667788 
+#define ORG_UNIQUE_ID                   0x667788                                    /**< Organizational Unique ID, part of System ID. Will be passed to Device Information Service. */
 
 #define APP_BLE_OBSERVER_PRIO           3                                           /**< Application's BLE observer priority. You shouldn't need to modify this value. */
 #define APP_BLE_CONN_CFG_TAG            1                                           /**< A tag identifying the SoftDevice BLE configuration. */
@@ -1096,18 +1096,18 @@ int main(void)
     NRF_LOG_INFO("Finish services init");
     advertising_init();
     NRF_LOG_INFO("Finish advertising init");
-    //sensor_simulator_init();
-    //NRF_LOG_INFO("Finish sensor simulator init");
+    sensor_simulator_init();
+    NRF_LOG_INFO("Finish sensor simulator init");
     conn_params_init();
     NRF_LOG_INFO("Finish conn params init");
-    //peer_manager_init();
-    //NRF_LOG_INFO("Finish peer manager init");
+    peer_manager_init();
+    NRF_LOG_INFO("Finish peer manager init");
 
     // Start execution.
     printf("\r\nUART started.\r\n");
     NRF_LOG_INFO("Debug logging for UART over RTT started.");
     NRF_LOG_INFO("Health Thermometer example started.");
-    //application_timers_start();
+    application_timers_start();
     advertising_start(erase_bonds);
 
     // Enter main loop.
