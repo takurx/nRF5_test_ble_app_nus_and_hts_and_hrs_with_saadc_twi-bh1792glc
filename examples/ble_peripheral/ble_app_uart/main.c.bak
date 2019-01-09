@@ -67,6 +67,8 @@
 #include "nrf_sdh.h"
 #include "nrf_sdh_soc.h"
 #include "nrf_sdh_ble.h"
+#include "nrf_ble_gatt.h"
+#include "nrf_ble_qwr.h"
 #include "app_timer.h"
 #include "peer_manager.h"
 #include "peer_manager_handler.h"
@@ -74,10 +76,6 @@
 #include "app_uart.h"
 #include "app_util_platform.h"
 #include "bsp_btn_ble.h"
-#include "fds.h"
-#include "ble_conn_state.h"
-#include "nrf_ble_gatt.h"
-#include "nrf_ble_qwr.h"
 #include "nrf_pwr_mgmt.h"
 
 #if defined (UART_PRESENT)

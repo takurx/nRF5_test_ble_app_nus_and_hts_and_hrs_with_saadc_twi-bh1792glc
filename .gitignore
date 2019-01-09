@@ -250,3 +250,10 @@ examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/Debug/Exe/ble_app_
 examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/Debug/Exe/ble_app_uart_pca10040_s132.hex
 examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/Debug/Exe/ble_app_uart_pca10040_s132.map
 examples/ble_peripheral/ble_app_uart/pca10040/s132/config/sdk_config.h.bak
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/bsp.asm
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/bsp_btn_ble.asm
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrfx_uart.asm
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrfx_uarte.asm
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/SEGGER_RTT.asm
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/SEGGER_RTT_printf.asm
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/SEGGER_RTT_Syscalls_SES.asm
