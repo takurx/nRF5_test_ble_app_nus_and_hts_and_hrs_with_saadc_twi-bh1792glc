@@ -161,9 +161,14 @@ static sensorsim_state_t m_temp_celcius_sim_state;                              
 
 static ble_uuid_t m_adv_uuids[]          =                                          /**< Universally unique service identifier. */
 {
-    {BLE_UUID_NUS_SERVICE, NUS_SERVICE_UUID_TYPE}
+    {BLE_UUID_NUS_SERVICE, NUS_SERVICE_UUID_TYPE},
+    {BLE_UUID_HEALTH_THERMOMETER_SERVICE, BLE_UUID_TYPE_BLE},
+    {BLE_UUID_BATTERY_SERVICE, BLE_UUID_TYPE_BLE},
+    {BLE_UUID_DEVICE_INFORMATION_SERVICE, BLE_UUID_TYPE_BLE}
 };
 
+static void advertising_start(bool erase_bonds);
+static void temperature_measurement_send(void);
 
 /**@brief Function for assert macro callback.
  *
@@ -617,6 +622,17 @@ void uart_event_handle(app_uart_evt_t * p_event)
 }
 /**@snippet [Handling the data received over UART] */
 
+/**@brief Clear bond information from persistent storage.
+ */
+static void delete_bonds(void)
+{
+    ret_code_t err_code;
+
+    NRF_LOG_INFO("Erase bonds!");
+
+    err_code = pm_peers_delete();
+    APP_ERROR_CHECK(err_code);
+}
 
 /**@brief  Function for initializing the UART module.
  */
@@ -730,10 +746,18 @@ static void idle_state_handle(void)
 
 /**@brief Function for starting advertising.
  */
-static void advertising_start(void)
+static void advertising_start(bool erase_bonds)
 {
-    uint32_t err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
-    APP_ERROR_CHECK(err_code);
+    if (erase_bonds == true)
+    {
+        delete_bonds();
+        // Advertising is started by PM_EVT_PEERS_DELETE_SUCCEEDED event.
+    }
+    else
+    {
+        uint32_t err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
+        APP_ERROR_CHECK(err_code);
+    }
 }
 
 
@@ -746,20 +770,36 @@ int main(void)
     // Initialize.
     uart_init();
     log_init();
+    NRF_LOG_INFO("Finish uart init, log init");
     timers_init();
+    NRF_LOG_INFO("Finish timers init");    
     buttons_leds_init(&erase_bonds);
+    NRF_LOG_INFO("Finish buttons leds init");
     power_management_init();
+    NRF_LOG_INFO("Finish power management init");
     ble_stack_init();
+    NRF_LOG_INFO("Finish ble stack init");
     gap_params_init();
+    NRF_LOG_INFO("Finish gap params init");
     gatt_init();
+    NRF_LOG_INFO("Finish gatt init");
     services_init();
+    NRF_LOG_INFO("Finish services init");
     advertising_init();
+    NRF_LOG_INFO("Finish advertising init");
+    //sensor_simulator_init();
+    //NRF_LOG_INFO("Finish sensor simulator init");
     conn_params_init();
+    NRF_LOG_INFO("Finish conn params init");
+    //peer_manager_init();
+    //NRF_LOG_INFO("Finish peer manager init");
 
     // Start execution.
     printf("\r\nUART started.\r\n");
     NRF_LOG_INFO("Debug logging for UART over RTT started.");
-    advertising_start();
+    NRF_LOG_INFO("Health Thermometer example started.");
+    //application_timers_start();
+    advertising_start(erase_bonds);
 
     // Enter main loop.
     for (;;)
