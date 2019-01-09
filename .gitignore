@@ -250,3 +250,57 @@ examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/Debug/Exe/ble_app_
 examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/Debug/Exe/ble_app_uart_pca10040_s132.hex
 examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/Debug/Exe/ble_app_uart_pca10040_s132.map
 examples/ble_peripheral/ble_app_uart/pca10040/s132/config/sdk_config.h.bak
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/bsp.asm
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/bsp_btn_ble.asm
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrfx_uart.asm
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrfx_uarte.asm
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/SEGGER_RTT.asm
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/SEGGER_RTT_printf.asm
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/SEGGER_RTT_Syscalls_SES.asm
+examples/ble_peripheral/ble_app_uart/main.c.bak
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/ble_app_uart_pca10040_s132.emProject.bak
+examples/ble_peripheral/ble_app_uart/main.c.bak
+examples/ble_peripheral/ble_app_uart/main.c.bak
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/sensorsim.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/sensorsim.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/security_manager.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/security_manager.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/security_dispatcher.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/security_dispatcher.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/pm_buffer.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/pm_buffer.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/peer_manager_handler.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/peer_manager_handler.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/peer_manager.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/peer_manager.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/peer_id.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/peer_id.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/peer_database.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/peer_database.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/peer_data_storage.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/peer_data_storage.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrf_log_backend_uart.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrf_log_backend_uart.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrf_fstorage_sd.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrf_fstorage_sd.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrf_fstorage.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrf_fstorage.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/id_manager.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/id_manager.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/gatts_cache_manager.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/gatts_cache_manager.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/gatt_cache_manager.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/gatt_cache_manager.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/fds.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/fds.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/crc16.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/crc16.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/ble_hts.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/ble_hts.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/ble_dis.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/ble_dis.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/ble_bas.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/ble_bas.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/auth_status_tracker.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/auth_status_tracker.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/ble_app_uart_pca10040_s132_Debug.jlink
