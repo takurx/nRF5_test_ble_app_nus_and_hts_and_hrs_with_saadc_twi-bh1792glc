@@ -159,14 +159,18 @@ static sensorsim_state_t m_battery_sim_state;                                   
 static sensorsim_cfg_t   m_temp_celcius_sim_cfg;                                    /**< Temperature simulator configuration. */
 static sensorsim_state_t m_temp_celcius_sim_state;                                  /**< Temperature simulator state. */
 
+static ble_uuid_t m_sr_uuids[]          =                                          /**< Universally unique service identifier. */
+{
+    {BLE_UUID_NUS_SERVICE, NUS_SERVICE_UUID_TYPE}
+};
+
+
 static ble_uuid_t m_adv_uuids[]          =                                          /**< Universally unique service identifier. */
 {
-    {BLE_UUID_NUS_SERVICE, NUS_SERVICE_UUID_TYPE},
     {BLE_UUID_HEALTH_THERMOMETER_SERVICE, BLE_UUID_TYPE_BLE},
     {BLE_UUID_BATTERY_SERVICE, BLE_UUID_TYPE_BLE},
     {BLE_UUID_DEVICE_INFORMATION_SERVICE, BLE_UUID_TYPE_BLE}
 };
-
 
 static void advertising_start(bool erase_bonds);
 static void temperature_measurement_send(void);
@@ -983,11 +987,11 @@ static void advertising_init(void)
     init.advdata.include_appearance = false;
     init.advdata.flags              = BLE_GAP_ADV_FLAGS_LE_ONLY_LIMITED_DISC_MODE;
 
-    //init.advdata.uuids_complete.uuid_cnt = sizeof(m_adv_uuids) / sizeof(m_adv_uuids[0]);
-    //init.advdata.uuids_complete.p_uuids  = m_adv_uuids;
+    init.advdata.uuids_complete.uuid_cnt = sizeof(m_adv_uuids) / sizeof(m_adv_uuids[0]);
+    init.advdata.uuids_complete.p_uuids  = m_adv_uuids;
     
-    init.srdata.uuids_complete.uuid_cnt = sizeof(m_adv_uuids) / sizeof(m_adv_uuids[0]);
-    init.srdata.uuids_complete.p_uuids  = m_adv_uuids;
+    init.srdata.uuids_complete.uuid_cnt = sizeof(m_sr_uuids) / sizeof(m_sr_uuids[0]);
+    init.srdata.uuids_complete.p_uuids  = m_sr_uuids;
 
     init.config.ble_adv_fast_enabled  = true;
     init.config.ble_adv_fast_interval = APP_ADV_INTERVAL;
