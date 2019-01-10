@@ -115,6 +115,18 @@
 #define MAX_BATTERY_LEVEL               100                                         /**< Maximum battery level as returned by the simulated measurement function. */
 #define BATTERY_LEVEL_INCREMENT         1                                           /**< Value by which the battery level is incremented/decremented for each call to the simulated measurement function. */
 
+#define HEART_RATE_MEAS_INTERVAL            APP_TIMER_TICKS(1000)                   /**< Heart rate measurement interval (ticks). */
+#define MIN_HEART_RATE                      140                                     /**< Minimum heart rate as returned by the simulated measurement function. */
+#define MAX_HEART_RATE                      300                                     /**< Maximum heart rate as returned by the simulated measurement function. */
+#define HEART_RATE_INCREMENT                10                                      /**< Value by which the heart rate is incremented/decremented for each call to the simulated measurement function. */
+
+#define RR_INTERVAL_INTERVAL                APP_TIMER_TICKS(300)                    /**< RR interval interval (ticks). */
+#define MIN_RR_INTERVAL                     100                                     /**< Minimum RR interval as returned by the simulated measurement function. */
+#define MAX_RR_INTERVAL                     500                                     /**< Maximum RR interval as returned by the simulated measurement function. */
+#define RR_INTERVAL_INCREMENT               1                                       /**< Value by which the RR interval is incremented/decremented for each call to the simulated measurement function. */
+
+#define SENSOR_CONTACT_DETECTED_INTERVAL    APP_TIMER_TICKS(5000)                   /**< Sensor Contact Detected toggle interval (ticks). */
+
 #define TEMP_TYPE_AS_CHARACTERISTIC     0                                           /**< Determines if temperature type is given as characteristic (1) or as a field of measurement (0). */
 
 #define MIN_CELCIUS_DEGREES             3688                                        /**< Minimum temperature in celcius for use in the simulated measurement function (multiplied by 100 to avoid floating point arithmetic). */
@@ -277,6 +289,97 @@ static void battery_level_meas_timeout_handler(void * p_context)
 }
 
 
+/**@brief Function for handling the Heart rate measurement timer timeout.
+ *
+ * @details This function will be called each time the heart rate measurement timer expires.
+ *          It will exclude RR Interval data from every third measurement.
+ *
+ * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
+ *                       app_start_timer() call to the timeout handler.
+ */
+static void heart_rate_meas_timeout_handler(void * p_context)
+{
+    static uint32_t cnt = 0;
+    ret_code_t      err_code;
+    uint16_t        heart_rate;
+
+    UNUSED_PARAMETER(p_context);
+
+    heart_rate = (uint16_t)sensorsim_measure(&m_heart_rate_sim_state, &m_heart_rate_sim_cfg);
+
+    cnt++;
+    err_code = ble_hrs_heart_rate_measurement_send(&m_hrs, heart_rate);
+    if ((err_code != NRF_SUCCESS) &&
+        (err_code != NRF_ERROR_INVALID_STATE) &&
+        (err_code != NRF_ERROR_RESOURCES) &&
+        (err_code != NRF_ERROR_BUSY) &&
+        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING)
+       )
+    {
+        APP_ERROR_HANDLER(err_code);
+    }
+
+    // Disable RR Interval recording every third heart rate measurement.
+    // NOTE: An application will normally not do this. It is done here just for testing generation
+    // of messages without RR Interval measurements.
+    m_rr_interval_enabled = ((cnt % 3) != 0);
+}
+
+
+/**@brief Function for handling the RR interval timer timeout.
+ *
+ * @details This function will be called each time the RR interval timer expires.
+ *
+ * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
+ *                       app_start_timer() call to the timeout handler.
+ */
+static void rr_interval_timeout_handler(void * p_context)
+{
+    UNUSED_PARAMETER(p_context);
+
+    if (m_rr_interval_enabled)
+    {
+        uint16_t rr_interval;
+
+        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
+                                                  &m_rr_interval_sim_cfg);
+        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
+        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
+                                                  &m_rr_interval_sim_cfg);
+        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
+        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
+                                                  &m_rr_interval_sim_cfg);
+        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
+        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
+                                                  &m_rr_interval_sim_cfg);
+        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
+        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
+                                                  &m_rr_interval_sim_cfg);
+        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
+        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
+                                                  &m_rr_interval_sim_cfg);
+        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
+    }
+}
+
+
+/**@brief Function for handling the Sensor Contact Detected timer timeout.
+ *
+ * @details This function will be called each time the Sensor Contact Detected timer expires.
+ *
+ * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
+ *                       app_start_timer() call to the timeout handler.
+ */
+static void sensor_contact_detected_timeout_handler(void * p_context)
+{
+    static bool sensor_contact_detected = false;
+
+    UNUSED_PARAMETER(p_context);
+
+    sensor_contact_detected = !sensor_contact_detected;
+    ble_hrs_sensor_contact_detected_update(&m_hrs, sensor_contact_detected);
+}
+
 /**@brief Function for populating simulated health thermometer measurement.
  */
 static void hts_sim_measurement(ble_hts_meas_t * p_meas)
@@ -326,6 +429,21 @@ static void timers_init(void)
                                 APP_TIMER_MODE_REPEATED,
                                 battery_level_meas_timeout_handler);
     APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_create(&m_heart_rate_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                heart_rate_meas_timeout_handler);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_create(&m_rr_interval_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                rr_interval_timeout_handler);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_create(&m_sensor_contact_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                sensor_contact_detected_timeout_handler);
+    APP_ERROR_CHECK(err_code);
 }
 
 
@@ -348,6 +466,9 @@ static void gap_params_init(void)
     APP_ERROR_CHECK(err_code);
 
     err_code = sd_ble_gap_appearance_set(BLE_APPEARANCE_GENERIC_THERMOMETER);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = sd_ble_gap_appearance_set(BLE_APPEARANCE_HEART_RATE_SENSOR_HEART_RATE_BELT);
     APP_ERROR_CHECK(err_code);
 
     memset(&gap_conn_params, 0, sizeof(gap_conn_params));
@@ -479,11 +600,13 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
 static void services_init(void)
 {
     uint32_t           err_code;
+    ble_hrs_init_t     hrs_init;
     ble_hts_init_t     hts_init;
     ble_bas_init_t     bas_init;
     ble_dis_init_t     dis_init;
     ble_nus_init_t     nus_init;
     nrf_ble_qwr_init_t qwr_init = {0};
+    uint8_t            body_sensor_location;
     ble_dis_sys_id_t   sys_id;
 
     // Initialize Queued Write Module.
@@ -512,6 +635,22 @@ static void services_init(void)
     hts_init.ht_type_rd_sec      = SEC_OPEN;
 
     err_code = ble_hts_init(&m_hts, &hts_init);
+    APP_ERROR_CHECK(err_code);
+
+    // Initialize Heart Rate Service.
+    body_sensor_location = BLE_HRS_BODY_SENSOR_LOCATION_FINGER;
+
+    memset(&hrs_init, 0, sizeof(hrs_init));
+
+    hrs_init.evt_handler                 = NULL;
+    hrs_init.is_sensor_contact_supported = true;
+    hrs_init.p_body_sensor_location      = &body_sensor_location;
+
+    // Here the sec level for the Heart Rate Service can be changed/increased.
+    hrs_init.hrm_cccd_wr_sec = SEC_OPEN;
+    hrs_init.bsl_rd_sec      = SEC_OPEN;
+
+    err_code = ble_hrs_init(&m_hrs, &hrs_init);
     APP_ERROR_CHECK(err_code);
 
     // Initialize Battery Service.
@@ -565,6 +704,20 @@ static void sensor_simulator_init(void)
     m_temp_celcius_sim_cfg.start_at_max = false;
 
     sensorsim_init(&m_temp_celcius_sim_state, &m_temp_celcius_sim_cfg);
+
+    m_heart_rate_sim_cfg.min          = MIN_HEART_RATE;
+    m_heart_rate_sim_cfg.max          = MAX_HEART_RATE;
+    m_heart_rate_sim_cfg.incr         = HEART_RATE_INCREMENT;
+    m_heart_rate_sim_cfg.start_at_max = false;
+
+    sensorsim_init(&m_heart_rate_sim_state, &m_heart_rate_sim_cfg);
+
+    m_rr_interval_sim_cfg.min          = MIN_RR_INTERVAL;
+    m_rr_interval_sim_cfg.max          = MAX_RR_INTERVAL;
+    m_rr_interval_sim_cfg.incr         = RR_INTERVAL_INCREMENT;
+    m_rr_interval_sim_cfg.start_at_max = false;
+
+    sensorsim_init(&m_rr_interval_sim_state, &m_rr_interval_sim_cfg);
 }
 
 
@@ -576,6 +729,15 @@ static void application_timers_start(void)
 
     // Start application timers.
     err_code = app_timer_start(m_battery_timer_id, BATTERY_LEVEL_MEAS_INTERVAL, NULL);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_start(m_heart_rate_timer_id, HEART_RATE_MEAS_INTERVAL, NULL);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_start(m_rr_interval_timer_id, RR_INTERVAL_INTERVAL, NULL);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_start(m_sensor_contact_timer_id, SENSOR_CONTACT_DETECTED_INTERVAL, NULL);
     APP_ERROR_CHECK(err_code);
 }
 
@@ -625,6 +787,7 @@ static void conn_params_init(void)
     cp_init.first_conn_params_update_delay = FIRST_CONN_PARAMS_UPDATE_DELAY;
     cp_init.next_conn_params_update_delay  = NEXT_CONN_PARAMS_UPDATE_DELAY;
     cp_init.max_conn_params_update_count   = MAX_CONN_PARAMS_UPDATE_COUNT;
+    //cp_init.start_on_notify_cccd_handle    = m_hrs.hrm_handles.cccd_handle;
     cp_init.start_on_notify_cccd_handle    = BLE_GATT_HANDLE_INVALID;
     cp_init.disconnect_on_fail             = false;
     cp_init.evt_handler                    = on_conn_params_evt;
@@ -667,6 +830,7 @@ static void on_adv_evt(ble_adv_evt_t ble_adv_evt)
     switch (ble_adv_evt)
     {
         case BLE_ADV_EVT_FAST:
+            NRF_LOG_INFO("Fast advertising.");
             err_code = bsp_indication_set(BSP_INDICATE_ADVERTISING);
             APP_ERROR_CHECK(err_code);
             break;
@@ -700,7 +864,8 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             break;
 
         case BLE_GAP_EVT_DISCONNECTED:
-            NRF_LOG_INFO("Disconnected");
+            NRF_LOG_INFO("Disconnected, reason %d.",
+                          p_ble_evt->evt.gap_evt.params.disconnected.reason);
             // LED indication will be changed when advertising starts.
             m_conn_handle = BLE_CONN_HANDLE_INVALID;
             m_hts_meas_ind_conf_pending = false;
@@ -744,6 +909,23 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gatts_evt.conn_handle,
                                              BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
             APP_ERROR_CHECK(err_code);
+            break;
+        
+        case BLE_GAP_EVT_AUTH_KEY_REQUEST:
+            NRF_LOG_INFO("BLE_GAP_EVT_AUTH_KEY_REQUEST");
+            break;
+
+        case BLE_GAP_EVT_LESC_DHKEY_REQUEST:
+            NRF_LOG_INFO("BLE_GAP_EVT_LESC_DHKEY_REQUEST");
+            break;
+
+         case BLE_GAP_EVT_AUTH_STATUS:
+             NRF_LOG_INFO("BLE_GAP_EVT_AUTH_STATUS: status=0x%x bond=0x%x lv4: %d kdist_own:0x%x kdist_peer:0x%x",
+                          p_ble_evt->evt.gap_evt.params.auth_status.auth_status,
+                          p_ble_evt->evt.gap_evt.params.auth_status.bonded,
+                          p_ble_evt->evt.gap_evt.params.auth_status.sm1_levels.lv4,
+                          *((uint8_t *)&p_ble_evt->evt.gap_evt.params.auth_status.kdist_own),
+                          *((uint8_t *)&p_ble_evt->evt.gap_evt.params.auth_status.kdist_peer));
             break;
 
         default:
