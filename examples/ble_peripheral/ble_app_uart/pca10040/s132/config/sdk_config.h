@@ -6644,7 +6644,7 @@
 // <e> MEM_MANAGER_ENABLED - mem_manager - Dynamic memory allocator
 //==========================================================
 #ifndef MEM_MANAGER_ENABLED
-#define MEM_MANAGER_ENABLED 0
+#define MEM_MANAGER_ENABLED 1
 #endif
 // <o> MEMORY_MANAGER_SMALL_BLOCK_COUNT - Size of each memory blocks identified as 'small' block.  <0-255> 
 
@@ -7122,7 +7122,7 @@
 // <e> NRF_QUEUE_ENABLED - nrf_queue - Queue module
 //==========================================================
 #ifndef NRF_QUEUE_ENABLED
-#define NRF_QUEUE_ENABLED 0
+#define NRF_QUEUE_ENABLED 1
 #endif
 // <q> NRF_QUEUE_CLI_CMDS  - Enable CLI commands specific to the module
  

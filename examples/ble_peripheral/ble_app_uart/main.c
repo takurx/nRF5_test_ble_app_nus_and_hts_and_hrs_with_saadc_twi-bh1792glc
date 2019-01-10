@@ -972,6 +972,15 @@ void gatt_evt_handler(nrf_ble_gatt_t * p_gatt, nrf_ble_gatt_evt_t const * p_evt)
     NRF_LOG_DEBUG("ATT MTU exchange completed. central 0x%x peripheral 0x%x",
                   p_gatt->att_mtu_desired_central,
                   p_gatt->att_mtu_desired_periph);
+    
+    if (p_evt->evt_id == NRF_BLE_GATT_EVT_ATT_MTU_UPDATED)
+    {
+        NRF_LOG_INFO("GATT ATT MTU on connection 0x%x changed to %d.",
+                     p_evt->conn_handle,
+                     p_evt->params.att_mtu_effective);
+    }
+
+    ble_hrs_on_gatt_evt(&m_hrs, p_evt);
 }
 
 /**@brief Function for initializing the GATT module.
@@ -1267,7 +1276,8 @@ static void advertising_start(bool erase_bonds)
     }
     else
     {
-        uint32_t err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
+        uint32_t err_code;
+        err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
         APP_ERROR_CHECK(err_code);
     }
 }
