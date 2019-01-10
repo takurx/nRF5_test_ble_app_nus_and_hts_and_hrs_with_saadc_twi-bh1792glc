@@ -1,1 +1,1 @@
-# nRF52_test_ble_app_uart
+# nRF52_test_ble_app_nus_and_hts
