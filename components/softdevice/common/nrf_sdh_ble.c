@@ -226,7 +226,7 @@ ret_code_t nrf_sdh_ble_enable(uint32_t * const p_app_ram_start)
     ret_code_t ret_code = sd_ble_enable(p_app_ram_start);
     if (*p_app_ram_start > app_ram_start_link)
     {
-        NRF_LOG_WARNING("Insufficient RAM allocated for the SoftDevice.");
+        NRF_LOG_WARNING("Insufficient RAM allocated for the SoftDevice.");  //SoftDevice‚É\•ª‚ÈRAM‚ªŠ„‚è“–‚Ä‚ç‚ê‚Ä‚¢‚Ü‚¹‚ñ
 
         NRF_LOG_WARNING("Change the RAM start location from 0x%x to 0x%x.",
                         app_ram_start_link, *p_app_ram_start);
