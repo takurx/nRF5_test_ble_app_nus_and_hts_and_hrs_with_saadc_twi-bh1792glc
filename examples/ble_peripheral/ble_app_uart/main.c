@@ -96,7 +96,7 @@
 #define DEVICE_NAME                     "Nordic_UARTHTS"                               /**< Name of device. Will be included in the advertising data. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 #define MANUFACTURER_NAME               "NordicSemiconductor"                       /**< Manufacturer. Will be passed to Device Information Service. */
-#define MODEL_NUM                       "NS-HTS-EXAMPLE"                            /**< Model number. Will be passed to Device Information Service. */
+//#define MODEL_NUM                       "EXAMPLE"                            /**< Model number. Will be passed to Device Information Service. */
 #define MANUFACTURER_ID                 0x1122334455                                /**< Manufacturer ID, part of System ID. Will be passed to Device Information Service. */
 #define ORG_UNIQUE_ID                   0x667788                                    /**< Organizational Unique ID, part of System ID. Will be passed to Device Information Service. */
 
@@ -673,11 +673,11 @@ static void services_init(void)
     memset(&dis_init, 0, sizeof(dis_init));
 
     ble_srv_ascii_to_utf8(&dis_init.manufact_name_str, MANUFACTURER_NAME);
-    ble_srv_ascii_to_utf8(&dis_init.model_num_str, MODEL_NUM);
+    //ble_srv_ascii_to_utf8(&dis_init.model_num_str, MODEL_NUM);
 
-    sys_id.manufacturer_id            = MANUFACTURER_ID;
-    sys_id.organizationally_unique_id = ORG_UNIQUE_ID;
-    dis_init.p_sys_id                 = &sys_id;
+    //sys_id.manufacturer_id            = MANUFACTURER_ID;
+    //sys_id.organizationally_unique_id = ORG_UNIQUE_ID;
+    //dis_init.p_sys_id                 = &sys_id;
 
     dis_init.dis_char_rd_sec = SEC_OPEN;
 
