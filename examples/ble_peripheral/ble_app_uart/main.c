@@ -230,14 +230,15 @@ void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
  */
 static void pm_evt_handler(pm_evt_t const * p_evt)
 {
-    ret_code_t err_code;
-    bool       is_indication_enabled;
+    // ret_code_t err_code;
+    // bool       is_indication_enabled;
 
     pm_handler_on_pm_evt(p_evt);
     pm_handler_flash_clean(p_evt);
 
     switch (p_evt->evt_id)
     {
+    /*
         case PM_EVT_CONN_SEC_SUCCEEDED:
             // Send a single temperature measurement if indication is enabled.
             // NOTE: For this to work, make sure ble_hts_on_ble_evt() is called before
@@ -249,7 +250,7 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
                 temperature_measurement_send();
             }
             break;
-
+    */
         case PM_EVT_PEERS_DELETE_SUCCEEDED:
             advertising_start(false);
             break;
@@ -1373,12 +1374,13 @@ int main(void)
     NRF_LOG_INFO("Finish sensor simulator init");
     conn_params_init();
     NRF_LOG_INFO("Finish conn params init");
-    //peer_manager_init();
-    //NRF_LOG_INFO("Finish peer manager init");
+    peer_manager_init();
+    NRF_LOG_INFO("Finish peer manager init");
 
     // Start execution.
     printf("\r\nUART started.\r\n");
     NRF_LOG_INFO("Debug logging for UART over RTT started.");
+    NRF_LOG_INFO("Heart Rate Sensor example started.");
     NRF_LOG_INFO("Health Thermometer example started.");
     application_timers_start();
     advertising_start(erase_bonds);
