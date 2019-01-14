@@ -630,14 +630,17 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
     if (p_evt->type == BLE_NUS_EVT_RX_DATA)
     {
         uint32_t err_code;
+        char com_buf[256];
+        uint16_t i;
 
-        NRF_LOG_INFO("nus_data_handler");
+        // NRF_LOG_INFO("nus_data_handler");
 
         NRF_LOG_DEBUG("Received data from BLE NUS. Writing data on UART.");
         NRF_LOG_HEXDUMP_DEBUG(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length);
 
-        NRF_LOG_INFO("p_evt->params.rx_data.p_data: %s", p_evt->params.rx_data.p_data);
-        for (uint32_t i = 0; i < p_evt->params.rx_data.length; i++)
+        // NRF_LOG_INFO("p_evt->params.rx_data.p_data: %s", p_evt->params.rx_data.p_data);
+        // for (uint32_t i = 0; i < p_evt->params.rx_data.length; i++)
+        for (i = 0; i < p_evt->params.rx_data.length; i++)
         {
             do
             {
@@ -648,11 +651,34 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                     APP_ERROR_CHECK(err_code);
                 }
                 NRF_LOG_INFO("string: %c", p_evt->params.rx_data.p_data[i]);
+                com_buf[i] = p_evt->params.rx_data.p_data[i];
             } while (err_code == NRF_ERROR_BUSY);
         }
         if (p_evt->params.rx_data.p_data[p_evt->params.rx_data.length - 1] == '\r')
         {
             while (app_uart_put('\n') == NRF_ERROR_BUSY);
+        }
+        com_buf[i] = '\0';
+        NRF_LOG_INFO("command: %s", com_buf);
+        err_code = ble_nus_data_send(&m_nus, com_buf, &i, m_conn_handle);
+        if ((err_code != NRF_ERROR_INVALID_STATE) &&
+            (err_code != NRF_ERROR_RESOURCES) &&
+            (err_code != NRF_ERROR_NOT_FOUND))
+        {
+            APP_ERROR_CHECK(err_code);
+        }
+        /*
+        uint16_t number_of_command = 2;
+        char command[number_of_command] = {"sta",
+                                           "sto"}
+        */
+        if((strcmp(com_buf, "sta")) == 0)
+        {
+            NRF_LOG_INFO("ack");
+        }
+        else
+        {
+            NRF_LOG_INFO("nak");
         }
     }
 
