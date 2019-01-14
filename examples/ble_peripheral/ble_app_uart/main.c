@@ -93,7 +93,7 @@
 #include "nrf_log_default_backends.h"
 
 
-#define DEVICE_NAME                     "Nordic_UARTHTS"                               /**< Name of device. Will be included in the advertising data. */
+#define DEVICE_NAME                     "Simulator"                               /**< Name of device. Will be included in the advertising data. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 #define MANUFACTURER_NAME               "NordicSemiconductor"                       /**< Manufacturer. Will be passed to Device Information Service. */
 //#define MODEL_NUM                       "EXAMPLE"                            /**< Model number. Will be passed to Device Information Service. */
