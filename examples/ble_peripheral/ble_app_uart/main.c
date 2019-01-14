@@ -638,14 +638,14 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
     if (p_evt->type == BLE_NUS_EVT_RX_DATA)
     {
         uint32_t err_code;
-        char com_buf[256];
+        char com_buf[256] = {};
         uint16_t i;
 
         static const char restime[] =    "2018-12-25T12:20:15+9";
         static const char resdatanum[] = ",10";
         static const char respulse[] =   ",100,101,102,103,104,105,106,107,108,109";
         static const char restemp[] =    ",36.00,36.01,36.02,36.03,36.04,36.05,36.06,36.07,36.08,36.09";
-        char resdata[256];
+        char resdata[256] = {};
 
         // NRF_LOG_INFO("nus_data_handler");
 
@@ -715,11 +715,12 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                       err_code = ble_nus_data_send(&m_nus, "100", &reslength, m_conn_handle);
                       break;
                   case 3:   // 3: rqd
-                      reslength = strlen(restime);
-                       //+ strlen(resdatanum) + strlen(respulse) + strlen(restemp);
+                      reslength = strlen(restime) + strlen(resdatanum); 
+                       //+ strlen(respulse) + strlen(restemp);
                       //char resdata[reslength];
-                      memcpy(&resdata[0], restime, 0);
-                      //strcpy(resdata, resdatanum);
+                      strcpy(resdata, restime);
+                      //memcpy(resdata, restime, 0);
+                      strcat(resdata, resdatanum);
                       //strcpy(resdata, respulse);
                       //strcpy(resdata, restemp);
                       NRF_LOG_INFO("res: %s", resdata);
