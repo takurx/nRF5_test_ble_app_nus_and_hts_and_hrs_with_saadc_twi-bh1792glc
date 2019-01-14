@@ -1,1 +1,1 @@
-# nRF52_test_ble_app_nus_and_hts
+# nRF52_test_ble_app_nus_and_hts_and_hrs
