@@ -125,6 +125,11 @@
 #define MAX_RR_INTERVAL                     500                                     /**< Maximum RR interval as returned by the simulated measurement function. */
 #define RR_INTERVAL_INCREMENT               1                                       /**< Value by which the RR interval is incremented/decremented for each call to the simulated measurement function. */
 
+#define TEMPERATURE_MEAS_INTERVAL           APP_TIMER_TICKS(1000)                   /**< temperature measurement interval (ticks). */
+#define MIN_TEMPERATURE                     33                                      /**< Minimum temperature as returned by the simulated measurement function. */
+#define MAX_TEMPERATURE                     42                                      /**< Maximum temperature as returned by the simulated measurement function. */
+#define TEMPERATURE_INCREMENT                1                                       /**< Value by which the temperature is incremented/decremented for each call to the simulated measurement function. */
+
 #define SENSOR_CONTACT_DETECTED_INTERVAL    APP_TIMER_TICKS(5000)                   /**< Sensor Contact Detected toggle interval (ticks). */
 
 #define TEMP_TYPE_AS_CHARACTERISTIC     0                                           /**< Determines if temperature type is given as characteristic (1) or as a field of measurement (0). */
@@ -169,6 +174,8 @@ BLE_ADVERTISING_DEF(m_advertising);                                             
 APP_TIMER_DEF(m_heart_rate_timer_id);                               /**< Heart rate measurement timer. */
 APP_TIMER_DEF(m_rr_interval_timer_id);                              /**< RR interval timer. */
 APP_TIMER_DEF(m_sensor_contact_timer_id);                           /**< Sensor contact detected timer. */
+
+APP_TIMER_DEF(m_temperature_timer_id);                               /**< Temperature measurement timer. */
 
 static uint16_t   m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3;            /**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
 static bool     m_rr_interval_enabled = true;                       /**< Flag for enabling and disabling the registration of new RR interval measurements (the purpose of disabling this is just to test sending HRM without RR interval data. */
@@ -288,6 +295,85 @@ static void battery_level_meas_timeout_handler(void * p_context)
     battery_level_update();
 }
 
+/**@brief Function for populating simulated health thermometer measurement.
+ */
+static void hts_sim_measurement(ble_hts_meas_t * p_meas)
+{
+    static ble_date_time_t time_stamp = { 2012, 12, 5, 11, 50, 0 };
+
+    uint32_t celciusX100;
+
+    p_meas->temp_in_fahr_units = false;
+    p_meas->time_stamp_present = true;
+    p_meas->temp_type_present  = (TEMP_TYPE_AS_CHARACTERISTIC ? false : true);
+
+    celciusX100 = sensorsim_measure(&m_temp_celcius_sim_state, &m_temp_celcius_sim_cfg);
+
+    p_meas->temp_in_celcius.exponent = -2;
+    p_meas->temp_in_celcius.mantissa = celciusX100;
+    p_meas->temp_in_fahr.exponent    = -2;
+    p_meas->temp_in_fahr.mantissa    = (32 * 100) + ((celciusX100 * 9) / 5);
+    p_meas->time_stamp               = time_stamp;
+    p_meas->temp_type                = BLE_HTS_TEMP_TYPE_FINGER;
+
+    // update simulated time stamp
+    time_stamp.seconds += 27;
+    if (time_stamp.seconds > 59)
+    {
+        time_stamp.seconds -= 60;
+        time_stamp.minutes++;
+        if (time_stamp.minutes > 59)
+        {
+            time_stamp.minutes = 0;
+        }
+    }
+}
+
+/**@brief Function for handling the Temperature measurement timer timeout.
+ *
+ * @details 
+ *
+ * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
+ *                       app_start_timer() call to the timeout handler.
+ */
+static void temperature_meas_timeout_handler(void * p_context)
+{
+    ble_hts_meas_t simulated_meas;
+    ret_code_t     err_code;
+
+    UNUSED_PARAMETER(p_context);
+
+    hts_sim_measurement(&simulated_meas);
+
+    err_code = ble_hts_measurement_send(&m_hts, &simulated_meas);
+
+    /*
+    switch (err_code)
+    {
+      case NRF_SUCCESS:
+        // Measurement was successfully sent, wait for confirmation.
+        // m_hts_meas_ind_conf_pending = true;
+        break;
+      case NRF_ERROR_INVALID_STATE:
+        // Ignore error.
+        break;
+      default:
+        APP_ERROR_HANDLER(err_code);
+        break;
+    }
+    */
+    
+    if ((err_code != NRF_SUCCESS) &&
+        (err_code != NRF_ERROR_INVALID_STATE) &&
+        (err_code != NRF_ERROR_RESOURCES) &&
+        (err_code != NRF_ERROR_BUSY) &&
+        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING)
+       )
+    {
+        APP_ERROR_HANDLER(err_code);
+    }
+}
+
 
 /**@brief Function for handling the Heart rate measurement timer timeout.
  *
@@ -380,40 +466,6 @@ static void sensor_contact_detected_timeout_handler(void * p_context)
     ble_hrs_sensor_contact_detected_update(&m_hrs, sensor_contact_detected);
 }
 
-/**@brief Function for populating simulated health thermometer measurement.
- */
-static void hts_sim_measurement(ble_hts_meas_t * p_meas)
-{
-    static ble_date_time_t time_stamp = { 2012, 12, 5, 11, 50, 0 };
-
-    uint32_t celciusX100;
-
-    p_meas->temp_in_fahr_units = false;
-    p_meas->time_stamp_present = true;
-    p_meas->temp_type_present  = (TEMP_TYPE_AS_CHARACTERISTIC ? false : true);
-
-    celciusX100 = sensorsim_measure(&m_temp_celcius_sim_state, &m_temp_celcius_sim_cfg);
-
-    p_meas->temp_in_celcius.exponent = -2;
-    p_meas->temp_in_celcius.mantissa = celciusX100;
-    p_meas->temp_in_fahr.exponent    = -2;
-    p_meas->temp_in_fahr.mantissa    = (32 * 100) + ((celciusX100 * 9) / 5);
-    p_meas->time_stamp               = time_stamp;
-    p_meas->temp_type                = BLE_HTS_TEMP_TYPE_FINGER;
-
-    // update simulated time stamp
-    time_stamp.seconds += 27;
-    if (time_stamp.seconds > 59)
-    {
-        time_stamp.seconds -= 60;
-        time_stamp.minutes++;
-        if (time_stamp.minutes > 59)
-        {
-            time_stamp.minutes = 0;
-        }
-    }
-}
-
 /**@brief Function for initializing the timer module.
  */
 static void timers_init(void)
@@ -438,6 +490,11 @@ static void timers_init(void)
     err_code = app_timer_create(&m_rr_interval_timer_id,
                                 APP_TIMER_MODE_REPEATED,
                                 rr_interval_timeout_handler);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_create(&m_temperature_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                temperature_meas_timeout_handler);
     APP_ERROR_CHECK(err_code);
 
     err_code = app_timer_create(&m_sensor_contact_timer_id,
@@ -735,6 +792,9 @@ static void application_timers_start(void)
     APP_ERROR_CHECK(err_code);
 
     err_code = app_timer_start(m_rr_interval_timer_id, RR_INTERVAL_INTERVAL, NULL);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_start(m_temperature_timer_id, TEMPERATURE_MEAS_INTERVAL, NULL);
     APP_ERROR_CHECK(err_code);
 
     err_code = app_timer_start(m_sensor_contact_timer_id, SENSOR_CONTACT_DETECTED_INTERVAL, NULL);
