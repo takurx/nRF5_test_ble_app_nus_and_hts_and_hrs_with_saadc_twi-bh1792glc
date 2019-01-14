@@ -615,6 +615,14 @@ static void nrf_qwr_error_handler(uint32_t nrf_error)
     APP_ERROR_HANDLER(nrf_error);
 }
 
+uint16_t Number_of_command = 4;
+static const char * NusCommand[] = 
+{
+    "sta",    /* 0: start measurement command */
+    "sto",    /* 1: stop measurement command  */
+    "rqs",    /* 2: request series command    */
+    "rqd",    /* 3: request data command      */
+};
 
 /**@brief Function for handling the data from the Nordic UART Service.
  *
@@ -667,16 +675,16 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         {
             APP_ERROR_CHECK(err_code);
         }
-        /*
-        uint16_t number_of_command = 2;
-        char command[number_of_command] = {"sta",
-                                           "sto"}
-        */
-        if((strcmp(com_buf, "sta")) == 0)
+
+        for (i = 0; i < Number_of_command; i++)
         {
-            NRF_LOG_INFO("ack");
+          if((strcmp(com_buf, NusCommand[i])) == 0)
+          {
+              NRF_LOG_INFO("ack");
+              break;
+          }
         }
-        else
+        if (i == Number_of_command)
         {
             NRF_LOG_INFO("nak");
         }
