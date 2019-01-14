@@ -275,7 +275,8 @@ static void battery_level_update(void)
         (err_code != NRF_ERROR_INVALID_STATE) &&
         (err_code != NRF_ERROR_RESOURCES) &&
         (err_code != NRF_ERROR_BUSY) &&
-        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING)
+        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING) &&
+        (err_code != NRF_ERROR_FORBIDDEN)
        )
     {
         APP_ERROR_HANDLER(err_code);
@@ -368,7 +369,8 @@ static void temperature_meas_timeout_handler(void * p_context)
         (err_code != NRF_ERROR_INVALID_STATE) &&
         (err_code != NRF_ERROR_RESOURCES) &&
         (err_code != NRF_ERROR_BUSY) &&
-        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING)
+        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING) &&
+        (err_code != NRF_ERROR_FORBIDDEN)
        )
     {
         APP_ERROR_HANDLER(err_code);
@@ -400,7 +402,8 @@ static void heart_rate_meas_timeout_handler(void * p_context)
         (err_code != NRF_ERROR_INVALID_STATE) &&
         (err_code != NRF_ERROR_RESOURCES) &&
         (err_code != NRF_ERROR_BUSY) &&
-        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING)
+        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING) &&
+        (err_code != NRF_ERROR_FORBIDDEN)
        )
     {
         APP_ERROR_HANDLER(err_code);
@@ -628,9 +631,12 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
     {
         uint32_t err_code;
 
+        NRF_LOG_INFO("nus_data_handler");
+
         NRF_LOG_DEBUG("Received data from BLE NUS. Writing data on UART.");
         NRF_LOG_HEXDUMP_DEBUG(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length);
 
+        NRF_LOG_INFO("p_evt->params.rx_data.p_data: %s", p_evt->params.rx_data.p_data);
         for (uint32_t i = 0; i < p_evt->params.rx_data.length; i++)
         {
             do
@@ -641,6 +647,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                     NRF_LOG_ERROR("Failed receiving NUS message. Error 0x%x. ", err_code);
                     APP_ERROR_CHECK(err_code);
                 }
+                NRF_LOG_INFO("string: %c", p_evt->params.rx_data.p_data[i]);
             } while (err_code == NRF_ERROR_BUSY);
         }
         if (p_evt->params.rx_data.p_data[p_evt->params.rx_data.length - 1] == '\r')
@@ -1247,6 +1254,7 @@ static void advertising_init(void)
     uint32_t               err_code;
     ble_advertising_init_t init;
 
+    memset(&init, 0, sizeof(init));
     memset(&init, 0, sizeof(init));
 
     init.advdata.name_type          = BLE_ADVDATA_FULL_NAME;
