@@ -1313,8 +1313,8 @@ int main(void)
     NRF_LOG_INFO("Finish sensor simulator init");
     conn_params_init();
     NRF_LOG_INFO("Finish conn params init");
-    peer_manager_init();
-    NRF_LOG_INFO("Finish peer manager init");
+    //peer_manager_init();
+    //NRF_LOG_INFO("Finish peer manager init");
 
     // Start execution.
     printf("\r\nUART started.\r\n");
