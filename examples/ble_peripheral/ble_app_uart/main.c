@@ -658,7 +658,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                     NRF_LOG_ERROR("Failed receiving NUS message. Error 0x%x. ", err_code);
                     APP_ERROR_CHECK(err_code);
                 }
-                NRF_LOG_INFO("string: %c", p_evt->params.rx_data.p_data[i]);
+                //NRF_LOG_INFO("string: %c", p_evt->params.rx_data.p_data[i]);
                 com_buf[i] = p_evt->params.rx_data.p_data[i];
             } while (err_code == NRF_ERROR_BUSY);
         }
@@ -668,6 +668,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         }
         com_buf[i] = '\0';
         NRF_LOG_INFO("command: %s", com_buf);
+        /*
         err_code = ble_nus_data_send(&m_nus, com_buf, &i, m_conn_handle);
         if ((err_code != NRF_ERROR_INVALID_STATE) &&
             (err_code != NRF_ERROR_RESOURCES) &&
@@ -675,18 +676,36 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         {
             APP_ERROR_CHECK(err_code);
         }
+        */
+        uint16_t reslength;
 
         for (i = 0; i < Number_of_command; i++)
         {
           if((strcmp(com_buf, NusCommand[i])) == 0)
           {
-              NRF_LOG_INFO("ack");
+              //NRF_LOG_INFO("ack");
+              reslength = 3;
+              err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+              if ((err_code != NRF_ERROR_INVALID_STATE) &&
+                  (err_code != NRF_ERROR_RESOURCES) &&
+                  (err_code != NRF_ERROR_NOT_FOUND))
+              {
+                  APP_ERROR_CHECK(err_code);
+              }
               break;
           }
         }
         if (i == Number_of_command)
         {
-            NRF_LOG_INFO("nak");
+            //NRF_LOG_INFO("nak");
+            reslength = 3;
+            err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
+            if ((err_code != NRF_ERROR_INVALID_STATE) &&
+                (err_code != NRF_ERROR_RESOURCES) &&
+                (err_code != NRF_ERROR_NOT_FOUND))
+            {
+                APP_ERROR_CHECK(err_code);
+            }
         }
     }
 
