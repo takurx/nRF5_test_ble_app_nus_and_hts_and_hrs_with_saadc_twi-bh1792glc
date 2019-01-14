@@ -60,6 +60,7 @@
 #include "ble_advdata.h"
 #include "ble_advertising.h"
 #include "ble_bas.h"
+#include "ble_hrs.h"
 #include "ble_hts.h"
 #include "ble_dis.h"
 #include "ble_conn_params.h"
@@ -95,7 +96,7 @@
 #define DEVICE_NAME                     "Nordic_UARTHTS"                               /**< Name of device. Will be included in the advertising data. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 #define MANUFACTURER_NAME               "NordicSemiconductor"                       /**< Manufacturer. Will be passed to Device Information Service. */
-#define MODEL_NUM                       "NS-HTS-EXAMPLE"                            /**< Model number. Will be passed to Device Information Service. */
+//#define MODEL_NUM                       "EXAMPLE"                            /**< Model number. Will be passed to Device Information Service. */
 #define MANUFACTURER_ID                 0x1122334455                                /**< Manufacturer ID, part of System ID. Will be passed to Device Information Service. */
 #define ORG_UNIQUE_ID                   0x667788                                    /**< Organizational Unique ID, part of System ID. Will be passed to Device Information Service. */
 
@@ -113,6 +114,23 @@
 #define MIN_BATTERY_LEVEL               81                                          /**< Minimum battery level as returned by the simulated measurement function. */
 #define MAX_BATTERY_LEVEL               100                                         /**< Maximum battery level as returned by the simulated measurement function. */
 #define BATTERY_LEVEL_INCREMENT         1                                           /**< Value by which the battery level is incremented/decremented for each call to the simulated measurement function. */
+
+#define HEART_RATE_MEAS_INTERVAL            APP_TIMER_TICKS(1000)                   /**< Heart rate measurement interval (ticks). */
+#define MIN_HEART_RATE                      140                                     /**< Minimum heart rate as returned by the simulated measurement function. */
+#define MAX_HEART_RATE                      300                                     /**< Maximum heart rate as returned by the simulated measurement function. */
+#define HEART_RATE_INCREMENT                10                                      /**< Value by which the heart rate is incremented/decremented for each call to the simulated measurement function. */
+
+#define RR_INTERVAL_INTERVAL                APP_TIMER_TICKS(300)                    /**< RR interval interval (ticks). */
+#define MIN_RR_INTERVAL                     100                                     /**< Minimum RR interval as returned by the simulated measurement function. */
+#define MAX_RR_INTERVAL                     500                                     /**< Maximum RR interval as returned by the simulated measurement function. */
+#define RR_INTERVAL_INCREMENT               1                                       /**< Value by which the RR interval is incremented/decremented for each call to the simulated measurement function. */
+
+#define TEMPERATURE_MEAS_INTERVAL           APP_TIMER_TICKS(1000)                   /**< temperature measurement interval (ticks). */
+#define MIN_TEMPERATURE                     33                                      /**< Minimum temperature as returned by the simulated measurement function. */
+#define MAX_TEMPERATURE                     42                                      /**< Maximum temperature as returned by the simulated measurement function. */
+#define TEMPERATURE_INCREMENT                1                                       /**< Value by which the temperature is incremented/decremented for each call to the simulated measurement function. */
+
+#define SENSOR_CONTACT_DETECTED_INTERVAL    APP_TIMER_TICKS(5000)                   /**< Sensor Contact Detected toggle interval (ticks). */
 
 #define TEMP_TYPE_AS_CHARACTERISTIC     0                                           /**< Determines if temperature type is given as characteristic (1) or as a field of measurement (0). */
 
@@ -143,6 +161,8 @@
 
 BLE_NUS_DEF(m_nus, NRF_SDH_BLE_TOTAL_LINK_COUNT);                                   /**< BLE NUS service instance. */
 
+BLE_HRS_DEF(m_hrs);                                                 /**< Heart rate service instance. */
+
 APP_TIMER_DEF(m_battery_timer_id);                                                  /**< Battery timer. */
 BLE_BAS_DEF(m_bas);                                                                 /**< Structure used to identify the battery service. */
 BLE_HTS_DEF(m_hts);
@@ -151,13 +171,25 @@ NRF_BLE_GATT_DEF(m_gatt);                                                       
 NRF_BLE_QWR_DEF(m_qwr);                                                             /**< Context for the Queued Write module.*/
 BLE_ADVERTISING_DEF(m_advertising);                                                 /**< Advertising module instance. */
 
+APP_TIMER_DEF(m_heart_rate_timer_id);                               /**< Heart rate measurement timer. */
+APP_TIMER_DEF(m_rr_interval_timer_id);                              /**< RR interval timer. */
+APP_TIMER_DEF(m_sensor_contact_timer_id);                           /**< Sensor contact detected timer. */
+
+APP_TIMER_DEF(m_temperature_timer_id);                               /**< Temperature measurement timer. */
+
 static uint16_t   m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3;            /**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
+static bool     m_rr_interval_enabled = true;                       /**< Flag for enabling and disabling the registration of new RR interval measurements (the purpose of disabling this is just to test sending HRM without RR interval data. */
 static uint16_t          m_conn_handle = BLE_CONN_HANDLE_INVALID;                   /**< Handle of the current connection. */
 static bool              m_hts_meas_ind_conf_pending = false;                       /**< Flag to keep track of when an indication confirmation is pending. */
 static sensorsim_cfg_t   m_battery_sim_cfg;                                         /**< Battery Level sensor simulator configuration. */
 static sensorsim_state_t m_battery_sim_state;                                       /**< Battery Level sensor simulator state. */
 static sensorsim_cfg_t   m_temp_celcius_sim_cfg;                                    /**< Temperature simulator configuration. */
 static sensorsim_state_t m_temp_celcius_sim_state;                                  /**< Temperature simulator state. */
+
+static sensorsim_cfg_t   m_heart_rate_sim_cfg;                      /**< Heart Rate sensor simulator configuration. */
+static sensorsim_state_t m_heart_rate_sim_state;                    /**< Heart Rate sensor simulator state. */
+static sensorsim_cfg_t   m_rr_interval_sim_cfg;                     /**< RR Interval sensor simulator configuration. */
+static sensorsim_state_t m_rr_interval_sim_state;                   /**< RR Interval sensor simulator state. */
 
 static ble_uuid_t m_sr_uuids[]          =                                          /**< Universally unique service identifier. */
 {
@@ -167,9 +199,10 @@ static ble_uuid_t m_sr_uuids[]          =                                       
 
 static ble_uuid_t m_adv_uuids[]          =                                          /**< Universally unique service identifier. */
 {
-    {BLE_UUID_HEALTH_THERMOMETER_SERVICE, BLE_UUID_TYPE_BLE},
-    {BLE_UUID_BATTERY_SERVICE, BLE_UUID_TYPE_BLE},
-    {BLE_UUID_DEVICE_INFORMATION_SERVICE, BLE_UUID_TYPE_BLE}
+    {BLE_UUID_HEART_RATE_SERVICE,           BLE_UUID_TYPE_BLE},
+    {BLE_UUID_HEALTH_THERMOMETER_SERVICE,   BLE_UUID_TYPE_BLE},
+    {BLE_UUID_BATTERY_SERVICE,              BLE_UUID_TYPE_BLE},
+    {BLE_UUID_DEVICE_INFORMATION_SERVICE,   BLE_UUID_TYPE_BLE}
 };
 
 static void advertising_start(bool erase_bonds);
@@ -197,14 +230,15 @@ void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
  */
 static void pm_evt_handler(pm_evt_t const * p_evt)
 {
-    ret_code_t err_code;
-    bool       is_indication_enabled;
+    // ret_code_t err_code;
+    // bool       is_indication_enabled;
 
     pm_handler_on_pm_evt(p_evt);
     pm_handler_flash_clean(p_evt);
 
     switch (p_evt->evt_id)
     {
+    /*
         case PM_EVT_CONN_SEC_SUCCEEDED:
             // Send a single temperature measurement if indication is enabled.
             // NOTE: For this to work, make sure ble_hts_on_ble_evt() is called before
@@ -216,7 +250,7 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
                 temperature_measurement_send();
             }
             break;
-
+    */
         case PM_EVT_PEERS_DELETE_SUCCEEDED:
             advertising_start(false);
             break;
@@ -262,7 +296,6 @@ static void battery_level_meas_timeout_handler(void * p_context)
     battery_level_update();
 }
 
-
 /**@brief Function for populating simulated health thermometer measurement.
  */
 static void hts_sim_measurement(ble_hts_meas_t * p_meas)
@@ -297,6 +330,143 @@ static void hts_sim_measurement(ble_hts_meas_t * p_meas)
     }
 }
 
+/**@brief Function for handling the Temperature measurement timer timeout.
+ *
+ * @details 
+ *
+ * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
+ *                       app_start_timer() call to the timeout handler.
+ */
+static void temperature_meas_timeout_handler(void * p_context)
+{
+    ble_hts_meas_t simulated_meas;
+    ret_code_t     err_code;
+
+    UNUSED_PARAMETER(p_context);
+
+    hts_sim_measurement(&simulated_meas);
+
+    err_code = ble_hts_measurement_send(&m_hts, &simulated_meas);
+
+    /*
+    switch (err_code)
+    {
+      case NRF_SUCCESS:
+        // Measurement was successfully sent, wait for confirmation.
+        // m_hts_meas_ind_conf_pending = true;
+        break;
+      case NRF_ERROR_INVALID_STATE:
+        // Ignore error.
+        break;
+      default:
+        APP_ERROR_HANDLER(err_code);
+        break;
+    }
+    */
+    
+    if ((err_code != NRF_SUCCESS) &&
+        (err_code != NRF_ERROR_INVALID_STATE) &&
+        (err_code != NRF_ERROR_RESOURCES) &&
+        (err_code != NRF_ERROR_BUSY) &&
+        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING)
+       )
+    {
+        APP_ERROR_HANDLER(err_code);
+    }
+}
+
+
+/**@brief Function for handling the Heart rate measurement timer timeout.
+ *
+ * @details This function will be called each time the heart rate measurement timer expires.
+ *          It will exclude RR Interval data from every third measurement.
+ *
+ * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
+ *                       app_start_timer() call to the timeout handler.
+ */
+static void heart_rate_meas_timeout_handler(void * p_context)
+{
+    static uint32_t cnt = 0;
+    ret_code_t      err_code;
+    uint16_t        heart_rate;
+
+    UNUSED_PARAMETER(p_context);
+
+    heart_rate = (uint16_t)sensorsim_measure(&m_heart_rate_sim_state, &m_heart_rate_sim_cfg);
+
+    cnt++;
+    err_code = ble_hrs_heart_rate_measurement_send(&m_hrs, heart_rate);
+    if ((err_code != NRF_SUCCESS) &&
+        (err_code != NRF_ERROR_INVALID_STATE) &&
+        (err_code != NRF_ERROR_RESOURCES) &&
+        (err_code != NRF_ERROR_BUSY) &&
+        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING)
+       )
+    {
+        APP_ERROR_HANDLER(err_code);
+    }
+
+    // Disable RR Interval recording every third heart rate measurement.
+    // NOTE: An application will normally not do this. It is done here just for testing generation
+    // of messages without RR Interval measurements.
+    m_rr_interval_enabled = ((cnt % 3) != 0);
+}
+
+
+/**@brief Function for handling the RR interval timer timeout.
+ *
+ * @details This function will be called each time the RR interval timer expires.
+ *
+ * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
+ *                       app_start_timer() call to the timeout handler.
+ */
+static void rr_interval_timeout_handler(void * p_context)
+{
+    UNUSED_PARAMETER(p_context);
+
+    if (m_rr_interval_enabled)
+    {
+        uint16_t rr_interval;
+
+        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
+                                                  &m_rr_interval_sim_cfg);
+        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
+        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
+                                                  &m_rr_interval_sim_cfg);
+        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
+        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
+                                                  &m_rr_interval_sim_cfg);
+        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
+        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
+                                                  &m_rr_interval_sim_cfg);
+        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
+        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
+                                                  &m_rr_interval_sim_cfg);
+        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
+        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
+                                                  &m_rr_interval_sim_cfg);
+        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
+    }
+}
+
+
+/**@brief Function for handling the Sensor Contact Detected timer timeout.
+ *
+ * @details This function will be called each time the Sensor Contact Detected timer expires.
+ *
+ * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
+ *                       app_start_timer() call to the timeout handler.
+ */
+static void sensor_contact_detected_timeout_handler(void * p_context)
+{
+    static bool sensor_contact_detected = false;
+
+    UNUSED_PARAMETER(p_context);
+
+    sensor_contact_detected = !sensor_contact_detected;
+    ble_hrs_sensor_contact_detected_update(&m_hrs, sensor_contact_detected);
+}
+
 /**@brief Function for initializing the timer module.
  */
 static void timers_init(void)
@@ -311,6 +481,26 @@ static void timers_init(void)
     err_code = app_timer_create(&m_battery_timer_id,
                                 APP_TIMER_MODE_REPEATED,
                                 battery_level_meas_timeout_handler);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_create(&m_heart_rate_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                heart_rate_meas_timeout_handler);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_create(&m_rr_interval_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                rr_interval_timeout_handler);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_create(&m_temperature_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                temperature_meas_timeout_handler);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_create(&m_sensor_contact_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                sensor_contact_detected_timeout_handler);
     APP_ERROR_CHECK(err_code);
 }
 
@@ -334,6 +524,9 @@ static void gap_params_init(void)
     APP_ERROR_CHECK(err_code);
 
     err_code = sd_ble_gap_appearance_set(BLE_APPEARANCE_GENERIC_THERMOMETER);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = sd_ble_gap_appearance_set(BLE_APPEARANCE_HEART_RATE_SENSOR_HEART_RATE_BELT);
     APP_ERROR_CHECK(err_code);
 
     memset(&gap_conn_params, 0, sizeof(gap_conn_params));
@@ -465,11 +658,13 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
 static void services_init(void)
 {
     uint32_t           err_code;
+    ble_hrs_init_t     hrs_init;
     ble_hts_init_t     hts_init;
     ble_bas_init_t     bas_init;
     ble_dis_init_t     dis_init;
     ble_nus_init_t     nus_init;
     nrf_ble_qwr_init_t qwr_init = {0};
+    uint8_t            body_sensor_location;
     ble_dis_sys_id_t   sys_id;
 
     // Initialize Queued Write Module.
@@ -500,6 +695,22 @@ static void services_init(void)
     err_code = ble_hts_init(&m_hts, &hts_init);
     APP_ERROR_CHECK(err_code);
 
+    // Initialize Heart Rate Service.
+    body_sensor_location = BLE_HRS_BODY_SENSOR_LOCATION_FINGER;
+
+    memset(&hrs_init, 0, sizeof(hrs_init));
+
+    hrs_init.evt_handler                 = NULL;
+    hrs_init.is_sensor_contact_supported = true;
+    hrs_init.p_body_sensor_location      = &body_sensor_location;
+
+    // Here the sec level for the Heart Rate Service can be changed/increased.
+    hrs_init.hrm_cccd_wr_sec = SEC_OPEN;
+    hrs_init.bsl_rd_sec      = SEC_OPEN;
+
+    err_code = ble_hrs_init(&m_hrs, &hrs_init);
+    APP_ERROR_CHECK(err_code);
+
     // Initialize Battery Service.
     memset(&bas_init, 0, sizeof(bas_init));
 
@@ -520,11 +731,11 @@ static void services_init(void)
     memset(&dis_init, 0, sizeof(dis_init));
 
     ble_srv_ascii_to_utf8(&dis_init.manufact_name_str, MANUFACTURER_NAME);
-    ble_srv_ascii_to_utf8(&dis_init.model_num_str, MODEL_NUM);
+    //ble_srv_ascii_to_utf8(&dis_init.model_num_str, MODEL_NUM);
 
-    sys_id.manufacturer_id            = MANUFACTURER_ID;
-    sys_id.organizationally_unique_id = ORG_UNIQUE_ID;
-    dis_init.p_sys_id                 = &sys_id;
+    //sys_id.manufacturer_id            = MANUFACTURER_ID;
+    //sys_id.organizationally_unique_id = ORG_UNIQUE_ID;
+    //dis_init.p_sys_id                 = &sys_id;
 
     dis_init.dis_char_rd_sec = SEC_OPEN;
 
@@ -551,6 +762,20 @@ static void sensor_simulator_init(void)
     m_temp_celcius_sim_cfg.start_at_max = false;
 
     sensorsim_init(&m_temp_celcius_sim_state, &m_temp_celcius_sim_cfg);
+
+    m_heart_rate_sim_cfg.min          = MIN_HEART_RATE;
+    m_heart_rate_sim_cfg.max          = MAX_HEART_RATE;
+    m_heart_rate_sim_cfg.incr         = HEART_RATE_INCREMENT;
+    m_heart_rate_sim_cfg.start_at_max = false;
+
+    sensorsim_init(&m_heart_rate_sim_state, &m_heart_rate_sim_cfg);
+
+    m_rr_interval_sim_cfg.min          = MIN_RR_INTERVAL;
+    m_rr_interval_sim_cfg.max          = MAX_RR_INTERVAL;
+    m_rr_interval_sim_cfg.incr         = RR_INTERVAL_INCREMENT;
+    m_rr_interval_sim_cfg.start_at_max = false;
+
+    sensorsim_init(&m_rr_interval_sim_state, &m_rr_interval_sim_cfg);
 }
 
 
@@ -562,6 +787,18 @@ static void application_timers_start(void)
 
     // Start application timers.
     err_code = app_timer_start(m_battery_timer_id, BATTERY_LEVEL_MEAS_INTERVAL, NULL);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_start(m_heart_rate_timer_id, HEART_RATE_MEAS_INTERVAL, NULL);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_start(m_rr_interval_timer_id, RR_INTERVAL_INTERVAL, NULL);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_start(m_temperature_timer_id, TEMPERATURE_MEAS_INTERVAL, NULL);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_start(m_sensor_contact_timer_id, SENSOR_CONTACT_DETECTED_INTERVAL, NULL);
     APP_ERROR_CHECK(err_code);
 }
 
@@ -611,6 +848,7 @@ static void conn_params_init(void)
     cp_init.first_conn_params_update_delay = FIRST_CONN_PARAMS_UPDATE_DELAY;
     cp_init.next_conn_params_update_delay  = NEXT_CONN_PARAMS_UPDATE_DELAY;
     cp_init.max_conn_params_update_count   = MAX_CONN_PARAMS_UPDATE_COUNT;
+    //cp_init.start_on_notify_cccd_handle    = m_hrs.hrm_handles.cccd_handle;
     cp_init.start_on_notify_cccd_handle    = BLE_GATT_HANDLE_INVALID;
     cp_init.disconnect_on_fail             = false;
     cp_init.evt_handler                    = on_conn_params_evt;
@@ -653,6 +891,7 @@ static void on_adv_evt(ble_adv_evt_t ble_adv_evt)
     switch (ble_adv_evt)
     {
         case BLE_ADV_EVT_FAST:
+            NRF_LOG_INFO("Fast advertising.");
             err_code = bsp_indication_set(BSP_INDICATE_ADVERTISING);
             APP_ERROR_CHECK(err_code);
             break;
@@ -686,7 +925,8 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             break;
 
         case BLE_GAP_EVT_DISCONNECTED:
-            NRF_LOG_INFO("Disconnected");
+            NRF_LOG_INFO("Disconnected, reason %d.",
+                          p_ble_evt->evt.gap_evt.params.disconnected.reason);
             // LED indication will be changed when advertising starts.
             m_conn_handle = BLE_CONN_HANDLE_INVALID;
             m_hts_meas_ind_conf_pending = false;
@@ -730,6 +970,23 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gatts_evt.conn_handle,
                                              BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
             APP_ERROR_CHECK(err_code);
+            break;
+        
+        case BLE_GAP_EVT_AUTH_KEY_REQUEST:
+            NRF_LOG_INFO("BLE_GAP_EVT_AUTH_KEY_REQUEST");
+            break;
+
+        case BLE_GAP_EVT_LESC_DHKEY_REQUEST:
+            NRF_LOG_INFO("BLE_GAP_EVT_LESC_DHKEY_REQUEST");
+            break;
+
+         case BLE_GAP_EVT_AUTH_STATUS:
+             NRF_LOG_INFO("BLE_GAP_EVT_AUTH_STATUS: status=0x%x bond=0x%x lv4: %d kdist_own:0x%x kdist_peer:0x%x",
+                          p_ble_evt->evt.gap_evt.params.auth_status.auth_status,
+                          p_ble_evt->evt.gap_evt.params.auth_status.bonded,
+                          p_ble_evt->evt.gap_evt.params.auth_status.sm1_levels.lv4,
+                          *((uint8_t *)&p_ble_evt->evt.gap_evt.params.auth_status.kdist_own),
+                          *((uint8_t *)&p_ble_evt->evt.gap_evt.params.auth_status.kdist_peer));
             break;
 
         default:
@@ -776,6 +1033,15 @@ void gatt_evt_handler(nrf_ble_gatt_t * p_gatt, nrf_ble_gatt_evt_t const * p_evt)
     NRF_LOG_DEBUG("ATT MTU exchange completed. central 0x%x peripheral 0x%x",
                   p_gatt->att_mtu_desired_central,
                   p_gatt->att_mtu_desired_periph);
+    
+    if (p_evt->evt_id == NRF_BLE_GATT_EVT_ATT_MTU_UPDATED)
+    {
+        NRF_LOG_INFO("GATT ATT MTU on connection 0x%x changed to %d.",
+                     p_evt->conn_handle,
+                     p_evt->params.att_mtu_effective);
+    }
+
+    ble_hrs_on_gatt_evt(&m_hrs, p_evt);
 }
 
 /**@brief Function for initializing the GATT module.
@@ -1071,7 +1337,8 @@ static void advertising_start(bool erase_bonds)
     }
     else
     {
-        uint32_t err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
+        uint32_t err_code;
+        err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
         APP_ERROR_CHECK(err_code);
     }
 }
@@ -1113,6 +1380,7 @@ int main(void)
     // Start execution.
     printf("\r\nUART started.\r\n");
     NRF_LOG_INFO("Debug logging for UART over RTT started.");
+    NRF_LOG_INFO("Heart Rate Sensor example started.");
     NRF_LOG_INFO("Health Thermometer example started.");
     application_timers_start();
     advertising_start(erase_bonds);
