@@ -93,7 +93,7 @@
 #include "nrf_log_default_backends.h"
 
 
-#define DEVICE_NAME                     "Nordic_UARTHTS"                               /**< Name of device. Will be included in the advertising data. */
+#define DEVICE_NAME                     "Simulator"                               /**< Name of device. Will be included in the advertising data. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 #define MANUFACTURER_NAME               "NordicSemiconductor"                       /**< Manufacturer. Will be passed to Device Information Service. */
 //#define MODEL_NUM                       "EXAMPLE"                            /**< Model number. Will be passed to Device Information Service. */
@@ -275,7 +275,8 @@ static void battery_level_update(void)
         (err_code != NRF_ERROR_INVALID_STATE) &&
         (err_code != NRF_ERROR_RESOURCES) &&
         (err_code != NRF_ERROR_BUSY) &&
-        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING)
+        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING) &&
+        (err_code != NRF_ERROR_FORBIDDEN)
        )
     {
         APP_ERROR_HANDLER(err_code);
@@ -368,7 +369,8 @@ static void temperature_meas_timeout_handler(void * p_context)
         (err_code != NRF_ERROR_INVALID_STATE) &&
         (err_code != NRF_ERROR_RESOURCES) &&
         (err_code != NRF_ERROR_BUSY) &&
-        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING)
+        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING) &&
+        (err_code != NRF_ERROR_FORBIDDEN)
        )
     {
         APP_ERROR_HANDLER(err_code);
@@ -400,7 +402,8 @@ static void heart_rate_meas_timeout_handler(void * p_context)
         (err_code != NRF_ERROR_INVALID_STATE) &&
         (err_code != NRF_ERROR_RESOURCES) &&
         (err_code != NRF_ERROR_BUSY) &&
-        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING)
+        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING) &&
+        (err_code != NRF_ERROR_FORBIDDEN)
        )
     {
         APP_ERROR_HANDLER(err_code);
@@ -612,6 +615,14 @@ static void nrf_qwr_error_handler(uint32_t nrf_error)
     APP_ERROR_HANDLER(nrf_error);
 }
 
+uint16_t Number_of_command = 4;
+static const char * NusCommand[] = 
+{
+    "sta",    /* 0: start measurement command */
+    "sto",    /* 1: stop measurement command  */
+    "rqs",    /* 2: request series command    */
+    "rqd",    /* 3: request data command      */
+};
 
 /**@brief Function for handling the data from the Nordic UART Service.
  *
@@ -627,11 +638,23 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
     if (p_evt->type == BLE_NUS_EVT_RX_DATA)
     {
         uint32_t err_code;
+        char com_buf[256] = {};
+        uint16_t i;
+
+        char restime[] =    "2018-12-25T12:20:15+9";
+        char resdatanum[] = ",10";
+        char respulse[] =   ",100,101,102,103,104,105,106,107,108,109";
+        char restemp[] =    ",36.00,36.01,36.02,36.03,36.04,36.05,36.06,36.07,36.08,36.09";
+        char resdata[256] = {};
+
+        // NRF_LOG_INFO("nus_data_handler");
 
         NRF_LOG_DEBUG("Received data from BLE NUS. Writing data on UART.");
         NRF_LOG_HEXDUMP_DEBUG(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length);
 
-        for (uint32_t i = 0; i < p_evt->params.rx_data.length; i++)
+        // NRF_LOG_INFO("p_evt->params.rx_data.p_data: %s", p_evt->params.rx_data.p_data);
+        // for (uint32_t i = 0; i < p_evt->params.rx_data.length; i++)
+        for (i = 0; i < p_evt->params.rx_data.length; i++)
         {
             do
             {
@@ -641,11 +664,90 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                     NRF_LOG_ERROR("Failed receiving NUS message. Error 0x%x. ", err_code);
                     APP_ERROR_CHECK(err_code);
                 }
+                //NRF_LOG_INFO("string: %c", p_evt->params.rx_data.p_data[i]);
+                com_buf[i] = p_evt->params.rx_data.p_data[i];
             } while (err_code == NRF_ERROR_BUSY);
         }
         if (p_evt->params.rx_data.p_data[p_evt->params.rx_data.length - 1] == '\r')
         {
             while (app_uart_put('\n') == NRF_ERROR_BUSY);
+        }
+        com_buf[i] = '\0';
+        NRF_LOG_INFO("command: %s", com_buf);
+        /*
+        err_code = ble_nus_data_send(&m_nus, com_buf, &i, m_conn_handle);
+        if ((err_code != NRF_ERROR_INVALID_STATE) &&
+            (err_code != NRF_ERROR_RESOURCES) &&
+            (err_code != NRF_ERROR_NOT_FOUND))
+        {
+            APP_ERROR_CHECK(err_code);
+        }
+        */
+        uint16_t reslength;
+
+        for (i = 0; i < Number_of_command; i++)
+        {
+          if((strcmp(com_buf, NusCommand[i])) == 0)
+          {
+              //NRF_LOG_INFO("ack");
+              /*
+              reslength = 3;
+              err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+              if ((err_code != NRF_ERROR_INVALID_STATE) &&
+                  (err_code != NRF_ERROR_RESOURCES) &&
+                  (err_code != NRF_ERROR_NOT_FOUND))
+              {
+                  APP_ERROR_CHECK(err_code);
+              }
+              */
+              switch (i)
+              {
+                  case 0:   // 0: sta
+                      reslength = 3;
+                      err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                      break;
+                  case 1:   // 1: sto
+                      reslength = 3;
+                      err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                      break;
+                  case 2:   // 2: rqs
+                      reslength = 3;
+                      err_code = ble_nus_data_send(&m_nus, "100", &reslength, m_conn_handle);
+                      break;
+                  case 3:   // 3: rqd
+                      reslength = strlen(restime) + strlen(resdatanum) + strlen(respulse) + strlen(restemp);
+                      //char resdata[reslength];
+                      strcpy(resdata, restime);
+                      //memcpy(resdata, restime, 0);
+                      strcat(resdata, resdatanum);
+                      strcat(resdata, respulse);
+                      strcat(resdata, restemp);
+                      NRF_LOG_INFO("res: %s", resdata);
+                      err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
+                      break;
+                  default:
+                      break;
+              }
+              if ((err_code != NRF_ERROR_INVALID_STATE) &&
+                  (err_code != NRF_ERROR_RESOURCES) &&
+                  (err_code != NRF_ERROR_NOT_FOUND))
+              {
+                  APP_ERROR_CHECK(err_code);
+              }
+              break;
+          }
+        }
+        if (i == Number_of_command)
+        {
+            //NRF_LOG_INFO("nak");
+            reslength = 3;
+            err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
+            if ((err_code != NRF_ERROR_INVALID_STATE) &&
+                (err_code != NRF_ERROR_RESOURCES) &&
+                (err_code != NRF_ERROR_NOT_FOUND))
+            {
+                APP_ERROR_CHECK(err_code);
+            }
         }
     }
 
@@ -1247,6 +1349,7 @@ static void advertising_init(void)
     uint32_t               err_code;
     ble_advertising_init_t init;
 
+    memset(&init, 0, sizeof(init));
     memset(&init, 0, sizeof(init));
 
     init.advdata.name_type          = BLE_ADVDATA_FULL_NAME;
