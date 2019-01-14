@@ -715,14 +715,13 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                       err_code = ble_nus_data_send(&m_nus, "100", &reslength, m_conn_handle);
                       break;
                   case 3:   // 3: rqd
-                      reslength = strlen(restime) + strlen(resdatanum); 
-                       //+ strlen(respulse) + strlen(restemp);
+                      reslength = strlen(restime) + strlen(resdatanum) + strlen(respulse) + strlen(restemp);
                       //char resdata[reslength];
                       strcpy(resdata, restime);
                       //memcpy(resdata, restime, 0);
                       strcat(resdata, resdatanum);
-                      //strcpy(resdata, respulse);
-                      //strcpy(resdata, restemp);
+                      strcat(resdata, respulse);
+                      strcat(resdata, restemp);
                       NRF_LOG_INFO("res: %s", resdata);
                       err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
                       break;
