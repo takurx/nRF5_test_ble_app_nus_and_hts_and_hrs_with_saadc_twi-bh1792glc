@@ -218,16 +218,13 @@ static ble_uuid_t m_sr_uuids[]          =                                       
 
 static ble_uuid_t m_adv_uuids[]          =                                          /**< Universally unique service identifier. */
 {
+    {BLE_UUID_CURRENT_TIME_SERVICE,         BLE_UUID_TYPE_BLE},
     {BLE_UUID_HEART_RATE_SERVICE,           BLE_UUID_TYPE_BLE},
     {BLE_UUID_HEALTH_THERMOMETER_SERVICE,   BLE_UUID_TYPE_BLE},
     {BLE_UUID_BATTERY_SERVICE,              BLE_UUID_TYPE_BLE},
     {BLE_UUID_DEVICE_INFORMATION_SERVICE,   BLE_UUID_TYPE_BLE}
 };
 
-static ble_uuid_t m_adv_uuids_sol[]          =                                          /**< Universally unique service identifier. */
-{
-	{BLE_UUID_CURRENT_TIME_SERVICE, 		BLE_UUID_TYPE_BLE}
-};
 
 static char const * day_of_week[] =
 {
@@ -317,8 +314,8 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
 
     switch (p_evt->evt_id)
     {
-    /*
         case PM_EVT_CONN_SEC_SUCCEEDED:
+        {
             m_peer_id = p_evt->peer_id;
 
             // Discover peer's services.
@@ -328,17 +325,20 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
             // Send a single temperature measurement if indication is enabled.
             // NOTE: For this to work, make sure ble_hts_on_ble_evt() is called before
             // pm_evt_handler() in ble_evt_dispatch().
-            err_code = ble_hts_is_indication_enabled(&m_hts, &is_indication_enabled);
+            /*
+			err_code = ble_hts_is_indication_enabled(&m_hts, &is_indication_enabled);
             APP_ERROR_CHECK(err_code);
             if (is_indication_enabled)
             {
                 temperature_measurement_send();
             }
-            break;
-    */
+			*/
+        } break;
+
         case PM_EVT_PEERS_DELETE_SUCCEEDED:
+        {
             advertising_start(false);
-            break;
+        } break;
 
         case PM_EVT_PEER_DATA_UPDATE_SUCCEEDED:
         {
@@ -1666,7 +1666,6 @@ static void advertising_init(void)
     ble_advertising_init_t init;
 
     memset(&init, 0, sizeof(init));
-    memset(&init, 0, sizeof(init));
 
     init.advdata.name_type          = BLE_ADVDATA_FULL_NAME;
     init.advdata.include_appearance = false;
@@ -1678,8 +1677,8 @@ static void advertising_init(void)
     init.srdata.uuids_complete.uuid_cnt = sizeof(m_sr_uuids) / sizeof(m_sr_uuids[0]);
     init.srdata.uuids_complete.p_uuids  = m_sr_uuids;
 
-    init.advdata.uuids_solicited.uuid_cnt = sizeof(m_adv_uuids_sol) / sizeof(m_adv_uuids_sol[0]);
-    init.advdata.uuids_solicited.p_uuids  = m_adv_uuids_sol;
+    init.advdata.uuids_solicited.uuid_cnt = sizeof(m_adv_uuids) / sizeof(m_adv_uuids[0]);
+    init.advdata.uuids_solicited.p_uuids  = m_adv_uuids;
 
     init.config.ble_adv_whitelist_enabled = true;
 
