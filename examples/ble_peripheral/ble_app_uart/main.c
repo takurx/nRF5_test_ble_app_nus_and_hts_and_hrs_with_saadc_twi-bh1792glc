@@ -376,21 +376,19 @@ static void temperature_meas_timeout_handler(void * p_context)
 
     err_code = ble_hts_measurement_send(&m_hts, &simulated_meas);
 
-    /*
     switch (err_code)
     {
       case NRF_SUCCESS:
         // Measurement was successfully sent, wait for confirmation.
-        // m_hts_meas_ind_conf_pending = true;
+        m_hts_meas_ind_conf_pending = true;
         break;
       case NRF_ERROR_INVALID_STATE:
         // Ignore error.
         break;
       default:
-        APP_ERROR_HANDLER(err_code);
+        //APP_ERROR_HANDLER(err_code);
         break;
     }
-    */
     
     if ((err_code != NRF_SUCCESS) &&
         (err_code != NRF_ERROR_INVALID_STATE) &&
@@ -612,6 +610,8 @@ static void temperature_measurement_send(void)
  */
 static void on_hts_evt(ble_hts_t * p_hts, ble_hts_evt_t * p_evt)
 {
+    temperature_measurement_send();
+    /*
     switch (p_evt->evt_type)
     {
         case BLE_HTS_EVT_INDICATION_ENABLED:
@@ -627,6 +627,7 @@ static void on_hts_evt(ble_hts_t * p_hts, ble_hts_evt_t * p_evt)
             // No implementation needed.
             break;
     }
+    */
 }
 
 
@@ -814,11 +815,13 @@ static void services_init(void)
     memset(&hts_init, 0, sizeof(hts_init));
 
     hts_init.evt_handler                 = on_hts_evt;
+    //hts_init.evt_handler                 = NULL;
     hts_init.temp_type_as_characteristic = TEMP_TYPE_AS_CHARACTERISTIC;
     hts_init.temp_type                   = BLE_HTS_TEMP_TYPE_BODY;
 
     // Here the sec level for the Health Thermometer Service can be changed/increased.
-    hts_init.ht_meas_cccd_wr_sec = SEC_JUST_WORKS;
+    //hts_init.ht_meas_cccd_wr_sec = SEC_JUST_WORKS;
+    hts_init.ht_meas_cccd_wr_sec = SEC_OPEN;
     hts_init.ht_type_rd_sec      = SEC_OPEN;
 
     err_code = ble_hts_init(&m_hts, &hts_init);
