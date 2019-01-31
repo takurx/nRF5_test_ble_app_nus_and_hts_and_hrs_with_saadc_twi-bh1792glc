@@ -1260,11 +1260,11 @@ static void peer_manager_init(void)
     sec_param.kdist_peer.enc = 1;
     sec_param.kdist_peer.id  = 1;
 
-    err_code = pm_sec_params_set(&sec_param);
-    APP_ERROR_CHECK(err_code);
+    //err_code = pm_sec_params_set(&sec_param);
+    //APP_ERROR_CHECK(err_code);
 
-    err_code = pm_register(pm_evt_handler);
-    APP_ERROR_CHECK(err_code);
+    //err_code = pm_register(pm_evt_handler);
+    //APP_ERROR_CHECK(err_code);
 }
 /**@brief   Function for handling app_uart events.
  *
