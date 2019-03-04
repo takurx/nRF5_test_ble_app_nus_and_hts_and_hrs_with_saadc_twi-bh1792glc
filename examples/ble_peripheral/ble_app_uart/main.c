@@ -1457,6 +1457,50 @@ static void power_management_init(void)
     APP_ERROR_CHECK(err_code);
 }
 
+
+
+void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
+{
+    if (p_event->type == NRF_DRV_SAADC_EVT_DONE)
+    {
+        ret_code_t err_code;
+
+        err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES_IN_BUFFER);
+        APP_ERROR_CHECK(err_code);
+
+        int i;
+        NRF_LOG_INFO("ADC event number: %d", (int)m_adc_evt_counter);
+
+        for (i = 0; i < SAMPLES_IN_BUFFER; i++)
+        {
+            NRF_LOG_INFO("%d", p_event->data.done.p_buffer[i]);
+        }
+        m_adc_evt_counter++;
+    }
+}
+
+
+
+void saadc_init(void)
+{
+    ret_code_t err_code;
+    nrf_saadc_channel_config_t channel_config =
+        NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN0);
+
+    err_code = nrf_drv_saadc_init(NULL, saadc_callback);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = nrf_drv_saadc_channel_init(0, &channel_config);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = nrf_drv_saadc_buffer_convert(m_buffer_pool[0], SAMPLES_IN_BUFFER);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = nrf_drv_saadc_buffer_convert(m_buffer_pool[1], SAMPLES_IN_BUFFER);
+    APP_ERROR_CHECK(err_code);
+
+}
+
 void saadc_timer_handler(nrf_timer_event_t event_type, void * p_context)
 {
 
@@ -1504,25 +1548,7 @@ void saadc_sampling_event_enable(void)
     APP_ERROR_CHECK(err_code);
 }
 
-void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
-{
-    if (p_event->type == NRF_DRV_SAADC_EVT_DONE)
-    {
-        ret_code_t err_code;
 
-        err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES_IN_BUFFER);
-        APP_ERROR_CHECK(err_code);
-
-        int i;
-        NRF_LOG_INFO("ADC event number: %d", (int)m_adc_evt_counter);
-
-        for (i = 0; i < SAMPLES_IN_BUFFER; i++)
-        {
-            NRF_LOG_INFO("%d", p_event->data.done.p_buffer[i]);
-        }
-        m_adc_evt_counter++;
-    }
-}
 
 /**@brief Function for handling the idle state (main loop).
  *
@@ -1590,6 +1616,10 @@ int main(void)
     NRF_LOG_INFO("Finish conn params init");
     peer_manager_init();
     NRF_LOG_INFO("Finish peer manager init");
+    saadc_init();
+    saadc_sampling_event_init();
+    saadc_sampling_event_enable();
+    NRF_LOG_INFO("SAADC HAL simple example started.");
 
     // Start execution.
     printf("\r\nUART started.\r\n");
