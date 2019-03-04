@@ -82,12 +82,16 @@
       <file file_name="../../../../../../components/boards/boards.c" />
     </folder>
     <folder Name="nRF_Drivers">
+      <file file_name="../../../../../../integration/nrfx/legacy/nrf_drv_ppi.c" />
       <file file_name="../../../../../../integration/nrfx/legacy/nrf_drv_clock.c" />
       <file file_name="../../../../../../integration/nrfx/legacy/nrf_drv_uart.c" />
+      <file file_name="../../../../../../modules/nrfx/drivers/src/nrfx_ppi.c" />
       <file file_name="../../../../../../modules/nrfx/drivers/src/nrfx_clock.c" />
       <file file_name="../../../../../../modules/nrfx/drivers/src/nrfx_gpiote.c" />
       <file file_name="../../../../../../modules/nrfx/drivers/src/nrfx_power_clock.c" />
       <file file_name="../../../../../../modules/nrfx/drivers/src/prs/nrfx_prs.c" />
+      <file file_name="../../../../../../modules/nrfx/drivers/src/nrfx_saadc.c" />
+      <file file_name="../../../../../../modules/nrfx/drivers/src/nrfx_timer.c" />
       <file file_name="../../../../../../modules/nrfx/drivers/src/nrfx_uart.c" />
       <file file_name="../../../../../../modules/nrfx/drivers/src/nrfx_uarte.c" />
     </folder>
