@@ -1462,6 +1462,7 @@ static void power_management_init(void)
 
 void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
 {
+    //maybe need nrf_log_flush()
     if (p_event->type == NRF_DRV_SAADC_EVT_DONE)
     {
         ret_code_t err_code;
