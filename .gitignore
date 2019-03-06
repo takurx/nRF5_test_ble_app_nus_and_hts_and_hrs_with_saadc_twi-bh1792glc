@@ -315,3 +315,11 @@ examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10
 examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrfx_saadc.o
 examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrfx_timer.d
 examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrfx_timer.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/bh1792.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/bh1792.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrf_drv_twi.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrf_drv_twi.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrfx_twi.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrfx_twi.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrfx_twim.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrfx_twim.o
