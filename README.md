@@ -1,4 +1,4 @@
-# nRF52_test_ble_app_nus_and_hts_and_hrs_with_saadc, twi(bh1792)
+# nRF52_test_ble_app_nus_and_hts_and_hrs_with_saadc_twi-bh1792glc
 
 ## License
 - 3-Clause BSD License (LICENSE.txt)
