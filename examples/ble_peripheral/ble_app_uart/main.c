@@ -556,7 +556,8 @@ static void gpio_init(void)
 
     err_code = nrf_drv_gpiote_init();
     APP_ERROR_CHECK(err_code);
-
+    
+    /*
     // LED1
     nrf_drv_gpiote_out_config_t out_config = GPIOTE_CONFIG_OUT_SIMPLE(false);
 
@@ -571,6 +572,7 @@ static void gpio_init(void)
     APP_ERROR_CHECK(err_code);
 
     nrf_drv_gpiote_in_event_enable(PIN_IN, true);
+    */
 
     // bh1792glc, arudino_10_pin
     nrf_drv_gpiote_in_config_t in_config_bh1792 = GPIOTE_CONFIG_IN_SENSE_HITOLO(true); // interrupt when falling edge
