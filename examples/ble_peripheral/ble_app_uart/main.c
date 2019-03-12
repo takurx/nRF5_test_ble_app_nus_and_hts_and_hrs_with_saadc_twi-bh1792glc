@@ -79,6 +79,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include "nrf.h"
 #include "nrf_drv_saadc.h"
 #include "nrf_drv_ppi.h"
@@ -446,7 +447,9 @@ void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
       if(m_bh1792.prm.sel_adc == BH1792_PRM_SEL_ADC_GREEN) {
         */
         //NRF_LOG_RAW_INFO("%d,%d,%d,%d\n", m_bh1792_dat.green.on, m_bh1792_dat.green.off, m_bh1792_dat.ir.on, m_bh1792_dat.ir.off)
+                
         NRF_LOG_RAW_INFO("%d,%d\n", m_bh1792_dat.green.on, m_bh1792_dat.green.off)
+
         /*
       } else {
         NRF_LOG_RAW_INFO("%d,%d\n", m_bh1792_dat.ir.on, m_bh1792_dat.ir.off)
@@ -1830,6 +1833,18 @@ static void power_management_init(void)
 
 void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
 {
+    int ad_val;
+    float resolution = 1024.0; //1024 = 2^10, please check ad bit setting
+    float ad_voltage;
+    float ad_resistance;
+    float vcc = 3.3;
+    float resistance0 = 10000;   // R0, termista, 10k ohm (normal, 25deg) 
+    float resistance1 = 10000;   // R1, split voltage resitance, 10k ohm
+    float e = 2.7182818284; // Napier's constant
+    float b = 3435.0; // B parameter termista value when 25 deg. = 3435
+    float standard_temp = 25.0 + 273.15;  // 25.0 deg + 273.15 absolute temp. [kelbin]
+    float temprature;
+
     //maybe need nrf_log_flush()
     if (p_event->type == NRF_DRV_SAADC_EVT_DONE)
     {
@@ -1839,11 +1854,17 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
         APP_ERROR_CHECK(err_code);
 
         int i;
-        NRF_LOG_INFO("ADC event number: %d", (int)m_adc_evt_counter);
+        //NRF_LOG_INFO("ADC event number: %d", (int)m_adc_evt_counter);
 
         for (i = 0; i < SAMPLES_IN_BUFFER; i++)
         {
-            NRF_LOG_INFO("%d", p_event->data.done.p_buffer[i]);
+            ad_val = (int)p_event->data.done.p_buffer[i];
+            ad_voltage = (float)(ad_val) / resolution * vcc;
+            ad_resistance = ad_voltage / (vcc - ad_voltage) * resistance1;
+            temprature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15;
+            //NRF_LOG_INFO("%d,%f", p_event->data.done.p_buffer[i], temprature);
+            //NRF_LOG_INFO(NRF_LOG_FLOAT_MARKER, NRF_LOG_FLOAT(temprature));
+            NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "\n", p_event->data.done.p_buffer[i], NRF_LOG_FLOAT(temprature));
         }
         m_adc_evt_counter++;
     }
