@@ -338,8 +338,12 @@ void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
 }
 
 
+#define BH1792GLC_SCL_PIN 7
+#define BH1792GLC_SDA_PIN 6
+#define BH1792GLC_INT_PIN 5
+
 /**
- * @brief UART initialization.
+ * @brief TWI initialization.
  */
 void twi_init (void)
 {
@@ -347,8 +351,8 @@ void twi_init (void)
     int32_t ret = 0;
 
     const nrf_drv_twi_config_t twi_bh1792glc_config = {
-       .scl                = ARDUINO_SCL_PIN,
-       .sda                = ARDUINO_SDA_PIN,
+       .scl                = BH1792GLC_SCL_PIN,
+       .sda                = BH1792GLC_SDA_PIN,
        .frequency          = NRF_DRV_TWI_FREQ_400K,
        .interrupt_priority = APP_IRQ_PRIORITY_HIGH,
        .clear_bus_init     = false
@@ -395,7 +399,7 @@ static void timer_isr(void * p_context)
     
     int32_t ret = 0;
 
-    nrf_drv_gpiote_in_event_disable(ARDUINO_10_PIN);
+    nrf_drv_gpiote_in_event_disable(BH1792GLC_INT_PIN);
 
     // became else root, m_bh1792.prm.msr = BH1792_PRM_MSR_SINGLE
     /*
@@ -421,7 +425,7 @@ static void timer_isr(void * p_context)
     }
     */
 
-    nrf_drv_gpiote_in_event_enable(ARDUINO_10_PIN, true);
+    nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
 }
 
 
@@ -430,7 +434,7 @@ void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
     int32_t ret = 0;
     //uint8_t i   = 0;
 
-    nrf_drv_gpiote_in_event_disable(ARDUINO_10_PIN);
+    nrf_drv_gpiote_in_event_disable(BH1792GLC_INT_PIN);
 
     ret = bh1792_GetMeasData(&m_bh1792_dat);
     //error_check(ret, "bh1792_GetMeasData");
@@ -448,7 +452,8 @@ void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
         */
         //NRF_LOG_RAW_INFO("%d,%d,%d,%d\n", m_bh1792_dat.green.on, m_bh1792_dat.green.off, m_bh1792_dat.ir.on, m_bh1792_dat.ir.off)
                 
-        NRF_LOG_RAW_INFO("%d,%d\n", m_bh1792_dat.green.on, m_bh1792_dat.green.off)
+        //NRF_LOG_RAW_INFO("%d,%d\n", m_bh1792_dat.green.on, m_bh1792_dat.green.off)
+        //printf("%d,%d\r\n", m_bh1792_dat.green.on, m_bh1792_dat.green.off);
 
         /*
       } else {
@@ -456,7 +461,7 @@ void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
       }
     }
     */
-    nrf_drv_gpiote_in_event_enable(ARDUINO_10_PIN, true);
+    nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
 }
 
 
@@ -581,10 +586,10 @@ static void gpio_init(void)
     nrf_drv_gpiote_in_config_t in_config_bh1792 = GPIOTE_CONFIG_IN_SENSE_HITOLO(true); // interrupt when falling edge
     in_config_bh1792.pull = NRF_GPIO_PIN_PULLUP;
 
-    err_code = nrf_drv_gpiote_in_init(ARDUINO_10_PIN, &in_config_bh1792, bh1792_isr);
+    err_code = nrf_drv_gpiote_in_init(BH1792GLC_INT_PIN, &in_config_bh1792, bh1792_isr);
     APP_ERROR_CHECK(err_code);
 
-    nrf_drv_gpiote_in_event_enable(ARDUINO_10_PIN, true);
+    nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
 }
 
 
@@ -1727,6 +1732,11 @@ static void delete_bonds(void)
     APP_ERROR_CHECK(err_code);
 }
 
+#define EBSHCNZWZ_RX_PIN_NUMBER   25
+#define EBSHCNZWZ_TX_PIN_NUMBER   24
+#define EBSHCNZWZ_RTS_PIN_NUMBER  23
+#define EBSHCNZWZ_CTS_PIN_NUMBER  22
+
 /**@brief  Function for initializing the UART module.
  */
 /**@snippet [UART Initialization] */
@@ -1735,10 +1745,10 @@ static void uart_init(void)
     uint32_t                     err_code;
     app_uart_comm_params_t const comm_params =
     {
-        .rx_pin_no    = RX_PIN_NUMBER,
-        .tx_pin_no    = TX_PIN_NUMBER,
-        .rts_pin_no   = RTS_PIN_NUMBER,
-        .cts_pin_no   = CTS_PIN_NUMBER,
+        .rx_pin_no    = EBSHCNZWZ_RX_PIN_NUMBER,
+        .tx_pin_no    = EBSHCNZWZ_TX_PIN_NUMBER,
+        .rts_pin_no   = EBSHCNZWZ_RTS_PIN_NUMBER,
+        .cts_pin_no   = EBSHCNZWZ_CTS_PIN_NUMBER,
         .flow_control = APP_UART_FLOW_CONTROL_DISABLED,
         .use_parity   = false,
 #if defined (UART_PRESENT)
@@ -1865,6 +1875,7 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
             //NRF_LOG_INFO("%d,%f", p_event->data.done.p_buffer[i], temprature);
             //NRF_LOG_INFO(NRF_LOG_FLOAT_MARKER, NRF_LOG_FLOAT(temprature));
             NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "\n", p_event->data.done.p_buffer[i], NRF_LOG_FLOAT(temprature));
+            //printf("%d,%f\r\n", p_event->data.done.p_buffer[i], temprature);
         }
         m_adc_evt_counter++;
     }
