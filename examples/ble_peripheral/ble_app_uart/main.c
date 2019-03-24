@@ -811,6 +811,8 @@ static void battery_level_meas_timeout_handler(void * p_context)
 
 /**@brief Function for populating simulated health thermometer measurement.
  */
+volatile float Average_temperature = 0.0;
+
 static void hts_sim_measurement(ble_hts_meas_t * p_meas)
 {
     static ble_date_time_t time_stamp = { 2012, 12, 5, 11, 50, 0 };
@@ -821,7 +823,8 @@ static void hts_sim_measurement(ble_hts_meas_t * p_meas)
     p_meas->time_stamp_present = true;
     p_meas->temp_type_present  = (TEMP_TYPE_AS_CHARACTERISTIC ? false : true);
 
-    celciusX100 = sensorsim_measure(&m_temp_celcius_sim_state, &m_temp_celcius_sim_cfg);
+    //celciusX100 = sensorsim_measure(&m_temp_celcius_sim_state, &m_temp_celcius_sim_cfg);
+    celciusX100 = (uint32_t)(Average_temperature * 100);
 
     p_meas->temp_in_celcius.exponent = -2;
     p_meas->temp_in_celcius.mantissa = celciusX100;
@@ -944,6 +947,7 @@ static void rr_interval_timeout_handler(void * p_context)
         rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
                                                   &m_rr_interval_sim_cfg);
         ble_hrs_rr_interval_add(&m_hrs, rr_interval);
+        /*
         rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
                                                   &m_rr_interval_sim_cfg);
         ble_hrs_rr_interval_add(&m_hrs, rr_interval);
@@ -959,6 +963,7 @@ static void rr_interval_timeout_handler(void * p_context)
         rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
                                                   &m_rr_interval_sim_cfg);
         ble_hrs_rr_interval_add(&m_hrs, rr_interval);
+        */
     }
 }
 
@@ -1968,6 +1973,7 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
     float b = 3435.0; // B parameter termista value when 25 deg. = 3435
     float standard_temp = 25.0 + 273.15;  // 25.0 deg + 273.15 absolute temp. [kelbin]
     float temprature;
+    float correction_term = -4.0;
 
     //maybe need nrf_log_flush()
     if (p_event->type == NRF_DRV_SAADC_EVT_DONE)
@@ -1985,14 +1991,16 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
             ad_val = (int)p_event->data.done.p_buffer[i];
             ad_voltage = (float)(ad_val) / resolution * vcc;
             ad_resistance = ad_voltage / (vcc - ad_voltage) * resistance1;
-            temprature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15;
+            temprature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15 + correction_term;
             //NRF_LOG_INFO("%d,%f", p_event->data.done.p_buffer[i], temprature);
             //NRF_LOG_INFO(NRF_LOG_FLOAT_MARKER, NRF_LOG_FLOAT(temprature));
             
             //NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "\n", p_event->data.done.p_buffer[i], NRF_LOG_FLOAT(temprature));
             
             //printf("%d,%f\r\n", p_event->data.done.p_buffer[i], temprature);
+            Average_temperature = Average_temperature + temprature;
         }
+        Average_temperature = Average_temperature / SAMPLES_IN_BUFFER;
         m_adc_evt_counter++;
     }
 }
