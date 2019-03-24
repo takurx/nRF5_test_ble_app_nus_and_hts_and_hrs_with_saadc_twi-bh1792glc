@@ -431,6 +431,9 @@ static void timer_isr(void * p_context)
 }
 
 
+volatile bool Debug_output_heart_rate = false;
+volatile bool Debug_output_body_temperature = false;
+
 // Volatile Variables, used in the interrupt service routine!
 volatile int BPM;                   // int that holds raw Analog in 0. updated every 2mS
 volatile int Signal;                // holds the incoming raw data
@@ -491,7 +494,10 @@ void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
     //Serial.print(",");
     //Serial.println(Signal);
     //NRF_LOG_RAW_INFO("%d,%d,%d\n", BPM, IBI, Signal);
-    NRF_LOG_RAW_INFO("%d,%d,%d,%d,%d\n", BPM, IBI, Signal, m_bh1792_dat.green.on, m_bh1792_dat.green.off);
+    
+    if(Debug_output_heart_rate == true){
+      NRF_LOG_RAW_INFO("%d,%d,%d,%d,%d\n", BPM, IBI, Signal, m_bh1792_dat.green.on, m_bh1792_dat.green.off);
+    }
 
     //Signal = analogRead(pulsePin);              // read the Pulse Sensor
     Signal = m_bh1792_dat.green.on;              // read the Pulse Sensor
@@ -1140,13 +1146,16 @@ static void nrf_qwr_error_handler(uint32_t nrf_error)
     APP_ERROR_HANDLER(nrf_error);
 }
 
-uint16_t Number_of_command = 4;
+uint16_t Number_of_command = 7;
 static const char * NusCommand[] = 
 {
     "sta",    /* 0: start measurement command */
     "sto",    /* 1: stop measurement command  */
     "rqs",    /* 2: request series command    */
     "rqd",    /* 3: request data command      */
+    "dhr",    /* 4: debug output heart rate command     */
+    "dbt",    /* 5: debug output temperature command    */
+    "dsp",    /* 6: debug output stop command           */
 };
 
 /**@brief Function for handling the data from the Nordic UART Service.
@@ -1250,6 +1259,24 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                       NRF_LOG_INFO("res: %s", resdata);
                       err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
                       break;
+                  case 4:   // 4: dhr
+                      Debug_output_heart_rate = true;
+                      Debug_output_body_temperature = false;
+                      reslength = 3;
+                      err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                      break;
+                  case 5:   // 5: dbt
+                      Debug_output_heart_rate = false;
+                      Debug_output_body_temperature = true;
+                      reslength = 3;
+                      err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                      break;
+                  case 6:   // 6: dsp
+                      Debug_output_heart_rate = false;
+                      Debug_output_body_temperature = false;
+                      reslength = 3;
+                      err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                      break;                      
                   default:
                       break;
               }
@@ -1996,8 +2023,10 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
             //NRF_LOG_INFO("%d,%f", p_event->data.done.p_buffer[i], temprature);
             //NRF_LOG_INFO(NRF_LOG_FLOAT_MARKER, NRF_LOG_FLOAT(temprature));
             
-            //NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "\n", p_event->data.done.p_buffer[i], NRF_LOG_FLOAT(temprature));
-            
+            if(Debug_output_body_temperature == true){
+              NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "\n", p_event->data.done.p_buffer[i], NRF_LOG_FLOAT(temprature));
+            }
+
             //printf("%d,%f\r\n", p_event->data.done.p_buffer[i], temprature);
             Average_temperature = Average_temperature + temprature;
         }
