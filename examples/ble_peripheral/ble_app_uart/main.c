@@ -275,7 +275,9 @@ static uint32_t              m_adc_evt_counter;
 
 APP_TIMER_DEF(m_bh1792glc_timer_id);
 //#define BH1792GLC_MEAS_INTERVAL         APP_TIMER_TICKS(1000)   //1 Hz Timer
-#define BH1792GLC_MEAS_INTERVAL         APP_TIMER_TICKS(25)       //40 Hz Timer
+//#define BH1792GLC_MEAS_INTERVAL         APP_TIMER_TICKS(25)       //40 Hz Timer
+#define BH1792GLC_MEAS_INTERVAL         APP_TIMER_TICKS(10)       //100 Hz Timer
+//#define BH1792GLC_MEAS_INTERVAL         APP_TIMER_TICKS(2)       //500 Hz Timer
 
 /* Indicates if operation on TWI has ended (when received). */
 static volatile bool m_xfer_done = false;
@@ -439,12 +441,13 @@ volatile bool QS = false;        // becomes true when Arduoino finds a beat.
 volatile int rate[10];                    // array to hold last ten IBI values
 volatile unsigned long sampleCounter = 0;          // used to determine pulse timing
 volatile unsigned long lastBeatTime = 0;           // used to find IBI
-volatile int P =512;                      // used to find peak in pulse wave, seeded
-volatile int T = 512;                     // used to find trough in pulse wave, seeded
-volatile int thresh = 530;                // used to find instant moment of heart beat, seeded
+volatile int P = 32768; //512;                      // used to find peak in pulse wave, seeded
+volatile int T = 32768; //512;                     // used to find trough in pulse wave, seeded
+volatile int thresh = 33920; //530;                // used to find instant moment of heart beat, seeded
 volatile int amp = 0;                   // used to hold amplitude of pulse waveform, seeded
 volatile bool firstBeat = true;        // used to seed rate array so we startup with reasonable BPM
 volatile bool secondBeat = false;      // used to seed rate array so we startup with reasonable BPM
+//volatile int put_timing = 0;
 
 void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
 {
@@ -469,11 +472,30 @@ void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
         */
         //NRF_LOG_RAW_INFO("%d,%d,%d,%d\n", m_bh1792_dat.green.on, m_bh1792_dat.green.off, m_bh1792_dat.ir.on, m_bh1792_dat.ir.off)
                 
-        //NRF_LOG_RAW_INFO("%d,%d\n", m_bh1792_dat.green.on, m_bh1792_dat.green.off)
-        //printf("%d,%d\r\n", m_bh1792_dat.green.on, m_bh1792_dat.green.off);
+    //NRF_LOG_RAW_INFO("%d,%d\n", m_bh1792_dat.green.on, m_bh1792_dat.green.off)
+    //printf("%d,%d\r\n", m_bh1792_dat.green.on, m_bh1792_dat.green.off);
+
+    /*
+    put_timing++;
+    if(put_timing == 40){
+      NRF_LOG_RAW_INFO("%d,%d\n", m_bh1792_dat.green.on, m_bh1792_dat.green.off)
+      //printf("%d,%d\r\n", m_bh1792_dat.green.on, m_bh1792_dat.green.off);
+      put_timing = 0;
+    }
+    */
+
+    //delay(20);    //20ms
+    //Serial.print(BPM);
+    //Serial.print(",");
+    //Serial.print(IBI);
+    //Serial.print(",");
+    //Serial.println(Signal);
+    //NRF_LOG_RAW_INFO("%d,%d,%d\n", BPM, IBI, Signal);
+    NRF_LOG_RAW_INFO("%d,%d,%d,%d,%d\n", BPM, IBI, Signal, m_bh1792_dat.green.on, m_bh1792_dat.green.off);
+
     //Signal = analogRead(pulsePin);              // read the Pulse Sensor
     Signal = m_bh1792_dat.green.on;              // read the Pulse Sensor
-    sampleCounter += 2;                         // keep track of the time in mS with this variable
+    sampleCounter += 10;                         // keep track of the time in mS with this variable
     int N = sampleCounter - lastBeatTime;       // monitor the time since the last beat to avoid noise
 
     //  find the peak and trough of the pulse wave
@@ -540,9 +562,9 @@ void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
     }
 
     if (N > 2500){                           // if 2.5 seconds go by without a beat
-      thresh = 530;                          // set thresh default
-      P = 512;                               // set P default
-      T = 512;                               // set T default
+      thresh = 33920; //530;                          // set thresh default
+      P = 32768; //512;                               // set P default
+      T = 32768; //512;                               // set T default
       lastBeatTime = sampleCounter;          // bring the lastBeatTime up to date
       firstBeat = true;                      // set these to avoid noise
       secondBeat = false;                    // when we get the heartbeat back
@@ -1966,7 +1988,9 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
             temprature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15;
             //NRF_LOG_INFO("%d,%f", p_event->data.done.p_buffer[i], temprature);
             //NRF_LOG_INFO(NRF_LOG_FLOAT_MARKER, NRF_LOG_FLOAT(temprature));
-            NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "\n", p_event->data.done.p_buffer[i], NRF_LOG_FLOAT(temprature));
+            
+            //NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "\n", p_event->data.done.p_buffer[i], NRF_LOG_FLOAT(temprature));
+            
             //printf("%d,%f\r\n", p_event->data.done.p_buffer[i], temprature);
         }
         m_adc_evt_counter++;
