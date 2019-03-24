@@ -907,7 +907,8 @@ static void heart_rate_meas_timeout_handler(void * p_context)
 
     UNUSED_PARAMETER(p_context);
 
-    heart_rate = (uint16_t)sensorsim_measure(&m_heart_rate_sim_state, &m_heart_rate_sim_cfg);
+    //heart_rate = (uint16_t)sensorsim_measure(&m_heart_rate_sim_state, &m_heart_rate_sim_cfg);
+    heart_rate = BPM;
 
     cnt++;
     err_code = ble_hrs_heart_rate_measurement_send(&m_hrs, heart_rate);
