@@ -64,12 +64,18 @@
   <Watches active="0" update="Never"/>
  </Watch4>
  <Files>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="135" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../main.c" selected="1" top="150" codecName=""/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="255" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/softdevice/common/nrf_sdh_ble.c" selected="0" top="236" codecName=""/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="137" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/strerror/nrf_strerror.c" selected="0" top="116" codecName=""/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="99" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/util/app_error_weak.c" selected="0" top="79" codecName=""/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="416" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/softdevice/s132/headers/ble.h" selected="0" top="409" codecName=""/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="11997" useTextEdit="1" useBinaryEdit="0" left="0" path="../config/sdk_config.h" selected="0" top="11987" codecName=""/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="9" y="849" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../main.c" selected="1" top="816" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="255" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/softdevice/common/nrf_sdh_ble.c" selected="0" top="236" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="137" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/strerror/nrf_strerror.c" selected="0" top="116" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="99" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/util/app_error_weak.c" selected="0" top="79" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="416" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/softdevice/s132/headers/ble.h" selected="0" top="409" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="11997" useTextEdit="1" useBinaryEdit="0" left="0" path="../config/sdk_config.h" selected="0" top="11987" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="48" y="137" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/boards/pca10040.h" selected="0" top="74" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="76" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../modules/nrfx/hal/nrf_saadc.h" selected="0" top="63" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="9916" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../modules/nrfx/mdk/nrf52_bitfields.h" selected="0" top="9891" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="324" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/ble/ble_services/ble_hrs/ble_hrs.c" selected="0" top="319" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="95" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/ble/ble_services/ble_hts/ble_hts.h" selected="0" top="80" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="74" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/ble/common/ble_date_time.h" selected="0" top="0" codecName="Default"/>
  </Files>
- <ARMCrossStudioWindow activeProject="ble_app_uart_pca10040_s132" fileDialogDefaultFilter="*.c" autoConnectTarget="J-Link" buildConfiguration="Debug" debugSearchFileMap="" fileDialogInitialDirectory="" debugSearchPath="" autoConnectCapabilities="3199"/>
+ <ARMCrossStudioWindow activeProject="ble_app_uart_pca10040_s132" fileDialogDefaultFilter="*.c" autoConnectTarget="J-Link" buildConfiguration="Debug" debugSearchFileMap="" fileDialogInitialDirectory="" debugSearchPath="" autoConnectCapabilities="3711"/>
 </session>
