@@ -323,3 +323,5 @@ examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10
 examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrfx_twi.o
 examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrfx_twim.d
 examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrfx_twim.o
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrfx_rtc.d
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/nrfx_rtc.o

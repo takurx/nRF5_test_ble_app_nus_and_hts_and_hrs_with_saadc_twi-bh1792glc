@@ -84,7 +84,10 @@
 #include "nrf_drv_saadc.h"
 #include "nrf_drv_ppi.h"
 #include "nrf_drv_timer.h"
+#include "nrf_gpio.h"
 #include "nrf_drv_gpiote.h"
+#include "nrf_drv_rtc.h"
+#include "nrf_drv_clock.h"
 #include "boards.h"
 #include "nrf_delay.h"
 #include "app_error.h"
@@ -2219,6 +2222,51 @@ static void advertising_start(bool erase_bonds)
 }
 
 
+/** @brief: Function for handling the RTC0 interrupts.
+ * Triggered on TICK and COMPARE0 match.
+ */
+static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
+{
+    /*
+    if (int_type == NRF_DRV_RTC_INT_COMPARE0)
+    {
+        nrf_gpio_pin_toggle(COMPARE_EVENT_OUTPUT);
+    }
+    else
+    */
+    if (int_type == NRF_DRV_RTC_INT_TICK)
+    {
+        //nrf_gpio_pin_toggle(TICK_EVENT_OUTPUT);
+        //nrf_drv_gpiote_out_toggle(LED_3_COLOR_BLUE_PIN);
+        nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
+        //nrf_drv_gpiote_out_toggle(LED_3_COLOR_RED_PIN);
+    }
+}
+
+const nrf_drv_rtc_t rtc = NRF_DRV_RTC_INSTANCE(2); /**< Declaring an instance of nrf_drv_rtc for RTC2. */
+/** @brief Function initialization and configuration of RTC driver instance.
+ */
+static void rtc_config(void)
+{
+    uint32_t err_code;
+
+    //Initialize RTC instance
+    nrf_drv_rtc_config_t config = NRF_DRV_RTC_DEFAULT_CONFIG;
+    config.prescaler = 4095;
+    err_code = nrf_drv_rtc_init(&rtc, &config, rtc_handler);
+    APP_ERROR_CHECK(err_code);
+
+    //Enable tick event & interrupt
+    nrf_drv_rtc_tick_enable(&rtc, true);
+
+    //Set compare channel to trigger interrupt after COMPARE_COUNTERTIME seconds
+    //err_code = nrf_drv_rtc_cc_set(&rtc, 0, COMPARE_COUNTERTIME * 8, true);
+    //APP_ERROR_CHECK(err_code);
+
+    //Power on RTC instance
+    nrf_drv_rtc_enable(&rtc);
+}
+
 /**@brief Application main function.
  */
 int main(void)
@@ -2227,11 +2275,11 @@ int main(void)
 
     // Initialize.
     log_init();
-    lfclk_request();
     uart_init();
     NRF_LOG_INFO("Finish uart init, log init");
+    lfclk_request();
     gpio_init();
-    NRF_LOG_INFO("Finish gpio init");
+    NRF_LOG_INFO("Finish gpio init");;
     timers_init();
     NRF_LOG_INFO("Finish timers init");    
     buttons_leds_init(&erase_bonds);
@@ -2264,6 +2312,8 @@ int main(void)
     NRF_LOG_FLUSH();
     twi_init();
     NRF_LOG_INFO("finished twi init.");
+    rtc_config();
+    NRF_LOG_INFO("finished rtc config.")
 
     // Start execution.
     printf("\r\nUART started.\r\n");
