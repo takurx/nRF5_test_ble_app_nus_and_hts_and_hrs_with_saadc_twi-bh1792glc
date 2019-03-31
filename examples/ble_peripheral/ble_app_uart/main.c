@@ -866,10 +866,10 @@ static void battery_level_meas_timeout_handler(void * p_context)
  */
 volatile float Average_temperature = 0.0;
 
-static void hts_sim_measurement(ble_hts_meas_t * p_meas)
-{
-    static ble_date_time_t time_stamp = { 2019, 3, 25, 11, 11, 11 };
+static ble_date_time_t time_stamp = { 2019, 3, 25, 11, 11, 11 };
 
+static void hts_sim_measurement(ble_hts_meas_t * p_meas)
+{    
     uint32_t celciusX100;
 
     p_meas->temp_in_fahr_units = false;
