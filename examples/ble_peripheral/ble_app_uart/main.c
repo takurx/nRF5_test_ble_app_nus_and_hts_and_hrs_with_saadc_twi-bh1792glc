@@ -377,7 +377,7 @@ void twi_init (void)
     m_bh1792.prm.sel_adc  = BH1792_PRM_SEL_ADC_GREEN;
     m_bh1792.prm.msr      = BH1792_PRM_MSR_SINGLE;//BH1792_PRM_MSR_1024HZ;
     m_bh1792.prm.led_en   = (BH1792_PRM_LED_EN1_0 << 1) | BH1792_PRM_LED_EN2_0;
-    m_bh1792.prm.led_cur1 = BH1792_PRM_LED_CUR1_MA(1);
+    m_bh1792.prm.led_cur1 = BH1792_PRM_LED_CUR1_MA(0);
     m_bh1792.prm.led_cur2 = BH1792_PRM_LED_CUR2_MA(0);
     m_bh1792.prm.ir_th    = 0xFFFC;
     m_bh1792.prm.int_sel  = BH1792_PRM_INT_SEL_SGL;//BH1792_PRM_INT_SEL_WTM;
@@ -392,9 +392,11 @@ void twi_init (void)
     //error_check(ret, "bh1792_StartMeasure");
     NRF_LOG_INFO("finished bh1792_StartMeasure.");
 
+    /*
     ret = bh1792_StopMeasure();
     //error_check(ret, "bh1792_StopMeasure");
     NRF_LOG_INFO("finished bh1792_StopMeasure.");
+    */
 }
 
 
@@ -436,7 +438,7 @@ static void timer_isr(void * p_context)
 
 
 volatile bool Debug_output_heart_rate = false;
-volatile bool Debug_output_body_temperature = false;
+volatile bool Debug_output_body_temperature = true;
 
 // Volatile Variables, used in the interrupt service routine!
 volatile int BPM;                   // int that holds raw Analog in 0. updated every 2mS
@@ -2076,7 +2078,11 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
             //NRF_LOG_INFO(NRF_LOG_FLOAT_MARKER, NRF_LOG_FLOAT(temprature));
             
             if(Debug_output_body_temperature == true){
-              NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "\n", p_event->data.done.p_buffer[i], NRF_LOG_FLOAT(temprature));
+              //NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "\n", p_event->data.done.p_buffer[i], NRF_LOG_FLOAT(temprature));
+              NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER ",", ad_val, NRF_LOG_FLOAT(temprature));
+              NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER ",", NRF_LOG_FLOAT(ad_voltage));
+              NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_resistance));
+              //NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "\n", ad_val, NRF_LOG_FLOAT(ad_voltage), NRF_LOG_FLOAT(ad_resistance), NRF_LOG_FLOAT(temprature));
             }
 
             //printf("%d,%f\r\n", p_event->data.done.p_buffer[i], temprature);
@@ -2247,13 +2253,25 @@ int main(void)
     NRF_LOG_FLUSH();
     twi_init();
     NRF_LOG_INFO("finished twi init.");
-    
+
     // Start execution.
     printf("\r\nUART started.\r\n");
     NRF_LOG_INFO("Debug logging for UART over RTT started.");
     NRF_LOG_INFO("Heart Rate Sensor example started.");
     NRF_LOG_INFO("Health Thermometer example started.");
     application_timers_start();
+
+    /*
+    nrf_drv_gpiote_in_event_disable(BH1792GLC_INT_PIN);
+    ret_code_t err_code;
+    err_code = app_timer_stop(m_bh1792glc_timer_id);
+    APP_ERROR_CHECK(err_code);
+    int32_t ret = 0;
+    ret = bh1792_StopMeasure();
+    error_check(ret, "bh1792_StopMeasure");
+    NRF_LOG_INFO("finished bh1792_StopMeasure.");
+    */
+
     advertising_start(erase_bonds);
 
     // Enter main loop.
