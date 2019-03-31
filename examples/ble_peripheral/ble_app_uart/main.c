@@ -676,10 +676,11 @@ void error_check(int32_t ret, String msg)
  * @brief Function for configuring: PIN_IN pin for input, PIN_OUT pin for output,
  * and configures GPIOTE to give an interrupt on pin change.
  */
-#define LED_3_COLOR_BLUE_PIN     20
+#define LED_3_COLOR_BLUE_PIN    20
 #define LED_3_COLOR_GREEN_PIN   18
-#define LED_3_COLOR_RED_PIN    4
+#define LED_3_COLOR_RED_PIN     4
 #define SWITCH1_PIN             8
+#define CHARGE_FINISH_PIN       28
 
 void in_pin_handler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
 {
@@ -737,7 +738,7 @@ static void gpio_init(void)
     err_code = nrf_drv_gpiote_out_init(LED_3_COLOR_RED_PIN, &out_config_red);
     APP_ERROR_CHECK(err_code);
 
-    // SWITCH1
+    // SWITCH1, 8
     nrf_drv_gpiote_in_config_t in_config_switch1 = GPIOTE_CONFIG_IN_SENSE_TOGGLE(true);
     in_config_switch1.pull = NRF_GPIO_PIN_PULLUP;
 
@@ -745,6 +746,15 @@ static void gpio_init(void)
     APP_ERROR_CHECK(err_code);
 
     nrf_drv_gpiote_in_event_enable(SWITCH1_PIN, true);
+
+    // CHARGE_FINISH_PIN, 28
+    nrf_drv_gpiote_in_config_t in_config_charge = GPIOTE_CONFIG_IN_SENSE_TOGGLE(true);
+    in_config_switch1.pull = NRF_GPIO_PIN_PULLDOWN;
+
+    err_code = nrf_drv_gpiote_in_init(CHARGE_FINISH_PIN, &in_config_charge, in_pin_handler);
+    APP_ERROR_CHECK(err_code);
+
+    nrf_drv_gpiote_in_event_enable(CHARGE_FINISH_PIN, false);
 }
 
 
