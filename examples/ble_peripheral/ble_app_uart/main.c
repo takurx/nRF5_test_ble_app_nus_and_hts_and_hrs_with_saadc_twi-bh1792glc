@@ -391,6 +391,10 @@ void twi_init (void)
     ret = bh1792_StartMeasure();
     //error_check(ret, "bh1792_StartMeasure");
     NRF_LOG_INFO("finished bh1792_StartMeasure.");
+
+    ret = bh1792_StopMeasure();
+    //error_check(ret, "bh1792_StopMeasure");
+    NRF_LOG_INFO("finished bh1792_StopMeasure.");
 }
 
 
@@ -668,16 +672,23 @@ void error_check(int32_t ret, String msg)
 */
 
 
-void in_pin_handler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
-{
-    nrf_drv_gpiote_out_toggle(PIN_OUT);
-}
-
-
 /**
  * @brief Function for configuring: PIN_IN pin for input, PIN_OUT pin for output,
  * and configures GPIOTE to give an interrupt on pin change.
  */
+#define LED_3_COLOR_BLUE_PIN     20
+#define LED_3_COLOR_GREEN_PIN   18
+#define LED_3_COLOR_RED_PIN    4
+#define SWITCH1_PIN             8
+
+void in_pin_handler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
+{
+    //nrf_drv_gpiote_out_toggle(PIN_OUT);
+    //nrf_drv_gpiote_out_toggle(LED_3_COLOR_BLUE_PIN);
+    //nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
+    nrf_drv_gpiote_out_toggle(LED_3_COLOR_RED_PIN);
+}
+
 static void gpio_init(void)
 {
     ret_code_t err_code;
@@ -702,7 +713,7 @@ static void gpio_init(void)
     nrf_drv_gpiote_in_event_enable(PIN_IN, true);
     */
 
-    // bh1792glc, arudino_10_pin
+    // bh1792glc, arudino_10_pin, 5
     nrf_drv_gpiote_in_config_t in_config_bh1792 = GPIOTE_CONFIG_IN_SENSE_HITOLO(true); // interrupt when falling edge
     in_config_bh1792.pull = NRF_GPIO_PIN_PULLUP;
 
@@ -710,6 +721,30 @@ static void gpio_init(void)
     APP_ERROR_CHECK(err_code);
 
     nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
+
+    // 3-color LED  LED_3_COLOR_BLUE_PIN, 20
+    nrf_drv_gpiote_out_config_t out_config_blue = GPIOTE_CONFIG_OUT_SIMPLE(true);
+    err_code = nrf_drv_gpiote_out_init(LED_3_COLOR_BLUE_PIN, &out_config_blue);
+    APP_ERROR_CHECK(err_code);
+
+    // 3-color LED  LED_3_COLOR_GREEN_PIN, 18
+    nrf_drv_gpiote_out_config_t out_config_green = GPIOTE_CONFIG_OUT_SIMPLE(true);
+    err_code = nrf_drv_gpiote_out_init(LED_3_COLOR_GREEN_PIN, &out_config_green);
+    APP_ERROR_CHECK(err_code);
+    
+    // 3-color LED  LED_3_COLOR_RED_PIN, 4
+    nrf_drv_gpiote_out_config_t out_config_red = GPIOTE_CONFIG_OUT_SIMPLE(true);
+    err_code = nrf_drv_gpiote_out_init(LED_3_COLOR_RED_PIN, &out_config_red);
+    APP_ERROR_CHECK(err_code);
+
+    // SWITCH1
+    nrf_drv_gpiote_in_config_t in_config_switch1 = GPIOTE_CONFIG_IN_SENSE_TOGGLE(true);
+    in_config_switch1.pull = NRF_GPIO_PIN_PULLUP;
+
+    err_code = nrf_drv_gpiote_in_init(SWITCH1_PIN, &in_config_switch1, in_pin_handler);
+    APP_ERROR_CHECK(err_code);
+
+    nrf_drv_gpiote_in_event_enable(SWITCH1_PIN, true);
 }
 
 
