@@ -2045,17 +2045,23 @@ static void power_management_init(void)
 void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
 {
     int ad_val;
-    float resolution = 1024.0; //1024 = 2^10, please check ad bit setting
+    //float resolution = 1024.0; //1024 = 2^10, please check ad bit setting
+    float resolution = 16384.0; //16384 = 2^14, please check ad bit setting
     float ad_voltage;
     float ad_resistance;
+    float ad_resistance1;
     float vcc = 3.3;
     float resistance0 = 10000;   // R0, termista, 10k ohm (normal, 25deg) 
-    float resistance1 = 10000;   // R1, split voltage resitance, 10k ohm
+    float resistance1 = 13000;   // R1, split voltage resitance, 10k ohm
+    //float resistance0 = 6706.7;   // R0, termista, 10k ohm (normal, 36deg) 
+    //float resistance1 = 7000.0;   // R1, split voltage resitance, 7k ohm
     float e = 2.7182818284; // Napier's constant
-    float b = 3435.0; // B parameter termista value when 25 deg. = 3435
+    //float b = 3435.0; // B parameter termista value when 25 deg. = 3435
+    float b = 3380.0; // B parameter termista value when 25 deg. = 3380
     float standard_temp = 25.0 + 273.15;  // 25.0 deg + 273.15 absolute temp. [kelbin]
-    float temprature;
-    float correction_term = -4.0;
+    //float standard_temp = 36.0 + 273.15;  // 36.0 deg + 273.15 absolute temp. [kelbin]
+    float temperature;
+    float correction_term = 0.0;
 
     //maybe need nrf_log_flush()
     if (p_event->type == NRF_DRV_SAADC_EVT_DONE)
@@ -2072,21 +2078,26 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
         {
             ad_val = (int)p_event->data.done.p_buffer[i];
             ad_voltage = (float)(ad_val) / resolution * vcc;
-            ad_resistance = ad_voltage / (vcc - ad_voltage) * resistance1;
-            temprature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15 + correction_term;
+            ad_resistance = (resistance1 * ad_voltage) / (vcc - ad_voltage);
+            //ad_resistance = (resistance0 * ad_voltage) / (vcc - ad_voltage);
+            //tempreture = 1/(1/(standard_temp) + logf(ad_resistance/resistance0)/b) - 273.15;
+            temperature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15 + correction_term;
+            //ad_resistance1 = abs(b/(temperature + 273.15) - b/standard_temp);
+            //ad_resistance1 = resistance0 * expf(abs(b/(temperature + 273.15) - b/standard_temp));
             //NRF_LOG_INFO("%d,%f", p_event->data.done.p_buffer[i], temprature);
             //NRF_LOG_INFO(NRF_LOG_FLOAT_MARKER, NRF_LOG_FLOAT(temprature));
             
             if(Debug_output_body_temperature == true){
               //NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "\n", p_event->data.done.p_buffer[i], NRF_LOG_FLOAT(temprature));
-              NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER ",", ad_val, NRF_LOG_FLOAT(temprature));
-              NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER ",", NRF_LOG_FLOAT(ad_voltage));
-              NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_resistance));
+              NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER ",", ad_val, NRF_LOG_FLOAT(temperature));
+              NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
+              //NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_resistance));
+              //NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_resistance1));
               //NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "\n", ad_val, NRF_LOG_FLOAT(ad_voltage), NRF_LOG_FLOAT(ad_resistance), NRF_LOG_FLOAT(temprature));
             }
 
             //printf("%d,%f\r\n", p_event->data.done.p_buffer[i], temprature);
-            Average_temperature = Average_temperature + temprature;
+            Average_temperature = Average_temperature + temperature;
         }
         Average_temperature = Average_temperature / SAMPLES_IN_BUFFER;
         m_adc_evt_counter++;
