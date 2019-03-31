@@ -821,7 +821,7 @@ volatile float Average_temperature = 0.0;
 
 static void hts_sim_measurement(ble_hts_meas_t * p_meas)
 {
-    static ble_date_time_t time_stamp = { 2012, 12, 5, 11, 50, 0 };
+    static ble_date_time_t time_stamp = { 2019, 3, 25, 11, 11, 11 };
 
     uint32_t celciusX100;
 
@@ -837,10 +837,11 @@ static void hts_sim_measurement(ble_hts_meas_t * p_meas)
     p_meas->temp_in_fahr.exponent    = -2;
     p_meas->temp_in_fahr.mantissa    = (32 * 100) + ((celciusX100 * 9) / 5);
     p_meas->time_stamp               = time_stamp;
-    p_meas->temp_type                = BLE_HTS_TEMP_TYPE_FINGER;
+    //p_meas->temp_type                = BLE_HTS_TEMP_TYPE_FINGER;
+    p_meas->temp_type                = BLE_HTS_TEMP_TYPE_BODY;
 
     // update simulated time stamp
-    time_stamp.seconds += 27;
+    time_stamp.seconds++;
     if (time_stamp.seconds > 59)
     {
         time_stamp.seconds -= 60;
@@ -848,6 +849,12 @@ static void hts_sim_measurement(ble_hts_meas_t * p_meas)
         if (time_stamp.minutes > 59)
         {
             time_stamp.minutes = 0;
+            time_stamp.hours++;
+            if (time_stamp.hours > 23)
+            {
+              time_stamp.hours = 0;
+              time_stamp.day++;
+            }
         }
     }
 }
@@ -1879,10 +1886,10 @@ static void delete_bonds(void)
     APP_ERROR_CHECK(err_code);
 }
 
-#define EBSHCNZWZ_RX_PIN_NUMBER   25
-#define EBSHCNZWZ_TX_PIN_NUMBER   24
-#define EBSHCNZWZ_RTS_PIN_NUMBER  23
-#define EBSHCNZWZ_CTS_PIN_NUMBER  22
+#define EBSHCNZWZ_RX_PIN_NUMBER   24 //8 //25
+#define EBSHCNZWZ_TX_PIN_NUMBER   25 //6 //24
+#define EBSHCNZWZ_RTS_PIN_NUMBER  26 //5 //23
+#define EBSHCNZWZ_CTS_PIN_NUMBER  27 //7 //22
 
 /**@brief  Function for initializing the UART module.
  */
@@ -1955,13 +1962,13 @@ static void advertising_init(void)
 static void buttons_leds_init(bool * p_erase_bonds)
 {
     bsp_event_t startup_event;
-
+/*
     uint32_t err_code = bsp_init(BSP_INIT_LEDS | BSP_INIT_BUTTONS, bsp_event_handler);
     APP_ERROR_CHECK(err_code);
 
     err_code = bsp_btn_ble_init(NULL, &startup_event);
     APP_ERROR_CHECK(err_code);
-
+*/
     *p_erase_bonds = (startup_event == BSP_EVENT_CLEAR_BONDING_DATA);
 }
 
