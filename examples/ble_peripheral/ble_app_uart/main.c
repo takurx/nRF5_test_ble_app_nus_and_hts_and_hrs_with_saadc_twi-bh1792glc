@@ -253,7 +253,7 @@ volatile uint8_t state = 1;
 static const nrf_drv_timer_t m_timer = NRF_DRV_TIMER_INSTANCE(1);
 static nrf_saadc_value_t     m_buffer_pool[2][SAMPLES_IN_BUFFER];
 static nrf_ppi_channel_t     m_ppi_channel;
-static uint32_t              m_adc_evt_counter;
+//static uint32_t              m_adc_evt_counter;
 
 /* TWI instance ID. */
 #define TWI_INSTANCE_ID     0
@@ -1762,13 +1762,9 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
     float ad_resistance1;
     float vcc = 2.98;
     //float resistance0 = 10000;   // R0, termista, 10k ohm (normal, 25deg) 
-    //float resistance1 = 13000;   // R1, split voltage resitance, 10k ohm
-    //float resistance1 = 10000;   // R1, split voltage resitance, 10k ohm
-    float resistance0 = 6706.7;   // R0, termista, 10k ohm (normal, 36deg) 
-    //float resistance1 = 7000.0;   // R1, split voltage resitance, 7k ohm
+    float resistance0 = 6706.7;   // R0, termista, 10k ohm (normal, 36deg)
     float resistance1 = 6800.0;   // R1, split voltage resitance, 6.8k ohm
     float e = 2.7182818284; // Napier's constant
-    //float b = 3435.0; // B parameter termista value when 25 deg. = 3435
     float b = 3380.0; // B parameter termista value when 25 deg. = 3380
     //float standard_temp = 298.15;  // 25.0 deg + 273.15 absolute temp. [kelbin]
     float standard_temp = 309.15;  // 36.0 deg + 273.15 absolute temp. [kelbin]
@@ -1813,7 +1809,7 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
             Average_temperature = Average_temperature + temperature;
         }
         Average_temperature = Average_temperature / SAMPLES_IN_BUFFER;
-        m_adc_evt_counter++;
+        //m_adc_evt_counter++;
     }
 }
 
@@ -2174,6 +2170,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
         // Blink GREEN: Before Pairing
         // GREEN: Pairing and Idle state
         // RED: Measring state
+        // Blink GREEN and RED: Emergency
         */
 
         //nrf_gpio_pin_toggle(TICK_EVENT_OUTPUT);
