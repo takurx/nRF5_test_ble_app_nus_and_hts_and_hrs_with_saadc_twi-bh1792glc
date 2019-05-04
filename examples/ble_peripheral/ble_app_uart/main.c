@@ -1696,6 +1696,44 @@ static void conn_params_init(void)
 
 
 
+/**@brief Function for handling Peer Manager events.
+ *
+ * @param[in] p_evt  Peer Manager event.
+ */
+/*
+static void pm_evt_handler(pm_evt_t const * p_evt)
+{
+    // ret_code_t err_code;
+    // bool       is_indication_enabled;
+
+    pm_handler_on_pm_evt(p_evt);
+    pm_handler_flash_clean(p_evt);
+
+    switch (p_evt->evt_id)
+    {
+*/    /*
+        case PM_EVT_CONN_SEC_SUCCEEDED:
+            // Send a single temperature measurement if indication is enabled.
+            // NOTE: For this to work, make sure ble_hts_on_ble_evt() is called before
+            // pm_evt_handler() in ble_evt_dispatch().
+            err_code = ble_hts_is_indication_enabled(&m_hts, &is_indication_enabled);
+            APP_ERROR_CHECK(err_code);
+            if (is_indication_enabled)
+            {
+                temperature_measurement_send();
+            }
+            break;
+    */
+/*        case PM_EVT_PEERS_DELETE_SUCCEEDED:
+            advertising_start(false);
+            break;
+
+        default:
+            break;
+    }
+}
+*/
+
 /**@brief Function for the Peer Manager initialization.
  */
 static void peer_manager_init(void)
@@ -2290,42 +2328,6 @@ static void idle_state_handle(void)
 void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
 {
     app_error_handler(DEAD_BEEF, line_num, p_file_name);
-}
-
-/**@brief Function for handling Peer Manager events.
- *
- * @param[in] p_evt  Peer Manager event.
- */
-static void pm_evt_handler(pm_evt_t const * p_evt)
-{
-    // ret_code_t err_code;
-    // bool       is_indication_enabled;
-
-    pm_handler_on_pm_evt(p_evt);
-    pm_handler_flash_clean(p_evt);
-
-    switch (p_evt->evt_id)
-    {
-    /*
-        case PM_EVT_CONN_SEC_SUCCEEDED:
-            // Send a single temperature measurement if indication is enabled.
-            // NOTE: For this to work, make sure ble_hts_on_ble_evt() is called before
-            // pm_evt_handler() in ble_evt_dispatch().
-            err_code = ble_hts_is_indication_enabled(&m_hts, &is_indication_enabled);
-            APP_ERROR_CHECK(err_code);
-            if (is_indication_enabled)
-            {
-                temperature_measurement_send();
-            }
-            break;
-    */
-        case PM_EVT_PEERS_DELETE_SUCCEEDED:
-            advertising_start(false);
-            break;
-
-        default:
-            break;
-    }
 }
 
 
