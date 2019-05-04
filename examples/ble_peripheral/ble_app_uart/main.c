@@ -1474,6 +1474,125 @@ static void on_hts_evt(ble_hts_t * p_hts, ble_hts_evt_t * p_evt)
 
 
 
+/**@brief Function for putting the chip into sleep mode.
+ *
+ * @note This function will not return.
+ */
+static void sleep_mode_enter(void)
+{
+    uint32_t err_code = bsp_indication_set(BSP_INDICATE_IDLE);
+    APP_ERROR_CHECK(err_code);
+
+    // Prepare wakeup buttons.
+    err_code = bsp_btn_ble_sleep_mode_prepare();
+    APP_ERROR_CHECK(err_code);
+
+    // Go to system-off mode (this function will not return; wakeup will cause a reset).
+    err_code = sd_power_system_off();
+    APP_ERROR_CHECK(err_code);
+}
+
+
+/**@brief Function for handling advertising events.
+ *
+ * @details This function will be called for advertising events which are passed to the application.
+ *
+ * @param[in] ble_adv_evt  Advertising event.
+ */
+static void on_adv_evt(ble_adv_evt_t ble_adv_evt)
+{
+    uint32_t err_code;
+
+    switch (ble_adv_evt)
+    {
+        case BLE_ADV_EVT_FAST:
+            NRF_LOG_INFO("Fast advertising.");
+            err_code = bsp_indication_set(BSP_INDICATE_ADVERTISING);
+            APP_ERROR_CHECK(err_code);
+            break;
+        case BLE_ADV_EVT_IDLE:
+            //sleep_mode_enter();
+            NRF_LOG_INFO("Reset Idle, Re-advertising.");
+            err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
+            APP_ERROR_CHECK(err_code); 
+            break;
+        default:
+            break;
+    }
+}
+
+/**@brief Function for initializing the Advertising functionality.
+ */
+static void advertising_init(void)
+{
+    uint32_t               err_code;
+    ble_advertising_init_t init;
+
+    memset(&init, 0, sizeof(init));
+    memset(&init, 0, sizeof(init));
+
+    init.advdata.name_type          = BLE_ADVDATA_FULL_NAME;
+    init.advdata.include_appearance = false;
+    init.advdata.flags              = BLE_GAP_ADV_FLAGS_LE_ONLY_LIMITED_DISC_MODE;
+
+    init.advdata.uuids_complete.uuid_cnt = sizeof(m_adv_uuids) / sizeof(m_adv_uuids[0]);
+    init.advdata.uuids_complete.p_uuids  = m_adv_uuids;
+    
+    init.srdata.uuids_complete.uuid_cnt = sizeof(m_sr_uuids) / sizeof(m_sr_uuids[0]);
+    init.srdata.uuids_complete.p_uuids  = m_sr_uuids;
+
+    init.config.ble_adv_fast_enabled  = true;
+    init.config.ble_adv_fast_interval = APP_ADV_INTERVAL;
+    init.config.ble_adv_fast_timeout  = APP_ADV_DURATION;
+    init.evt_handler = on_adv_evt;
+
+    err_code = ble_advertising_init(&m_advertising, &init);
+    APP_ERROR_CHECK(err_code);
+
+    ble_advertising_conn_cfg_tag_set(&m_advertising, APP_BLE_CONN_CFG_TAG);
+}
+
+
+
+
+
+
+/**@brief Function for initializing the sensor simulators.
+ */
+static void sensor_simulator_init(void)
+{
+    m_battery_sim_cfg.min          = MIN_BATTERY_LEVEL;
+    m_battery_sim_cfg.max          = MAX_BATTERY_LEVEL;
+    m_battery_sim_cfg.incr         = BATTERY_LEVEL_INCREMENT;
+    m_battery_sim_cfg.start_at_max = true;
+
+    sensorsim_init(&m_battery_sim_state, &m_battery_sim_cfg);
+
+    // Temperature is in celcius (it is multiplied by 100 to avoid floating point arithmetic).
+    m_temp_celcius_sim_cfg.min          = MIN_CELCIUS_DEGREES;
+    m_temp_celcius_sim_cfg.max          = MAX_CELCIUS_DEGRESS;
+    m_temp_celcius_sim_cfg.incr         = CELCIUS_DEGREES_INCREMENT;
+    m_temp_celcius_sim_cfg.start_at_max = false;
+
+    sensorsim_init(&m_temp_celcius_sim_state, &m_temp_celcius_sim_cfg);
+
+    m_heart_rate_sim_cfg.min          = MIN_HEART_RATE;
+    m_heart_rate_sim_cfg.max          = MAX_HEART_RATE;
+    m_heart_rate_sim_cfg.incr         = HEART_RATE_INCREMENT;
+    m_heart_rate_sim_cfg.start_at_max = false;
+
+    sensorsim_init(&m_heart_rate_sim_state, &m_heart_rate_sim_cfg);
+
+    m_rr_interval_sim_cfg.min          = MIN_RR_INTERVAL;
+    m_rr_interval_sim_cfg.max          = MAX_RR_INTERVAL;
+    m_rr_interval_sim_cfg.incr         = RR_INTERVAL_INCREMENT;
+    m_rr_interval_sim_cfg.start_at_max = false;
+
+    sensorsim_init(&m_rr_interval_sim_state, &m_rr_interval_sim_cfg);
+}
+
+
+
 /**
  * @brief TWI initialization.
  */
@@ -1802,41 +1921,6 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
 
 
 
-/**@brief Function for initializing the sensor simulators.
- */
-static void sensor_simulator_init(void)
-{
-    m_battery_sim_cfg.min          = MIN_BATTERY_LEVEL;
-    m_battery_sim_cfg.max          = MAX_BATTERY_LEVEL;
-    m_battery_sim_cfg.incr         = BATTERY_LEVEL_INCREMENT;
-    m_battery_sim_cfg.start_at_max = true;
-
-    sensorsim_init(&m_battery_sim_state, &m_battery_sim_cfg);
-
-    // Temperature is in celcius (it is multiplied by 100 to avoid floating point arithmetic).
-    m_temp_celcius_sim_cfg.min          = MIN_CELCIUS_DEGREES;
-    m_temp_celcius_sim_cfg.max          = MAX_CELCIUS_DEGRESS;
-    m_temp_celcius_sim_cfg.incr         = CELCIUS_DEGREES_INCREMENT;
-    m_temp_celcius_sim_cfg.start_at_max = false;
-
-    sensorsim_init(&m_temp_celcius_sim_state, &m_temp_celcius_sim_cfg);
-
-    m_heart_rate_sim_cfg.min          = MIN_HEART_RATE;
-    m_heart_rate_sim_cfg.max          = MAX_HEART_RATE;
-    m_heart_rate_sim_cfg.incr         = HEART_RATE_INCREMENT;
-    m_heart_rate_sim_cfg.start_at_max = false;
-
-    sensorsim_init(&m_heart_rate_sim_state, &m_heart_rate_sim_cfg);
-
-    m_rr_interval_sim_cfg.min          = MIN_RR_INTERVAL;
-    m_rr_interval_sim_cfg.max          = MAX_RR_INTERVAL;
-    m_rr_interval_sim_cfg.incr         = RR_INTERVAL_INCREMENT;
-    m_rr_interval_sim_cfg.start_at_max = false;
-
-    sensorsim_init(&m_rr_interval_sim_state, &m_rr_interval_sim_cfg);
-}
-
-
 /**@brief Function for starting application timers.
  */
 static void application_timers_start(void)
@@ -1919,54 +2003,6 @@ static void conn_params_init(void)
 
     err_code = ble_conn_params_init(&cp_init);
     APP_ERROR_CHECK(err_code);
-}
-
-
-/**@brief Function for putting the chip into sleep mode.
- *
- * @note This function will not return.
- */
-static void sleep_mode_enter(void)
-{
-    uint32_t err_code = bsp_indication_set(BSP_INDICATE_IDLE);
-    APP_ERROR_CHECK(err_code);
-
-    // Prepare wakeup buttons.
-    err_code = bsp_btn_ble_sleep_mode_prepare();
-    APP_ERROR_CHECK(err_code);
-
-    // Go to system-off mode (this function will not return; wakeup will cause a reset).
-    err_code = sd_power_system_off();
-    APP_ERROR_CHECK(err_code);
-}
-
-
-/**@brief Function for handling advertising events.
- *
- * @details This function will be called for advertising events which are passed to the application.
- *
- * @param[in] ble_adv_evt  Advertising event.
- */
-static void on_adv_evt(ble_adv_evt_t ble_adv_evt)
-{
-    uint32_t err_code;
-
-    switch (ble_adv_evt)
-    {
-        case BLE_ADV_EVT_FAST:
-            NRF_LOG_INFO("Fast advertising.");
-            err_code = bsp_indication_set(BSP_INDICATE_ADVERTISING);
-            APP_ERROR_CHECK(err_code);
-            break;
-        case BLE_ADV_EVT_IDLE:
-            //sleep_mode_enter();
-            NRF_LOG_INFO("Reset Idle, Re-advertising.");
-            err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
-            APP_ERROR_CHECK(err_code); 
-            break;
-        default:
-            break;
-    }
 }
 
 
@@ -2061,39 +2097,6 @@ static void delete_bonds(void)
 
     err_code = pm_peers_delete();
     APP_ERROR_CHECK(err_code);
-}
-
-
-
-/**@brief Function for initializing the Advertising functionality.
- */
-static void advertising_init(void)
-{
-    uint32_t               err_code;
-    ble_advertising_init_t init;
-
-    memset(&init, 0, sizeof(init));
-    memset(&init, 0, sizeof(init));
-
-    init.advdata.name_type          = BLE_ADVDATA_FULL_NAME;
-    init.advdata.include_appearance = false;
-    init.advdata.flags              = BLE_GAP_ADV_FLAGS_LE_ONLY_LIMITED_DISC_MODE;
-
-    init.advdata.uuids_complete.uuid_cnt = sizeof(m_adv_uuids) / sizeof(m_adv_uuids[0]);
-    init.advdata.uuids_complete.p_uuids  = m_adv_uuids;
-    
-    init.srdata.uuids_complete.uuid_cnt = sizeof(m_sr_uuids) / sizeof(m_sr_uuids[0]);
-    init.srdata.uuids_complete.p_uuids  = m_sr_uuids;
-
-    init.config.ble_adv_fast_enabled  = true;
-    init.config.ble_adv_fast_interval = APP_ADV_INTERVAL;
-    init.config.ble_adv_fast_timeout  = APP_ADV_DURATION;
-    init.evt_handler = on_adv_evt;
-
-    err_code = ble_advertising_init(&m_advertising, &init);
-    APP_ERROR_CHECK(err_code);
-
-    ble_advertising_conn_cfg_tag_set(&m_advertising, APP_BLE_CONN_CFG_TAG);
 }
 
 
