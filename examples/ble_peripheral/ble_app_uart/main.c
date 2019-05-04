@@ -2168,15 +2168,14 @@ void error_check(int32_t ret, String msg)
  */
 static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
 {
-    /*
-    if (int_type == NRF_DRV_RTC_INT_COMPARE0)
-    {
-        nrf_gpio_pin_toggle(COMPARE_EVENT_OUTPUT);
-    }
-    else
-    */
     if (int_type == NRF_DRV_RTC_INT_TICK)
     {
+        /*I will add state of LED
+        // Blink GREEN: Before Pairing
+        // GREEN: Pairing and Idle state
+        // RED: Measring state
+        */
+
         //nrf_gpio_pin_toggle(TICK_EVENT_OUTPUT);
         //nrf_drv_gpiote_out_toggle(LED_3_COLOR_BLUE_PIN);
         nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
@@ -2199,10 +2198,6 @@ static void rtc_config(void)
 
     //Enable tick event & interrupt
     nrf_drv_rtc_tick_enable(&rtc, true);
-
-    //Set compare channel to trigger interrupt after COMPARE_COUNTERTIME seconds
-    //err_code = nrf_drv_rtc_cc_set(&rtc, 0, COMPARE_COUNTERTIME * 8, true);
-    //APP_ERROR_CHECK(err_code);
 
     //Power on RTC instance
     nrf_drv_rtc_enable(&rtc);
