@@ -523,6 +523,9 @@ static void gpio_init(void)
 
 
 
+
+
+
 static void battery_level_meas_timeout_handler(void * p_context);
 static void heart_rate_meas_timeout_handler(void * p_context);
 static void rr_interval_timeout_handler(void * p_context);
