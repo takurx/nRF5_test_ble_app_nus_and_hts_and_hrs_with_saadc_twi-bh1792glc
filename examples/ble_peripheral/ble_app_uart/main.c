@@ -305,6 +305,8 @@ uint8_t twi_tx_buffer[BH1792_TWI_BUFFER_SIZE];
 static void advertising_start(bool erase_bonds);
 static void temperature_measurement_send(void);
 
+
+
 /**@brief Function for initializing the nrf log module.
  */
 static void log_init(void)
@@ -429,6 +431,99 @@ static void lfclk_request(void)
 
 
 /**
+ * @brief Function for configuring: PIN_IN pin for input, PIN_OUT pin for output,
+ * and configures GPIOTE to give an interrupt on pin change.
+ */
+#define LED_3_COLOR_BLUE_PIN    20
+#define LED_3_COLOR_GREEN_PIN   18
+#define LED_3_COLOR_RED_PIN     4
+#define SWITCH1_PIN             8
+#define CHARGE_FINISH_PIN       28
+
+#define BH1792GLC_SCL_PIN 7
+#define BH1792GLC_SDA_PIN 6
+#define BH1792GLC_INT_PIN 5
+
+void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action);
+
+void in_pin_handler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
+{
+    //nrf_drv_gpiote_out_toggle(PIN_OUT);
+    //nrf_drv_gpiote_out_toggle(LED_3_COLOR_BLUE_PIN);
+    //nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
+    nrf_drv_gpiote_out_toggle(LED_3_COLOR_RED_PIN);
+}
+
+static void gpio_init(void)
+{
+    ret_code_t err_code;
+
+    err_code = nrf_drv_gpiote_init();
+    APP_ERROR_CHECK(err_code);
+    
+    /*
+    // LED1
+    nrf_drv_gpiote_out_config_t out_config = GPIOTE_CONFIG_OUT_SIMPLE(false);
+
+    err_code = nrf_drv_gpiote_out_init(PIN_OUT, &out_config);
+    APP_ERROR_CHECK(err_code);
+
+    // Button1
+    nrf_drv_gpiote_in_config_t in_config = GPIOTE_CONFIG_IN_SENSE_TOGGLE(true);
+    in_config.pull = NRF_GPIO_PIN_PULLUP;
+
+    err_code = nrf_drv_gpiote_in_init(PIN_IN, &in_config, in_pin_handler);
+    APP_ERROR_CHECK(err_code);
+
+    nrf_drv_gpiote_in_event_enable(PIN_IN, true);
+    */
+
+    // bh1792glc, arudino_10_pin, 5
+    nrf_drv_gpiote_in_config_t in_config_bh1792 = GPIOTE_CONFIG_IN_SENSE_HITOLO(true); // interrupt when falling edge
+    in_config_bh1792.pull = NRF_GPIO_PIN_PULLUP;
+
+    err_code = nrf_drv_gpiote_in_init(BH1792GLC_INT_PIN, &in_config_bh1792, bh1792_isr);
+    APP_ERROR_CHECK(err_code);
+
+    nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
+
+    // 3-color LED  LED_3_COLOR_BLUE_PIN, 20
+    nrf_drv_gpiote_out_config_t out_config_blue = GPIOTE_CONFIG_OUT_SIMPLE(true);
+    err_code = nrf_drv_gpiote_out_init(LED_3_COLOR_BLUE_PIN, &out_config_blue);
+    APP_ERROR_CHECK(err_code);
+
+    // 3-color LED  LED_3_COLOR_GREEN_PIN, 18
+    nrf_drv_gpiote_out_config_t out_config_green = GPIOTE_CONFIG_OUT_SIMPLE(true);
+    err_code = nrf_drv_gpiote_out_init(LED_3_COLOR_GREEN_PIN, &out_config_green);
+    APP_ERROR_CHECK(err_code);
+    
+    // 3-color LED  LED_3_COLOR_RED_PIN, 4
+    nrf_drv_gpiote_out_config_t out_config_red = GPIOTE_CONFIG_OUT_SIMPLE(true);
+    err_code = nrf_drv_gpiote_out_init(LED_3_COLOR_RED_PIN, &out_config_red);
+    APP_ERROR_CHECK(err_code);
+
+    // SWITCH1, 8
+    nrf_drv_gpiote_in_config_t in_config_switch1 = GPIOTE_CONFIG_IN_SENSE_TOGGLE(true);
+    in_config_switch1.pull = NRF_GPIO_PIN_PULLUP;
+
+    err_code = nrf_drv_gpiote_in_init(SWITCH1_PIN, &in_config_switch1, in_pin_handler);
+    APP_ERROR_CHECK(err_code);
+
+    nrf_drv_gpiote_in_event_enable(SWITCH1_PIN, true);
+
+    // CHARGE_FINISH_PIN, 28
+    nrf_drv_gpiote_in_config_t in_config_charge = GPIOTE_CONFIG_IN_SENSE_TOGGLE(true);
+    in_config_switch1.pull = NRF_GPIO_PIN_PULLDOWN;
+
+    err_code = nrf_drv_gpiote_in_init(CHARGE_FINISH_PIN, &in_config_charge, in_pin_handler);
+    APP_ERROR_CHECK(err_code);
+
+    nrf_drv_gpiote_in_event_enable(CHARGE_FINISH_PIN, false);
+}
+
+
+
+/**
  * @brief TWI events handler.
  */
 void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
@@ -466,9 +561,6 @@ void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
 }
 
 
-#define BH1792GLC_SCL_PIN 7
-#define BH1792GLC_SDA_PIN 6
-#define BH1792GLC_INT_PIN 5
 
 /**
  * @brief TWI initialization.
@@ -799,91 +891,6 @@ void error_check(int32_t ret, String msg)
 }
 */
 
-
-/**
- * @brief Function for configuring: PIN_IN pin for input, PIN_OUT pin for output,
- * and configures GPIOTE to give an interrupt on pin change.
- */
-#define LED_3_COLOR_BLUE_PIN    20
-#define LED_3_COLOR_GREEN_PIN   18
-#define LED_3_COLOR_RED_PIN     4
-#define SWITCH1_PIN             8
-#define CHARGE_FINISH_PIN       28
-
-void in_pin_handler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
-{
-    //nrf_drv_gpiote_out_toggle(PIN_OUT);
-    //nrf_drv_gpiote_out_toggle(LED_3_COLOR_BLUE_PIN);
-    //nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
-    nrf_drv_gpiote_out_toggle(LED_3_COLOR_RED_PIN);
-}
-
-static void gpio_init(void)
-{
-    ret_code_t err_code;
-
-    err_code = nrf_drv_gpiote_init();
-    APP_ERROR_CHECK(err_code);
-    
-    /*
-    // LED1
-    nrf_drv_gpiote_out_config_t out_config = GPIOTE_CONFIG_OUT_SIMPLE(false);
-
-    err_code = nrf_drv_gpiote_out_init(PIN_OUT, &out_config);
-    APP_ERROR_CHECK(err_code);
-
-    // Button1
-    nrf_drv_gpiote_in_config_t in_config = GPIOTE_CONFIG_IN_SENSE_TOGGLE(true);
-    in_config.pull = NRF_GPIO_PIN_PULLUP;
-
-    err_code = nrf_drv_gpiote_in_init(PIN_IN, &in_config, in_pin_handler);
-    APP_ERROR_CHECK(err_code);
-
-    nrf_drv_gpiote_in_event_enable(PIN_IN, true);
-    */
-
-    // bh1792glc, arudino_10_pin, 5
-    nrf_drv_gpiote_in_config_t in_config_bh1792 = GPIOTE_CONFIG_IN_SENSE_HITOLO(true); // interrupt when falling edge
-    in_config_bh1792.pull = NRF_GPIO_PIN_PULLUP;
-
-    err_code = nrf_drv_gpiote_in_init(BH1792GLC_INT_PIN, &in_config_bh1792, bh1792_isr);
-    APP_ERROR_CHECK(err_code);
-
-    nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
-
-    // 3-color LED  LED_3_COLOR_BLUE_PIN, 20
-    nrf_drv_gpiote_out_config_t out_config_blue = GPIOTE_CONFIG_OUT_SIMPLE(true);
-    err_code = nrf_drv_gpiote_out_init(LED_3_COLOR_BLUE_PIN, &out_config_blue);
-    APP_ERROR_CHECK(err_code);
-
-    // 3-color LED  LED_3_COLOR_GREEN_PIN, 18
-    nrf_drv_gpiote_out_config_t out_config_green = GPIOTE_CONFIG_OUT_SIMPLE(true);
-    err_code = nrf_drv_gpiote_out_init(LED_3_COLOR_GREEN_PIN, &out_config_green);
-    APP_ERROR_CHECK(err_code);
-    
-    // 3-color LED  LED_3_COLOR_RED_PIN, 4
-    nrf_drv_gpiote_out_config_t out_config_red = GPIOTE_CONFIG_OUT_SIMPLE(true);
-    err_code = nrf_drv_gpiote_out_init(LED_3_COLOR_RED_PIN, &out_config_red);
-    APP_ERROR_CHECK(err_code);
-
-    // SWITCH1, 8
-    nrf_drv_gpiote_in_config_t in_config_switch1 = GPIOTE_CONFIG_IN_SENSE_TOGGLE(true);
-    in_config_switch1.pull = NRF_GPIO_PIN_PULLUP;
-
-    err_code = nrf_drv_gpiote_in_init(SWITCH1_PIN, &in_config_switch1, in_pin_handler);
-    APP_ERROR_CHECK(err_code);
-
-    nrf_drv_gpiote_in_event_enable(SWITCH1_PIN, true);
-
-    // CHARGE_FINISH_PIN, 28
-    nrf_drv_gpiote_in_config_t in_config_charge = GPIOTE_CONFIG_IN_SENSE_TOGGLE(true);
-    in_config_switch1.pull = NRF_GPIO_PIN_PULLDOWN;
-
-    err_code = nrf_drv_gpiote_in_init(CHARGE_FINISH_PIN, &in_config_charge, in_pin_handler);
-    APP_ERROR_CHECK(err_code);
-
-    nrf_drv_gpiote_in_event_enable(CHARGE_FINISH_PIN, false);
-}
 
 
 /**@brief Function for handling the BH1792GLC measurement timer timeout.
