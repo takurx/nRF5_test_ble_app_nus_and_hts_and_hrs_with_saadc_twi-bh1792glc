@@ -523,6 +523,345 @@ static void gpio_init(void)
 
 
 
+static void battery_level_meas_timeout_handler(void * p_context);
+static void heart_rate_meas_timeout_handler(void * p_context);
+static void rr_interval_timeout_handler(void * p_context);
+static void temperature_meas_timeout_handler(void * p_context);
+static void sensor_contact_detected_timeout_handler(void * p_context);
+static void bh1792glc_meas_timeout_handler(void * p_context);
+
+/**@brief Function for initializing the timer module.
+ */
+static void timers_init(void)
+{
+    ret_code_t err_code;
+
+    // Initialize timer module.
+    err_code = app_timer_init();
+    APP_ERROR_CHECK(err_code);
+
+    // Create timers.
+    err_code = app_timer_create(&m_battery_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                battery_level_meas_timeout_handler);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_create(&m_heart_rate_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                heart_rate_meas_timeout_handler);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_create(&m_rr_interval_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                rr_interval_timeout_handler);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_create(&m_temperature_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                temperature_meas_timeout_handler);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_create(&m_sensor_contact_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                sensor_contact_detected_timeout_handler);
+    APP_ERROR_CHECK(err_code);
+                             
+    err_code = app_timer_create(&m_bh1792glc_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                bh1792glc_meas_timeout_handler);        
+    APP_ERROR_CHECK(err_code);
+}
+
+/**@brief Function for performing a battery measurement, and update the Battery Level characteristic in the Battery Service.
+ */
+static void battery_level_update(void)
+{
+    ret_code_t err_code;
+    uint8_t  battery_level;
+
+    battery_level = (uint8_t)sensorsim_measure(&m_battery_sim_state, &m_battery_sim_cfg);
+
+    err_code = ble_bas_battery_level_update(&m_bas, battery_level, BLE_CONN_HANDLE_ALL);
+    if ((err_code != NRF_SUCCESS) &&
+        (err_code != NRF_ERROR_INVALID_STATE) &&
+        (err_code != NRF_ERROR_RESOURCES) &&
+        (err_code != NRF_ERROR_BUSY) &&
+        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING) &&
+        (err_code != NRF_ERROR_FORBIDDEN)
+       )
+    {
+        APP_ERROR_HANDLER(err_code);
+    }
+}
+
+/**@brief Function for handling the Battery measurement timer timeout.
+ *
+ * @details This function will be called each time the battery level measurement timer expires.
+ *
+ * @param[in] p_context   Pointer used for passing some arbitrary information (context) from the
+ *                        app_start_timer() call to the timeout handler.
+ */
+static void battery_level_meas_timeout_handler(void * p_context)
+{
+    UNUSED_PARAMETER(p_context);
+    battery_level_update();
+}
+
+/**@brief Function for handling the Heart rate measurement timer timeout.
+ *
+ * @details This function will be called each time the heart rate measurement timer expires.
+ *          It will exclude RR Interval data from every third measurement.
+ *
+ * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
+ *                       app_start_timer() call to the timeout handler.
+ */
+volatile bool Debug_output_heart_rate = false;
+volatile bool Debug_output_body_temperature = true;
+
+// Volatile Variables, used in the interrupt service routine!
+volatile int BPM;                   // int that holds raw Analog in 0. updated every 2mS
+volatile int Signal;                // holds the incoming raw data
+volatile int IBI = 600;             // int that holds the time interval between beats! Must be seeded!
+volatile bool Pulse = false;     // "True" when User's live heartbeat is detected. "False" when not a "live beat".
+volatile bool QS = false;        // becomes true when Arduoino finds a beat.
+
+volatile int rate[10];                    // array to hold last ten IBI values
+volatile unsigned long sampleCounter = 0;          // used to determine pulse timing
+volatile unsigned long lastBeatTime = 0;           // used to find IBI
+volatile int P = 32768; //512;                      // used to find peak in pulse wave, seeded
+volatile int T = 32768; //512;                     // used to find trough in pulse wave, seeded
+volatile int thresh = 33920; //530;                // used to find instant moment of heart beat, seeded
+volatile int amp = 0;                   // used to hold amplitude of pulse waveform, seeded
+volatile bool firstBeat = true;        // used to seed rate array so we startup with reasonable BPM
+volatile bool secondBeat = false;      // used to seed rate array so we startup with reasonable BPM
+//volatile int put_timing = 0;
+
+static void heart_rate_meas_timeout_handler(void * p_context)
+{
+    static uint32_t cnt = 0;
+    ret_code_t      err_code;
+    uint16_t        heart_rate;
+
+    UNUSED_PARAMETER(p_context);
+
+    //heart_rate = (uint16_t)sensorsim_measure(&m_heart_rate_sim_state, &m_heart_rate_sim_cfg);
+    heart_rate = BPM;
+
+    cnt++;
+    err_code = ble_hrs_heart_rate_measurement_send(&m_hrs, heart_rate);
+    if ((err_code != NRF_SUCCESS) &&
+        (err_code != NRF_ERROR_INVALID_STATE) &&
+        (err_code != NRF_ERROR_RESOURCES) &&
+        (err_code != NRF_ERROR_BUSY) &&
+        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING) &&
+        (err_code != NRF_ERROR_FORBIDDEN)
+       )
+    {
+        APP_ERROR_HANDLER(err_code);
+    }
+
+    // Disable RR Interval recording every third heart rate measurement.
+    // NOTE: An application will normally not do this. It is done here just for testing generation
+    // of messages without RR Interval measurements.
+    m_rr_interval_enabled = ((cnt % 3) != 0);
+}
+
+/**@brief Function for handling the RR interval timer timeout.
+ *
+ * @details This function will be called each time the RR interval timer expires.
+ *
+ * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
+ *                       app_start_timer() call to the timeout handler.
+ */
+static void rr_interval_timeout_handler(void * p_context)
+{
+    UNUSED_PARAMETER(p_context);
+
+    if (m_rr_interval_enabled)
+    {
+        uint16_t rr_interval;
+
+        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
+                                                  &m_rr_interval_sim_cfg);
+        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
+        /*
+        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
+                                                  &m_rr_interval_sim_cfg);
+        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
+        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
+                                                  &m_rr_interval_sim_cfg);
+        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
+        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
+                                                  &m_rr_interval_sim_cfg);
+        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
+        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
+                                                  &m_rr_interval_sim_cfg);
+        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
+        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
+                                                  &m_rr_interval_sim_cfg);
+        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
+        */
+    }
+}
+
+/**@brief Function for populating simulated health thermometer measurement.
+ */
+volatile float Average_temperature = 0.0;
+
+static ble_date_time_t time_stamp = { 2019, 5, 4, 11, 46, 5 };
+
+static void hts_sim_measurement(ble_hts_meas_t * p_meas)
+{    
+    uint32_t celciusX100;
+
+    p_meas->temp_in_fahr_units = false;
+    p_meas->time_stamp_present = true;
+    p_meas->temp_type_present  = (TEMP_TYPE_AS_CHARACTERISTIC ? false : true);
+
+    //celciusX100 = sensorsim_measure(&m_temp_celcius_sim_state, &m_temp_celcius_sim_cfg);
+    celciusX100 = (uint32_t)(Average_temperature * 100);
+
+    p_meas->temp_in_celcius.exponent = -2;
+    p_meas->temp_in_celcius.mantissa = celciusX100;
+    p_meas->temp_in_fahr.exponent    = -2;
+    p_meas->temp_in_fahr.mantissa    = (32 * 100) + ((celciusX100 * 9) / 5);
+    p_meas->time_stamp               = time_stamp;
+    //p_meas->temp_type                = BLE_HTS_TEMP_TYPE_FINGER;
+    p_meas->temp_type                = BLE_HTS_TEMP_TYPE_BODY;
+
+    // update simulated time stamp
+    time_stamp.seconds++;
+    if (time_stamp.seconds > 59)
+    {
+        time_stamp.seconds -= 60;
+        time_stamp.minutes++;
+        if (time_stamp.minutes > 59)
+        {
+            time_stamp.minutes = 0;
+            time_stamp.hours++;
+            if (time_stamp.hours > 23)
+            {
+              time_stamp.hours = 0;
+              time_stamp.day++;
+            }
+        }
+    }
+
+    NRF_LOG_INFO("%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
+}
+
+/**@brief Function for handling the Temperature measurement timer timeout.
+ *
+ * @details 
+ *
+ * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
+ *                       app_start_timer() call to the timeout handler.
+ */
+static void temperature_meas_timeout_handler(void * p_context)
+{
+    ble_hts_meas_t simulated_meas;
+    ret_code_t     err_code;
+
+    UNUSED_PARAMETER(p_context);
+
+    hts_sim_measurement(&simulated_meas);
+
+    err_code = ble_hts_measurement_send(&m_hts, &simulated_meas);
+
+    switch (err_code)
+    {
+      case NRF_SUCCESS:
+        // Measurement was successfully sent, wait for confirmation.
+        m_hts_meas_ind_conf_pending = true;
+        break;
+      case NRF_ERROR_INVALID_STATE:
+        // Ignore error.
+        break;
+      default:
+        //APP_ERROR_HANDLER(err_code);
+        break;
+    }
+    
+    if ((err_code != NRF_SUCCESS) &&
+        (err_code != NRF_ERROR_INVALID_STATE) &&
+        (err_code != NRF_ERROR_RESOURCES) &&
+        (err_code != NRF_ERROR_BUSY) &&
+        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING) &&
+        (err_code != NRF_ERROR_FORBIDDEN)
+       )
+    {
+        APP_ERROR_HANDLER(err_code);
+    }
+}
+
+/**@brief Function for handling the Sensor Contact Detected timer timeout.
+ *
+ * @details This function will be called each time the Sensor Contact Detected timer expires.
+ *
+ * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
+ *                       app_start_timer() call to the timeout handler.
+ */
+static void sensor_contact_detected_timeout_handler(void * p_context)
+{
+    static bool sensor_contact_detected = false;
+
+    UNUSED_PARAMETER(p_context);
+
+    sensor_contact_detected = !sensor_contact_detected;
+    ble_hrs_sensor_contact_detected_update(&m_hrs, sensor_contact_detected);
+}
+
+static void timer_isr(void * p_context)
+{
+    //UNUSED_PARAMETER(p_context);
+    //NRF_LOG_INFO("timer_isr.");
+    
+    int32_t ret = 0;
+
+    nrf_drv_gpiote_in_event_disable(BH1792GLC_INT_PIN);
+
+    // became else root, m_bh1792.prm.msr = BH1792_PRM_MSR_SINGLE
+    /*
+    if (m_bh1792.prm.msr <= BH1792_PRM_MSR_1024HZ) {
+      ret = bh1792_SetSync();
+      //error_check(ret, "bh1792_SetSync");
+
+      if (m_bh1792.sync_seq < 3) {
+        if (m_bh1792.sync_seq == 1) {
+          //tmp_eimsk = 0;
+        } else {
+          ret = bh1792_ClearFifoData();
+          //error_check(ret, "bh1792_ClearFifoData");
+
+          //tmp_eimsk = bit(INT0);
+        }
+      }
+    } else {
+    */
+      ret = bh1792_StartMeasure();
+      //error_check(ret, "bh1792_StartMeasure");
+    /*
+    }
+    */
+
+    nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
+}
+
+/**@brief Function for handling the BH1792GLC measurement timer timeout.
+ *
+ * @details This function will be called each time BH1792GLC measurement timer expires.
+ *
+ * @param[in] p_context   Pointer used for passing some arbitrary information (context) from the
+ *                        app_start_timer() call to the timeout handler.
+ */
+static void bh1792glc_meas_timeout_handler(void * p_context)
+{
+    //NRF_LOG_INFO("bh1792glc measure timer interrupt.");
+    timer_isr(p_context);    
+}
+
+
+
 /**
  * @brief TWI events handler.
  */
@@ -559,6 +898,9 @@ void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
             break;
     }
 }
+
+
+
 
 
 
@@ -618,63 +960,6 @@ void twi_init (void)
 }
 
 
-static void timer_isr(void * p_context)
-{
-    //UNUSED_PARAMETER(p_context);
-    //NRF_LOG_INFO("timer_isr.");
-    
-    int32_t ret = 0;
-
-    nrf_drv_gpiote_in_event_disable(BH1792GLC_INT_PIN);
-
-    // became else root, m_bh1792.prm.msr = BH1792_PRM_MSR_SINGLE
-    /*
-    if (m_bh1792.prm.msr <= BH1792_PRM_MSR_1024HZ) {
-      ret = bh1792_SetSync();
-      //error_check(ret, "bh1792_SetSync");
-
-      if (m_bh1792.sync_seq < 3) {
-        if (m_bh1792.sync_seq == 1) {
-          //tmp_eimsk = 0;
-        } else {
-          ret = bh1792_ClearFifoData();
-          //error_check(ret, "bh1792_ClearFifoData");
-
-          //tmp_eimsk = bit(INT0);
-        }
-      }
-    } else {
-    */
-      ret = bh1792_StartMeasure();
-      //error_check(ret, "bh1792_StartMeasure");
-    /*
-    }
-    */
-
-    nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
-}
-
-
-volatile bool Debug_output_heart_rate = false;
-volatile bool Debug_output_body_temperature = true;
-
-// Volatile Variables, used in the interrupt service routine!
-volatile int BPM;                   // int that holds raw Analog in 0. updated every 2mS
-volatile int Signal;                // holds the incoming raw data
-volatile int IBI = 600;             // int that holds the time interval between beats! Must be seeded!
-volatile bool Pulse = false;     // "True" when User's live heartbeat is detected. "False" when not a "live beat".
-volatile bool QS = false;        // becomes true when Arduoino finds a beat.
-
-volatile int rate[10];                    // array to hold last ten IBI values
-volatile unsigned long sampleCounter = 0;          // used to determine pulse timing
-volatile unsigned long lastBeatTime = 0;           // used to find IBI
-volatile int P = 32768; //512;                      // used to find peak in pulse wave, seeded
-volatile int T = 32768; //512;                     // used to find trough in pulse wave, seeded
-volatile int thresh = 33920; //530;                // used to find instant moment of heart beat, seeded
-volatile int amp = 0;                   // used to hold amplitude of pulse waveform, seeded
-volatile bool firstBeat = true;        // used to seed rate array so we startup with reasonable BPM
-volatile bool secondBeat = false;      // used to seed rate array so we startup with reasonable BPM
-//volatile int put_timing = 0;
 
 void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
 {
@@ -893,19 +1178,6 @@ void error_check(int32_t ret, String msg)
 
 
 
-/**@brief Function for handling the BH1792GLC measurement timer timeout.
- *
- * @details This function will be called each time BH1792GLC measurement timer expires.
- *
- * @param[in] p_context   Pointer used for passing some arbitrary information (context) from the
- *                        app_start_timer() call to the timeout handler.
- */
-static void bh1792glc_meas_timeout_handler(void * p_context)
-{
-    //NRF_LOG_INFO("bh1792glc measure timer interrupt.");
-    timer_isr(p_context);    
-}
-
 /**@brief Function for assert macro callback.
  *
  * @details This function will be called in case of an assert in the SoftDevice.
@@ -958,271 +1230,6 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
     }
 }
 
-
-/**@brief Function for performing a battery measurement, and update the Battery Level characteristic in the Battery Service.
- */
-static void battery_level_update(void)
-{
-    ret_code_t err_code;
-    uint8_t  battery_level;
-
-    battery_level = (uint8_t)sensorsim_measure(&m_battery_sim_state, &m_battery_sim_cfg);
-
-    err_code = ble_bas_battery_level_update(&m_bas, battery_level, BLE_CONN_HANDLE_ALL);
-    if ((err_code != NRF_SUCCESS) &&
-        (err_code != NRF_ERROR_INVALID_STATE) &&
-        (err_code != NRF_ERROR_RESOURCES) &&
-        (err_code != NRF_ERROR_BUSY) &&
-        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING) &&
-        (err_code != NRF_ERROR_FORBIDDEN)
-       )
-    {
-        APP_ERROR_HANDLER(err_code);
-    }
-}
-
-
-/**@brief Function for handling the Battery measurement timer timeout.
- *
- * @details This function will be called each time the battery level measurement timer expires.
- *
- * @param[in] p_context   Pointer used for passing some arbitrary information (context) from the
- *                        app_start_timer() call to the timeout handler.
- */
-static void battery_level_meas_timeout_handler(void * p_context)
-{
-    UNUSED_PARAMETER(p_context);
-    battery_level_update();
-}
-
-/**@brief Function for populating simulated health thermometer measurement.
- */
-volatile float Average_temperature = 0.0;
-
-static ble_date_time_t time_stamp = { 2019, 5, 4, 11, 46, 5 };
-
-static void hts_sim_measurement(ble_hts_meas_t * p_meas)
-{    
-    uint32_t celciusX100;
-
-    p_meas->temp_in_fahr_units = false;
-    p_meas->time_stamp_present = true;
-    p_meas->temp_type_present  = (TEMP_TYPE_AS_CHARACTERISTIC ? false : true);
-
-    //celciusX100 = sensorsim_measure(&m_temp_celcius_sim_state, &m_temp_celcius_sim_cfg);
-    celciusX100 = (uint32_t)(Average_temperature * 100);
-
-    p_meas->temp_in_celcius.exponent = -2;
-    p_meas->temp_in_celcius.mantissa = celciusX100;
-    p_meas->temp_in_fahr.exponent    = -2;
-    p_meas->temp_in_fahr.mantissa    = (32 * 100) + ((celciusX100 * 9) / 5);
-    p_meas->time_stamp               = time_stamp;
-    //p_meas->temp_type                = BLE_HTS_TEMP_TYPE_FINGER;
-    p_meas->temp_type                = BLE_HTS_TEMP_TYPE_BODY;
-
-    // update simulated time stamp
-    time_stamp.seconds++;
-    if (time_stamp.seconds > 59)
-    {
-        time_stamp.seconds -= 60;
-        time_stamp.minutes++;
-        if (time_stamp.minutes > 59)
-        {
-            time_stamp.minutes = 0;
-            time_stamp.hours++;
-            if (time_stamp.hours > 23)
-            {
-              time_stamp.hours = 0;
-              time_stamp.day++;
-            }
-        }
-    }
-
-    NRF_LOG_INFO("%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
-}
-
-/**@brief Function for handling the Temperature measurement timer timeout.
- *
- * @details 
- *
- * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
- *                       app_start_timer() call to the timeout handler.
- */
-static void temperature_meas_timeout_handler(void * p_context)
-{
-    ble_hts_meas_t simulated_meas;
-    ret_code_t     err_code;
-
-    UNUSED_PARAMETER(p_context);
-
-    hts_sim_measurement(&simulated_meas);
-
-    err_code = ble_hts_measurement_send(&m_hts, &simulated_meas);
-
-    switch (err_code)
-    {
-      case NRF_SUCCESS:
-        // Measurement was successfully sent, wait for confirmation.
-        m_hts_meas_ind_conf_pending = true;
-        break;
-      case NRF_ERROR_INVALID_STATE:
-        // Ignore error.
-        break;
-      default:
-        //APP_ERROR_HANDLER(err_code);
-        break;
-    }
-    
-    if ((err_code != NRF_SUCCESS) &&
-        (err_code != NRF_ERROR_INVALID_STATE) &&
-        (err_code != NRF_ERROR_RESOURCES) &&
-        (err_code != NRF_ERROR_BUSY) &&
-        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING) &&
-        (err_code != NRF_ERROR_FORBIDDEN)
-       )
-    {
-        APP_ERROR_HANDLER(err_code);
-    }
-}
-
-
-/**@brief Function for handling the Heart rate measurement timer timeout.
- *
- * @details This function will be called each time the heart rate measurement timer expires.
- *          It will exclude RR Interval data from every third measurement.
- *
- * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
- *                       app_start_timer() call to the timeout handler.
- */
-static void heart_rate_meas_timeout_handler(void * p_context)
-{
-    static uint32_t cnt = 0;
-    ret_code_t      err_code;
-    uint16_t        heart_rate;
-
-    UNUSED_PARAMETER(p_context);
-
-    //heart_rate = (uint16_t)sensorsim_measure(&m_heart_rate_sim_state, &m_heart_rate_sim_cfg);
-    heart_rate = BPM;
-
-    cnt++;
-    err_code = ble_hrs_heart_rate_measurement_send(&m_hrs, heart_rate);
-    if ((err_code != NRF_SUCCESS) &&
-        (err_code != NRF_ERROR_INVALID_STATE) &&
-        (err_code != NRF_ERROR_RESOURCES) &&
-        (err_code != NRF_ERROR_BUSY) &&
-        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING) &&
-        (err_code != NRF_ERROR_FORBIDDEN)
-       )
-    {
-        APP_ERROR_HANDLER(err_code);
-    }
-
-    // Disable RR Interval recording every third heart rate measurement.
-    // NOTE: An application will normally not do this. It is done here just for testing generation
-    // of messages without RR Interval measurements.
-    m_rr_interval_enabled = ((cnt % 3) != 0);
-}
-
-
-/**@brief Function for handling the RR interval timer timeout.
- *
- * @details This function will be called each time the RR interval timer expires.
- *
- * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
- *                       app_start_timer() call to the timeout handler.
- */
-static void rr_interval_timeout_handler(void * p_context)
-{
-    UNUSED_PARAMETER(p_context);
-
-    if (m_rr_interval_enabled)
-    {
-        uint16_t rr_interval;
-
-        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
-                                                  &m_rr_interval_sim_cfg);
-        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
-        /*
-        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
-                                                  &m_rr_interval_sim_cfg);
-        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
-        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
-                                                  &m_rr_interval_sim_cfg);
-        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
-        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
-                                                  &m_rr_interval_sim_cfg);
-        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
-        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
-                                                  &m_rr_interval_sim_cfg);
-        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
-        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
-                                                  &m_rr_interval_sim_cfg);
-        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
-        */
-    }
-}
-
-
-/**@brief Function for handling the Sensor Contact Detected timer timeout.
- *
- * @details This function will be called each time the Sensor Contact Detected timer expires.
- *
- * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
- *                       app_start_timer() call to the timeout handler.
- */
-static void sensor_contact_detected_timeout_handler(void * p_context)
-{
-    static bool sensor_contact_detected = false;
-
-    UNUSED_PARAMETER(p_context);
-
-    sensor_contact_detected = !sensor_contact_detected;
-    ble_hrs_sensor_contact_detected_update(&m_hrs, sensor_contact_detected);
-}
-
-/**@brief Function for initializing the timer module.
- */
-static void timers_init(void)
-{
-    ret_code_t err_code;
-
-    // Initialize timer module.
-    err_code = app_timer_init();
-    APP_ERROR_CHECK(err_code);
-
-    // Create timers.
-    err_code = app_timer_create(&m_battery_timer_id,
-                                APP_TIMER_MODE_REPEATED,
-                                battery_level_meas_timeout_handler);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = app_timer_create(&m_heart_rate_timer_id,
-                                APP_TIMER_MODE_REPEATED,
-                                heart_rate_meas_timeout_handler);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = app_timer_create(&m_rr_interval_timer_id,
-                                APP_TIMER_MODE_REPEATED,
-                                rr_interval_timeout_handler);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = app_timer_create(&m_temperature_timer_id,
-                                APP_TIMER_MODE_REPEATED,
-                                temperature_meas_timeout_handler);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = app_timer_create(&m_sensor_contact_timer_id,
-                                APP_TIMER_MODE_REPEATED,
-                                sensor_contact_detected_timeout_handler);
-    APP_ERROR_CHECK(err_code);
-                             
-    err_code = app_timer_create(&m_bh1792glc_timer_id,
-                                APP_TIMER_MODE_REPEATED,
-                                bh1792glc_meas_timeout_handler);        
-    APP_ERROR_CHECK(err_code);
-
-}
 
 
 /**@brief Function for the GAP initialization.
