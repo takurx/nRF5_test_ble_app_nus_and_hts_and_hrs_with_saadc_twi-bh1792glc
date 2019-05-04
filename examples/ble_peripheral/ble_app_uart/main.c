@@ -1816,6 +1816,15 @@ void saadc_sampling_event_init(void)
 
 
 
+void saadc_sampling_event_enable(void)
+{
+    ret_code_t err_code = nrf_drv_ppi_channel_enable(m_ppi_channel);
+
+    APP_ERROR_CHECK(err_code);
+}
+
+
+
 /**
  * @brief TWI initialization.
  */
@@ -2227,15 +2236,6 @@ static void delete_bonds(void)
     NRF_LOG_INFO("Erase bonds!");
 
     err_code = pm_peers_delete();
-    APP_ERROR_CHECK(err_code);
-}
-
-
-
-void saadc_sampling_event_enable(void)
-{
-    ret_code_t err_code = nrf_drv_ppi_channel_enable(m_ppi_channel);
-
     APP_ERROR_CHECK(err_code);
 }
 
