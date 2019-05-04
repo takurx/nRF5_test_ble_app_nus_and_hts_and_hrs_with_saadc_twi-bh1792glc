@@ -869,7 +869,7 @@ static void battery_level_meas_timeout_handler(void * p_context)
  */
 volatile float Average_temperature = 0.0;
 
-static ble_date_time_t time_stamp = { 2019, 5, 4, 23, 46, 5 };
+static ble_date_time_t time_stamp = { 2019, 5, 4, 11, 46, 5 };
 
 static void hts_sim_measurement(ble_hts_meas_t * p_meas)
 {    
@@ -908,8 +908,6 @@ static void hts_sim_measurement(ble_hts_meas_t * p_meas)
         }
     }
 
-    //char restime[] =    "2018-12-25T12:20:15+9";
-    //NRF_LOG_DEBUG("Received data from BLE NUS. Writing data on UART.");
     NRF_LOG_INFO("%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
 }
 
