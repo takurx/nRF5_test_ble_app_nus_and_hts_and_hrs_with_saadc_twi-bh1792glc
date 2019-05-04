@@ -97,6 +97,7 @@
       <file file_name="../../../../../../modules/nrfx/drivers/src/nrfx_timer.c" />
       <file file_name="../../../../../../modules/nrfx/drivers/src/nrfx_uart.c" />
       <file file_name="../../../../../../modules/nrfx/drivers/src/nrfx_uarte.c" />
+      <file file_name="../../../../../../modules/nrfx/drivers/src/nrfx_rtc.c" />
     </folder>
     <folder Name="Board Support">
       <file file_name="../../../../../../components/libraries/bsp/bsp.c" />
@@ -117,7 +118,6 @@
     <folder Name="nRF_BLE">
       <file file_name="../../../../../../components/ble/peer_manager/auth_status_tracker.c" />
       <file file_name="../../../../../../components/ble/common/ble_advdata.c" />
-      <file file_name="../../../../../../components/ble/ble_advertising/ble_advertising.c" />
       <file file_name="../../../../../../components/ble/common/ble_conn_params.c" />
       <file file_name="../../../../../../components/ble/common/ble_conn_state.c" />
       <file file_name="../../../../../../components/ble/ble_link_ctx_manager/ble_link_ctx_manager.c" />
@@ -135,6 +135,7 @@
       <file file_name="../../../../../../components/ble/peer_manager/pm_buffer.c" />
       <file file_name="../../../../../../components/ble/peer_manager/security_dispatcher.c" />
       <file file_name="../../../../../../components/ble/peer_manager/security_manager.c" />
+      <file file_name="../../../../../../components/ble/ble_advertising/ble_advertising.c" />
     </folder>
     <folder Name="UTF8/UTF16 converter">
       <file file_name="../../../../../../external/utf_converter/utf.c" />
@@ -152,10 +153,12 @@
       <file file_name="../../../../../../components/softdevice/common/nrf_sdh_soc.c" />
     </folder>
   </project>
-  <configuration Name="Release"
+  <configuration
+    Name="Release"
     c_preprocessor_definitions="NDEBUG"
     gcc_optimization_level="Optimize For Size" />
-  <configuration Name="Debug"
+  <configuration
+    Name="Debug"
     c_preprocessor_definitions="DEBUG; DEBUG_NRF"
-    gcc_optimization_level="None"/>
+    gcc_optimization_level="None" />
 </solution>
