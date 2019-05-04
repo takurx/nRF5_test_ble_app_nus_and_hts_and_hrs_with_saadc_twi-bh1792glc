@@ -2053,18 +2053,20 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
     float ad_voltage;
     float ad_resistance;
     float ad_resistance1;
-    float vcc = 3.3;
-    float resistance0 = 10000;   // R0, termista, 10k ohm (normal, 25deg) 
-    float resistance1 = 13000;   // R1, split voltage resitance, 10k ohm
-    //float resistance0 = 6706.7;   // R0, termista, 10k ohm (normal, 36deg) 
+    float vcc = 2.98;
+    //float resistance0 = 10000;   // R0, termista, 10k ohm (normal, 25deg) 
+    //float resistance1 = 13000;   // R1, split voltage resitance, 10k ohm
+    //float resistance1 = 10000;   // R1, split voltage resitance, 10k ohm
+    float resistance0 = 6706.7;   // R0, termista, 10k ohm (normal, 36deg) 
     //float resistance1 = 7000.0;   // R1, split voltage resitance, 7k ohm
+    float resistance1 = 6800.0;   // R1, split voltage resitance, 6.8k ohm
     float e = 2.7182818284; // Napier's constant
     //float b = 3435.0; // B parameter termista value when 25 deg. = 3435
     float b = 3380.0; // B parameter termista value when 25 deg. = 3380
-    float standard_temp = 25.0 + 273.15;  // 25.0 deg + 273.15 absolute temp. [kelbin]
-    //float standard_temp = 36.0 + 273.15;  // 36.0 deg + 273.15 absolute temp. [kelbin]
+    //float standard_temp = 298.15;  // 25.0 deg + 273.15 absolute temp. [kelbin]
+    float standard_temp = 309.15;  // 36.0 deg + 273.15 absolute temp. [kelbin]
     float temperature;
-    float correction_term = 0.0;
+    float correction_term = -9.0;
 
     //maybe need nrf_log_flush()
     if (p_event->type == NRF_DRV_SAADC_EVT_DONE)
@@ -2077,6 +2079,7 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
         int i;
         //NRF_LOG_INFO("ADC event number: %d", (int)m_adc_evt_counter);
 
+        Average_temperature = 0;
         for (i = 0; i < SAMPLES_IN_BUFFER; i++)
         {
             ad_val = (int)p_event->data.done.p_buffer[i];
