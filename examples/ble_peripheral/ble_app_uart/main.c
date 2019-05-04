@@ -869,7 +869,7 @@ static void battery_level_meas_timeout_handler(void * p_context)
  */
 volatile float Average_temperature = 0.0;
 
-static ble_date_time_t time_stamp = { 2019, 3, 25, 11, 11, 11 };
+static ble_date_time_t time_stamp = { 2019, 5, 4, 23, 46, 5 };
 
 static void hts_sim_measurement(ble_hts_meas_t * p_meas)
 {    
@@ -907,6 +907,10 @@ static void hts_sim_measurement(ble_hts_meas_t * p_meas)
             }
         }
     }
+
+    //char restime[] =    "2018-12-25T12:20:15+9";
+    //NRF_LOG_DEBUG("Received data from BLE NUS. Writing data on UART.");
+    NRF_LOG_INFO("%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
 }
 
 /**@brief Function for handling the Temperature measurement timer timeout.
@@ -1624,7 +1628,10 @@ static void on_adv_evt(ble_adv_evt_t ble_adv_evt)
             APP_ERROR_CHECK(err_code);
             break;
         case BLE_ADV_EVT_IDLE:
-            sleep_mode_enter();
+            //sleep_mode_enter();
+            NRF_LOG_INFO("Reset Idle, Re-advertising.");
+            err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
+            APP_ERROR_CHECK(err_code); 
             break;
         default:
             break;
