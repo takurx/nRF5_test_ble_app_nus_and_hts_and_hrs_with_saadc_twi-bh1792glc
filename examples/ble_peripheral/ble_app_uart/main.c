@@ -1686,6 +1686,92 @@ static void peer_manager_init(void)
 
 
 
+void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
+{
+    int ad_val;
+    //float resolution = 1024.0; //1024 = 2^10, please check ad bit setting
+    float resolution = 16384.0; //16384 = 2^14, please check ad bit setting
+    float ad_voltage;
+    float ad_resistance;
+    float ad_resistance1;
+    float vcc = 2.98;
+    //float resistance0 = 10000;   // R0, termista, 10k ohm (normal, 25deg) 
+    //float resistance1 = 13000;   // R1, split voltage resitance, 10k ohm
+    //float resistance1 = 10000;   // R1, split voltage resitance, 10k ohm
+    float resistance0 = 6706.7;   // R0, termista, 10k ohm (normal, 36deg) 
+    //float resistance1 = 7000.0;   // R1, split voltage resitance, 7k ohm
+    float resistance1 = 6800.0;   // R1, split voltage resitance, 6.8k ohm
+    float e = 2.7182818284; // Napier's constant
+    //float b = 3435.0; // B parameter termista value when 25 deg. = 3435
+    float b = 3380.0; // B parameter termista value when 25 deg. = 3380
+    //float standard_temp = 298.15;  // 25.0 deg + 273.15 absolute temp. [kelbin]
+    float standard_temp = 309.15;  // 36.0 deg + 273.15 absolute temp. [kelbin]
+    float temperature;
+    float correction_term = -9.0;
+
+    //maybe need nrf_log_flush()
+    if (p_event->type == NRF_DRV_SAADC_EVT_DONE)
+    {
+        ret_code_t err_code;
+
+        err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES_IN_BUFFER);
+        APP_ERROR_CHECK(err_code);
+
+        int i;
+        //NRF_LOG_INFO("ADC event number: %d", (int)m_adc_evt_counter);
+
+        Average_temperature = 0;
+        for (i = 0; i < SAMPLES_IN_BUFFER; i++)
+        {
+            ad_val = (int)p_event->data.done.p_buffer[i];
+            ad_voltage = (float)(ad_val) / resolution * vcc;
+            ad_resistance = (resistance1 * ad_voltage) / (vcc - ad_voltage);
+            //ad_resistance = (resistance0 * ad_voltage) / (vcc - ad_voltage);
+            //tempreture = 1/(1/(standard_temp) + logf(ad_resistance/resistance0)/b) - 273.15;
+            temperature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15 + correction_term;
+            //ad_resistance1 = abs(b/(temperature + 273.15) - b/standard_temp);
+            //ad_resistance1 = resistance0 * expf(abs(b/(temperature + 273.15) - b/standard_temp));
+            //NRF_LOG_INFO("%d,%f", p_event->data.done.p_buffer[i], temprature);
+            //NRF_LOG_INFO(NRF_LOG_FLOAT_MARKER, NRF_LOG_FLOAT(temprature));
+            
+            if(Debug_output_body_temperature == true){
+              //NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "\n", p_event->data.done.p_buffer[i], NRF_LOG_FLOAT(temprature));
+              NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER ",", ad_val, NRF_LOG_FLOAT(temperature));
+              NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
+              //NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_resistance));
+              //NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_resistance1));
+              //NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "\n", ad_val, NRF_LOG_FLOAT(ad_voltage), NRF_LOG_FLOAT(ad_resistance), NRF_LOG_FLOAT(temprature));
+            }
+
+            //printf("%d,%f\r\n", p_event->data.done.p_buffer[i], temprature);
+            Average_temperature = Average_temperature + temperature;
+        }
+        Average_temperature = Average_temperature / SAMPLES_IN_BUFFER;
+        m_adc_evt_counter++;
+    }
+}
+
+void saadc_init(void)
+{
+    ret_code_t err_code;
+    nrf_saadc_channel_config_t channel_config =
+        NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN0);    //NRF_SAADC_INPUT_AIN0: P0.02 on nRF52DK board
+
+    err_code = nrf_drv_saadc_init(NULL, saadc_callback);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = nrf_drv_saadc_channel_init(0, &channel_config);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = nrf_drv_saadc_buffer_convert(m_buffer_pool[0], SAMPLES_IN_BUFFER);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = nrf_drv_saadc_buffer_convert(m_buffer_pool[1], SAMPLES_IN_BUFFER);
+    APP_ERROR_CHECK(err_code);
+}
+
+
+
 /**
  * @brief TWI initialization.
  */
@@ -2101,93 +2187,6 @@ static void delete_bonds(void)
 }
 
 
-
-void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
-{
-    int ad_val;
-    //float resolution = 1024.0; //1024 = 2^10, please check ad bit setting
-    float resolution = 16384.0; //16384 = 2^14, please check ad bit setting
-    float ad_voltage;
-    float ad_resistance;
-    float ad_resistance1;
-    float vcc = 2.98;
-    //float resistance0 = 10000;   // R0, termista, 10k ohm (normal, 25deg) 
-    //float resistance1 = 13000;   // R1, split voltage resitance, 10k ohm
-    //float resistance1 = 10000;   // R1, split voltage resitance, 10k ohm
-    float resistance0 = 6706.7;   // R0, termista, 10k ohm (normal, 36deg) 
-    //float resistance1 = 7000.0;   // R1, split voltage resitance, 7k ohm
-    float resistance1 = 6800.0;   // R1, split voltage resitance, 6.8k ohm
-    float e = 2.7182818284; // Napier's constant
-    //float b = 3435.0; // B parameter termista value when 25 deg. = 3435
-    float b = 3380.0; // B parameter termista value when 25 deg. = 3380
-    //float standard_temp = 298.15;  // 25.0 deg + 273.15 absolute temp. [kelbin]
-    float standard_temp = 309.15;  // 36.0 deg + 273.15 absolute temp. [kelbin]
-    float temperature;
-    float correction_term = -9.0;
-
-    //maybe need nrf_log_flush()
-    if (p_event->type == NRF_DRV_SAADC_EVT_DONE)
-    {
-        ret_code_t err_code;
-
-        err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES_IN_BUFFER);
-        APP_ERROR_CHECK(err_code);
-
-        int i;
-        //NRF_LOG_INFO("ADC event number: %d", (int)m_adc_evt_counter);
-
-        Average_temperature = 0;
-        for (i = 0; i < SAMPLES_IN_BUFFER; i++)
-        {
-            ad_val = (int)p_event->data.done.p_buffer[i];
-            ad_voltage = (float)(ad_val) / resolution * vcc;
-            ad_resistance = (resistance1 * ad_voltage) / (vcc - ad_voltage);
-            //ad_resistance = (resistance0 * ad_voltage) / (vcc - ad_voltage);
-            //tempreture = 1/(1/(standard_temp) + logf(ad_resistance/resistance0)/b) - 273.15;
-            temperature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15 + correction_term;
-            //ad_resistance1 = abs(b/(temperature + 273.15) - b/standard_temp);
-            //ad_resistance1 = resistance0 * expf(abs(b/(temperature + 273.15) - b/standard_temp));
-            //NRF_LOG_INFO("%d,%f", p_event->data.done.p_buffer[i], temprature);
-            //NRF_LOG_INFO(NRF_LOG_FLOAT_MARKER, NRF_LOG_FLOAT(temprature));
-            
-            if(Debug_output_body_temperature == true){
-              //NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "\n", p_event->data.done.p_buffer[i], NRF_LOG_FLOAT(temprature));
-              NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER ",", ad_val, NRF_LOG_FLOAT(temperature));
-              NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
-              //NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_resistance));
-              //NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_resistance1));
-              //NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "\n", ad_val, NRF_LOG_FLOAT(ad_voltage), NRF_LOG_FLOAT(ad_resistance), NRF_LOG_FLOAT(temprature));
-            }
-
-            //printf("%d,%f\r\n", p_event->data.done.p_buffer[i], temprature);
-            Average_temperature = Average_temperature + temperature;
-        }
-        Average_temperature = Average_temperature / SAMPLES_IN_BUFFER;
-        m_adc_evt_counter++;
-    }
-}
-
-
-
-void saadc_init(void)
-{
-    ret_code_t err_code;
-    nrf_saadc_channel_config_t channel_config =
-        NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN0);    //NRF_SAADC_INPUT_AIN0: P0.02 on nRF52DK board
-
-    err_code = nrf_drv_saadc_init(NULL, saadc_callback);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = nrf_drv_saadc_channel_init(0, &channel_config);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = nrf_drv_saadc_buffer_convert(m_buffer_pool[0], SAMPLES_IN_BUFFER);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = nrf_drv_saadc_buffer_convert(m_buffer_pool[1], SAMPLES_IN_BUFFER);
-    APP_ERROR_CHECK(err_code);
-
-}
 
 void saadc_timer_handler(nrf_timer_event_t event_type, void * p_context)
 {
