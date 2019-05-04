@@ -1880,8 +1880,6 @@ void twi_init (void)
     */
 }
 
-
-
 void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
 {
     int32_t ret = 0;
@@ -2014,7 +2012,6 @@ void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
     nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
 }
 
-
 // Note:  I2C access should be completed within 0.5ms
 int32_t i2c_write(uint8_t slv_adr, uint8_t reg_adr, uint8_t *reg, uint8_t reg_size)
 {
@@ -2043,7 +2040,6 @@ int32_t i2c_write(uint8_t slv_adr, uint8_t reg_adr, uint8_t *reg, uint8_t reg_si
     //return rc;   //rc is return value that arduino, Wire endTransmission, rc:0 is normal
     return 0;
 }
-
 
 // Note:  I2C access should be completed within 0.5ms
 int32_t i2c_read(uint8_t slv_adr, uint8_t reg_adr, uint8_t *reg, uint8_t reg_size)
@@ -2078,7 +2074,6 @@ int32_t i2c_read(uint8_t slv_adr, uint8_t reg_adr, uint8_t *reg, uint8_t reg_siz
     return 0;
 }
 
-
 /*
 void error_check(int32_t ret, String msg)
 {
@@ -2096,6 +2091,56 @@ void error_check(int32_t ret, String msg)
   }
 }
 */
+
+
+
+
+
+
+/** @brief: Function for handling the RTC0 interrupts.
+ * Triggered on TICK and COMPARE0 match.
+ */
+static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
+{
+    /*
+    if (int_type == NRF_DRV_RTC_INT_COMPARE0)
+    {
+        nrf_gpio_pin_toggle(COMPARE_EVENT_OUTPUT);
+    }
+    else
+    */
+    if (int_type == NRF_DRV_RTC_INT_TICK)
+    {
+        //nrf_gpio_pin_toggle(TICK_EVENT_OUTPUT);
+        //nrf_drv_gpiote_out_toggle(LED_3_COLOR_BLUE_PIN);
+        nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
+        //nrf_drv_gpiote_out_toggle(LED_3_COLOR_RED_PIN);
+    }
+}
+
+const nrf_drv_rtc_t rtc = NRF_DRV_RTC_INSTANCE(2); /**< Declaring an instance of nrf_drv_rtc for RTC2. */
+/** @brief Function initialization and configuration of RTC driver instance.
+ */
+static void rtc_config(void)
+{
+    uint32_t err_code;
+
+    //Initialize RTC instance
+    nrf_drv_rtc_config_t config = NRF_DRV_RTC_DEFAULT_CONFIG;
+    config.prescaler = 4095;
+    err_code = nrf_drv_rtc_init(&rtc, &config, rtc_handler);
+    APP_ERROR_CHECK(err_code);
+
+    //Enable tick event & interrupt
+    nrf_drv_rtc_tick_enable(&rtc, true);
+
+    //Set compare channel to trigger interrupt after COMPARE_COUNTERTIME seconds
+    //err_code = nrf_drv_rtc_cc_set(&rtc, 0, COMPARE_COUNTERTIME * 8, true);
+    //APP_ERROR_CHECK(err_code);
+
+    //Power on RTC instance
+    nrf_drv_rtc_enable(&rtc);
+}
 
 
 
@@ -2283,50 +2328,6 @@ static void advertising_start(bool erase_bonds)
 }
 
 
-/** @brief: Function for handling the RTC0 interrupts.
- * Triggered on TICK and COMPARE0 match.
- */
-static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
-{
-    /*
-    if (int_type == NRF_DRV_RTC_INT_COMPARE0)
-    {
-        nrf_gpio_pin_toggle(COMPARE_EVENT_OUTPUT);
-    }
-    else
-    */
-    if (int_type == NRF_DRV_RTC_INT_TICK)
-    {
-        //nrf_gpio_pin_toggle(TICK_EVENT_OUTPUT);
-        //nrf_drv_gpiote_out_toggle(LED_3_COLOR_BLUE_PIN);
-        nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
-        //nrf_drv_gpiote_out_toggle(LED_3_COLOR_RED_PIN);
-    }
-}
-
-const nrf_drv_rtc_t rtc = NRF_DRV_RTC_INSTANCE(2); /**< Declaring an instance of nrf_drv_rtc for RTC2. */
-/** @brief Function initialization and configuration of RTC driver instance.
- */
-static void rtc_config(void)
-{
-    uint32_t err_code;
-
-    //Initialize RTC instance
-    nrf_drv_rtc_config_t config = NRF_DRV_RTC_DEFAULT_CONFIG;
-    config.prescaler = 4095;
-    err_code = nrf_drv_rtc_init(&rtc, &config, rtc_handler);
-    APP_ERROR_CHECK(err_code);
-
-    //Enable tick event & interrupt
-    nrf_drv_rtc_tick_enable(&rtc, true);
-
-    //Set compare channel to trigger interrupt after COMPARE_COUNTERTIME seconds
-    //err_code = nrf_drv_rtc_cc_set(&rtc, 0, COMPARE_COUNTERTIME * 8, true);
-    //APP_ERROR_CHECK(err_code);
-
-    //Power on RTC instance
-    nrf_drv_rtc_enable(&rtc);
-}
 
 /**@brief Application main function.
  */
