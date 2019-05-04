@@ -1135,6 +1135,345 @@ static void gatt_init(void)
 
 
 
+
+
+
+/**@brief Function for initializing services that will be used by the application.
+ */
+static void nrf_qwr_error_handler(uint32_t nrf_error);
+static void nus_data_handler(ble_nus_evt_t * p_evt);
+static void on_hts_evt(ble_hts_t * p_hts, ble_hts_evt_t * p_evt);
+
+static void services_init(void)
+{
+    uint32_t           err_code;
+    ble_hrs_init_t     hrs_init;
+    ble_hts_init_t     hts_init;
+    ble_bas_init_t     bas_init;
+    ble_dis_init_t     dis_init;
+    ble_nus_init_t     nus_init;
+    nrf_ble_qwr_init_t qwr_init = {0};
+    uint8_t            body_sensor_location;
+    ble_dis_sys_id_t   sys_id;
+
+    // Initialize Queued Write Module.
+    qwr_init.error_handler = nrf_qwr_error_handler;
+
+    err_code = nrf_ble_qwr_init(&m_qwr, &qwr_init);
+    APP_ERROR_CHECK(err_code);
+
+    // Initialize NUS.
+    memset(&nus_init, 0, sizeof(nus_init));
+
+    nus_init.data_handler = nus_data_handler;
+
+    err_code = ble_nus_init(&m_nus, &nus_init);
+    APP_ERROR_CHECK(err_code);
+
+    // Initialize Health Thermometer Service
+    memset(&hts_init, 0, sizeof(hts_init));
+
+    hts_init.evt_handler                 = on_hts_evt;
+    //hts_init.evt_handler                 = NULL;
+    hts_init.temp_type_as_characteristic = TEMP_TYPE_AS_CHARACTERISTIC;
+    hts_init.temp_type                   = BLE_HTS_TEMP_TYPE_BODY;
+
+    // Here the sec level for the Health Thermometer Service can be changed/increased.
+    //hts_init.ht_meas_cccd_wr_sec = SEC_JUST_WORKS;
+    hts_init.ht_meas_cccd_wr_sec = SEC_OPEN;
+    hts_init.ht_type_rd_sec      = SEC_OPEN;
+
+    err_code = ble_hts_init(&m_hts, &hts_init);
+    APP_ERROR_CHECK(err_code);
+
+    // Initialize Heart Rate Service.
+    body_sensor_location = BLE_HRS_BODY_SENSOR_LOCATION_FINGER;
+
+    memset(&hrs_init, 0, sizeof(hrs_init));
+
+    hrs_init.evt_handler                 = NULL;
+    hrs_init.is_sensor_contact_supported = true;
+    hrs_init.p_body_sensor_location      = &body_sensor_location;
+
+    // Here the sec level for the Heart Rate Service can be changed/increased.
+    hrs_init.hrm_cccd_wr_sec = SEC_OPEN;
+    hrs_init.bsl_rd_sec      = SEC_OPEN;
+
+    err_code = ble_hrs_init(&m_hrs, &hrs_init);
+    APP_ERROR_CHECK(err_code);
+
+    // Initialize Battery Service.
+    memset(&bas_init, 0, sizeof(bas_init));
+
+    // Here the sec level for the Battery Service can be changed/increased.
+    bas_init.bl_rd_sec        = SEC_OPEN;
+    bas_init.bl_cccd_wr_sec   = SEC_OPEN;
+    bas_init.bl_report_rd_sec = SEC_OPEN;
+
+    bas_init.evt_handler          = NULL;
+    bas_init.support_notification = true;
+    bas_init.p_report_ref         = NULL;
+    bas_init.initial_batt_level   = 100;
+
+    err_code = ble_bas_init(&m_bas, &bas_init);
+    APP_ERROR_CHECK(err_code);
+
+    // Initialize Device Information Service.
+    memset(&dis_init, 0, sizeof(dis_init));
+
+    ble_srv_ascii_to_utf8(&dis_init.manufact_name_str, MANUFACTURER_NAME);
+    //ble_srv_ascii_to_utf8(&dis_init.model_num_str, MODEL_NUM);
+
+    //sys_id.manufacturer_id            = MANUFACTURER_ID;
+    //sys_id.organizationally_unique_id = ORG_UNIQUE_ID;
+    //dis_init.p_sys_id                 = &sys_id;
+
+    dis_init.dis_char_rd_sec = SEC_OPEN;
+
+    err_code = ble_dis_init(&dis_init);
+    APP_ERROR_CHECK(err_code);
+}
+
+/**@brief Function for handling Queued Write Module errors.
+ *
+ * @details A pointer to this function will be passed to each service which may need to inform the
+ *          application about an error.
+ *
+ * @param[in]   nrf_error   Error code containing information about what went wrong.
+ */
+static void nrf_qwr_error_handler(uint32_t nrf_error)
+{
+    APP_ERROR_HANDLER(nrf_error);
+}
+
+uint16_t Number_of_command = 7;
+static const char * NusCommand[] = 
+{
+    "sta",    /* 0: start measurement command */
+    "sto",    /* 1: stop measurement command  */
+    "rqs",    /* 2: request series command    */
+    "rqd",    /* 3: request data command      */
+    "dhr",    /* 4: debug output heart rate command     */
+    "dbt",    /* 5: debug output temperature command    */
+    "dsp",    /* 6: debug output stop command           */
+};
+
+/**@brief Function for handling the data from the Nordic UART Service.
+ *
+ * @details This function will process the data received from the Nordic UART BLE Service and send
+ *          it to the UART module.
+ *
+ * @param[in] p_evt       Nordic UART Service event.
+ */
+/**@snippet [Handling the data received over BLE] */
+static void nus_data_handler(ble_nus_evt_t * p_evt)
+{
+
+    if (p_evt->type == BLE_NUS_EVT_RX_DATA)
+    {
+        uint32_t err_code;
+        char com_buf[256] = {};
+        uint16_t i;
+
+        char restime[] =    "2018-12-25T12:20:15+9";
+        char resdatanum[] = ",10";
+        char respulse[] =   ",100,101,102,103,104,105,106,107,108,109";
+        char restemp[] =    ",36.00,36.01,36.02,36.03,36.04,36.05,36.06,36.07,36.08,36.09";
+        char resdata[256] = {};
+
+        // NRF_LOG_INFO("nus_data_handler");
+
+        NRF_LOG_DEBUG("Received data from BLE NUS. Writing data on UART.");
+        NRF_LOG_HEXDUMP_DEBUG(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length);
+
+        // NRF_LOG_INFO("p_evt->params.rx_data.p_data: %s", p_evt->params.rx_data.p_data);
+        // for (uint32_t i = 0; i < p_evt->params.rx_data.length; i++)
+        for (i = 0; i < p_evt->params.rx_data.length; i++)
+        {
+            do
+            {
+                err_code = app_uart_put(p_evt->params.rx_data.p_data[i]);
+                if ((err_code != NRF_SUCCESS) && (err_code != NRF_ERROR_BUSY))
+                {
+                    NRF_LOG_ERROR("Failed receiving NUS message. Error 0x%x. ", err_code);
+                    APP_ERROR_CHECK(err_code);
+                }
+                //NRF_LOG_INFO("string: %c", p_evt->params.rx_data.p_data[i]);
+                com_buf[i] = p_evt->params.rx_data.p_data[i];
+            } while (err_code == NRF_ERROR_BUSY);
+        }
+        if (p_evt->params.rx_data.p_data[p_evt->params.rx_data.length - 1] == '\r')
+        {
+            while (app_uart_put('\n') == NRF_ERROR_BUSY);
+        }
+        com_buf[i] = '\0';
+        NRF_LOG_INFO("command: %s", com_buf);
+        /*
+        err_code = ble_nus_data_send(&m_nus, com_buf, &i, m_conn_handle);
+        if ((err_code != NRF_ERROR_INVALID_STATE) &&
+            (err_code != NRF_ERROR_RESOURCES) &&
+            (err_code != NRF_ERROR_NOT_FOUND))
+        {
+            APP_ERROR_CHECK(err_code);
+        }
+        */
+        uint16_t reslength;
+
+        for (i = 0; i < Number_of_command; i++)
+        {
+          if((strcmp(com_buf, NusCommand[i])) == 0)
+          {
+              //NRF_LOG_INFO("ack");
+              /*
+              reslength = 3;
+              err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+              if ((err_code != NRF_ERROR_INVALID_STATE) &&
+                  (err_code != NRF_ERROR_RESOURCES) &&
+                  (err_code != NRF_ERROR_NOT_FOUND))
+              {
+                  APP_ERROR_CHECK(err_code);
+              }
+              */
+              switch (i)
+              {
+                  case 0:   // 0: sta
+                      reslength = 3;
+                      err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                      break;
+                  case 1:   // 1: sto
+                      reslength = 3;
+                      err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                      break;
+                  case 2:   // 2: rqs
+                      reslength = 3;
+                      err_code = ble_nus_data_send(&m_nus, "100", &reslength, m_conn_handle);
+                      break;
+                  case 3:   // 3: rqd
+                      reslength = strlen(restime) + strlen(resdatanum) + strlen(respulse) + strlen(restemp);
+                      //char resdata[reslength];
+                      strcpy(resdata, restime);
+                      //memcpy(resdata, restime, 0);
+                      strcat(resdata, resdatanum);
+                      strcat(resdata, respulse);
+                      strcat(resdata, restemp);
+                      NRF_LOG_INFO("res: %s", resdata);
+                      err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
+                      break;
+                  case 4:   // 4: dhr
+                      Debug_output_heart_rate = true;
+                      Debug_output_body_temperature = false;
+                      reslength = 3;
+                      err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                      break;
+                  case 5:   // 5: dbt
+                      Debug_output_heart_rate = false;
+                      Debug_output_body_temperature = true;
+                      reslength = 3;
+                      err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                      break;
+                  case 6:   // 6: dsp
+                      Debug_output_heart_rate = false;
+                      Debug_output_body_temperature = false;
+                      reslength = 3;
+                      err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                      break;                      
+                  default:
+                      break;
+              }
+              if ((err_code != NRF_ERROR_INVALID_STATE) &&
+                  (err_code != NRF_ERROR_RESOURCES) &&
+                  (err_code != NRF_ERROR_NOT_FOUND))
+              {
+                  APP_ERROR_CHECK(err_code);
+              }
+              break;
+          }
+        }
+        if (i == Number_of_command)
+        {
+            //NRF_LOG_INFO("nak");
+            reslength = 3;
+            err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
+            if ((err_code != NRF_ERROR_INVALID_STATE) &&
+                (err_code != NRF_ERROR_RESOURCES) &&
+                (err_code != NRF_ERROR_NOT_FOUND))
+            {
+                APP_ERROR_CHECK(err_code);
+            }
+        }
+    }
+
+}
+
+/**@snippet [Handling the data received over BLE] */
+
+/**@brief Function for simulating and sending one Temperature Measurement.
+ */
+static void temperature_measurement_send(void)
+{
+    ble_hts_meas_t simulated_meas;
+    ret_code_t     err_code;
+
+    if (!m_hts_meas_ind_conf_pending)
+    {
+        hts_sim_measurement(&simulated_meas);
+
+        err_code = ble_hts_measurement_send(&m_hts, &simulated_meas);
+
+        switch (err_code)
+        {
+            case NRF_SUCCESS:
+                // Measurement was successfully sent, wait for confirmation.
+                m_hts_meas_ind_conf_pending = true;
+                break;
+
+            case NRF_ERROR_INVALID_STATE:
+                // Ignore error.
+                break;
+
+            default:
+                APP_ERROR_HANDLER(err_code);
+                break;
+        }
+    }
+}
+
+
+/**@brief Function for handling the Health Thermometer Service events.
+ *
+ * @details This function will be called for all Health Thermometer Service events which are passed
+ *          to the application.
+ *
+ * @param[in] p_hts  Health Thermometer Service structure.
+ * @param[in] p_evt  Event received from the Health Thermometer Service.
+ */
+static void on_hts_evt(ble_hts_t * p_hts, ble_hts_evt_t * p_evt)
+{
+    temperature_measurement_send();
+    /*
+    switch (p_evt->evt_type)
+    {
+        case BLE_HTS_EVT_INDICATION_ENABLED:
+            // Indication has been enabled, send a single temperature measurement
+            temperature_measurement_send();
+            break;
+
+        case BLE_HTS_EVT_INDICATION_CONFIRMED:
+            m_hts_meas_ind_conf_pending = false;
+            break;
+
+        default:
+            // No implementation needed.
+            break;
+    }
+    */
+}
+
+
+
+
+
+
 /**
  * @brief TWI initialization.
  */
@@ -1461,335 +1800,6 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
     }
 }
 
-
-
-/**@brief Function for simulating and sending one Temperature Measurement.
- */
-static void temperature_measurement_send(void)
-{
-    ble_hts_meas_t simulated_meas;
-    ret_code_t     err_code;
-
-    if (!m_hts_meas_ind_conf_pending)
-    {
-        hts_sim_measurement(&simulated_meas);
-
-        err_code = ble_hts_measurement_send(&m_hts, &simulated_meas);
-
-        switch (err_code)
-        {
-            case NRF_SUCCESS:
-                // Measurement was successfully sent, wait for confirmation.
-                m_hts_meas_ind_conf_pending = true;
-                break;
-
-            case NRF_ERROR_INVALID_STATE:
-                // Ignore error.
-                break;
-
-            default:
-                APP_ERROR_HANDLER(err_code);
-                break;
-        }
-    }
-}
-
-
-/**@brief Function for handling the Health Thermometer Service events.
- *
- * @details This function will be called for all Health Thermometer Service events which are passed
- *          to the application.
- *
- * @param[in] p_hts  Health Thermometer Service structure.
- * @param[in] p_evt  Event received from the Health Thermometer Service.
- */
-static void on_hts_evt(ble_hts_t * p_hts, ble_hts_evt_t * p_evt)
-{
-    temperature_measurement_send();
-    /*
-    switch (p_evt->evt_type)
-    {
-        case BLE_HTS_EVT_INDICATION_ENABLED:
-            // Indication has been enabled, send a single temperature measurement
-            temperature_measurement_send();
-            break;
-
-        case BLE_HTS_EVT_INDICATION_CONFIRMED:
-            m_hts_meas_ind_conf_pending = false;
-            break;
-
-        default:
-            // No implementation needed.
-            break;
-    }
-    */
-}
-
-
-/**@brief Function for handling Queued Write Module errors.
- *
- * @details A pointer to this function will be passed to each service which may need to inform the
- *          application about an error.
- *
- * @param[in]   nrf_error   Error code containing information about what went wrong.
- */
-static void nrf_qwr_error_handler(uint32_t nrf_error)
-{
-    APP_ERROR_HANDLER(nrf_error);
-}
-
-uint16_t Number_of_command = 7;
-static const char * NusCommand[] = 
-{
-    "sta",    /* 0: start measurement command */
-    "sto",    /* 1: stop measurement command  */
-    "rqs",    /* 2: request series command    */
-    "rqd",    /* 3: request data command      */
-    "dhr",    /* 4: debug output heart rate command     */
-    "dbt",    /* 5: debug output temperature command    */
-    "dsp",    /* 6: debug output stop command           */
-};
-
-/**@brief Function for handling the data from the Nordic UART Service.
- *
- * @details This function will process the data received from the Nordic UART BLE Service and send
- *          it to the UART module.
- *
- * @param[in] p_evt       Nordic UART Service event.
- */
-/**@snippet [Handling the data received over BLE] */
-static void nus_data_handler(ble_nus_evt_t * p_evt)
-{
-
-    if (p_evt->type == BLE_NUS_EVT_RX_DATA)
-    {
-        uint32_t err_code;
-        char com_buf[256] = {};
-        uint16_t i;
-
-        char restime[] =    "2018-12-25T12:20:15+9";
-        char resdatanum[] = ",10";
-        char respulse[] =   ",100,101,102,103,104,105,106,107,108,109";
-        char restemp[] =    ",36.00,36.01,36.02,36.03,36.04,36.05,36.06,36.07,36.08,36.09";
-        char resdata[256] = {};
-
-        // NRF_LOG_INFO("nus_data_handler");
-
-        NRF_LOG_DEBUG("Received data from BLE NUS. Writing data on UART.");
-        NRF_LOG_HEXDUMP_DEBUG(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length);
-
-        // NRF_LOG_INFO("p_evt->params.rx_data.p_data: %s", p_evt->params.rx_data.p_data);
-        // for (uint32_t i = 0; i < p_evt->params.rx_data.length; i++)
-        for (i = 0; i < p_evt->params.rx_data.length; i++)
-        {
-            do
-            {
-                err_code = app_uart_put(p_evt->params.rx_data.p_data[i]);
-                if ((err_code != NRF_SUCCESS) && (err_code != NRF_ERROR_BUSY))
-                {
-                    NRF_LOG_ERROR("Failed receiving NUS message. Error 0x%x. ", err_code);
-                    APP_ERROR_CHECK(err_code);
-                }
-                //NRF_LOG_INFO("string: %c", p_evt->params.rx_data.p_data[i]);
-                com_buf[i] = p_evt->params.rx_data.p_data[i];
-            } while (err_code == NRF_ERROR_BUSY);
-        }
-        if (p_evt->params.rx_data.p_data[p_evt->params.rx_data.length - 1] == '\r')
-        {
-            while (app_uart_put('\n') == NRF_ERROR_BUSY);
-        }
-        com_buf[i] = '\0';
-        NRF_LOG_INFO("command: %s", com_buf);
-        /*
-        err_code = ble_nus_data_send(&m_nus, com_buf, &i, m_conn_handle);
-        if ((err_code != NRF_ERROR_INVALID_STATE) &&
-            (err_code != NRF_ERROR_RESOURCES) &&
-            (err_code != NRF_ERROR_NOT_FOUND))
-        {
-            APP_ERROR_CHECK(err_code);
-        }
-        */
-        uint16_t reslength;
-
-        for (i = 0; i < Number_of_command; i++)
-        {
-          if((strcmp(com_buf, NusCommand[i])) == 0)
-          {
-              //NRF_LOG_INFO("ack");
-              /*
-              reslength = 3;
-              err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
-              if ((err_code != NRF_ERROR_INVALID_STATE) &&
-                  (err_code != NRF_ERROR_RESOURCES) &&
-                  (err_code != NRF_ERROR_NOT_FOUND))
-              {
-                  APP_ERROR_CHECK(err_code);
-              }
-              */
-              switch (i)
-              {
-                  case 0:   // 0: sta
-                      reslength = 3;
-                      err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
-                      break;
-                  case 1:   // 1: sto
-                      reslength = 3;
-                      err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
-                      break;
-                  case 2:   // 2: rqs
-                      reslength = 3;
-                      err_code = ble_nus_data_send(&m_nus, "100", &reslength, m_conn_handle);
-                      break;
-                  case 3:   // 3: rqd
-                      reslength = strlen(restime) + strlen(resdatanum) + strlen(respulse) + strlen(restemp);
-                      //char resdata[reslength];
-                      strcpy(resdata, restime);
-                      //memcpy(resdata, restime, 0);
-                      strcat(resdata, resdatanum);
-                      strcat(resdata, respulse);
-                      strcat(resdata, restemp);
-                      NRF_LOG_INFO("res: %s", resdata);
-                      err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
-                      break;
-                  case 4:   // 4: dhr
-                      Debug_output_heart_rate = true;
-                      Debug_output_body_temperature = false;
-                      reslength = 3;
-                      err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
-                      break;
-                  case 5:   // 5: dbt
-                      Debug_output_heart_rate = false;
-                      Debug_output_body_temperature = true;
-                      reslength = 3;
-                      err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
-                      break;
-                  case 6:   // 6: dsp
-                      Debug_output_heart_rate = false;
-                      Debug_output_body_temperature = false;
-                      reslength = 3;
-                      err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
-                      break;                      
-                  default:
-                      break;
-              }
-              if ((err_code != NRF_ERROR_INVALID_STATE) &&
-                  (err_code != NRF_ERROR_RESOURCES) &&
-                  (err_code != NRF_ERROR_NOT_FOUND))
-              {
-                  APP_ERROR_CHECK(err_code);
-              }
-              break;
-          }
-        }
-        if (i == Number_of_command)
-        {
-            //NRF_LOG_INFO("nak");
-            reslength = 3;
-            err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
-            if ((err_code != NRF_ERROR_INVALID_STATE) &&
-                (err_code != NRF_ERROR_RESOURCES) &&
-                (err_code != NRF_ERROR_NOT_FOUND))
-            {
-                APP_ERROR_CHECK(err_code);
-            }
-        }
-    }
-
-}
-/**@snippet [Handling the data received over BLE] */
-
-
-/**@brief Function for initializing services that will be used by the application.
- */
-static void services_init(void)
-{
-    uint32_t           err_code;
-    ble_hrs_init_t     hrs_init;
-    ble_hts_init_t     hts_init;
-    ble_bas_init_t     bas_init;
-    ble_dis_init_t     dis_init;
-    ble_nus_init_t     nus_init;
-    nrf_ble_qwr_init_t qwr_init = {0};
-    uint8_t            body_sensor_location;
-    ble_dis_sys_id_t   sys_id;
-
-    // Initialize Queued Write Module.
-    qwr_init.error_handler = nrf_qwr_error_handler;
-
-    err_code = nrf_ble_qwr_init(&m_qwr, &qwr_init);
-    APP_ERROR_CHECK(err_code);
-
-    // Initialize NUS.
-    memset(&nus_init, 0, sizeof(nus_init));
-
-    nus_init.data_handler = nus_data_handler;
-
-    err_code = ble_nus_init(&m_nus, &nus_init);
-    APP_ERROR_CHECK(err_code);
-
-    // Initialize Health Thermometer Service
-    memset(&hts_init, 0, sizeof(hts_init));
-
-    hts_init.evt_handler                 = on_hts_evt;
-    //hts_init.evt_handler                 = NULL;
-    hts_init.temp_type_as_characteristic = TEMP_TYPE_AS_CHARACTERISTIC;
-    hts_init.temp_type                   = BLE_HTS_TEMP_TYPE_BODY;
-
-    // Here the sec level for the Health Thermometer Service can be changed/increased.
-    //hts_init.ht_meas_cccd_wr_sec = SEC_JUST_WORKS;
-    hts_init.ht_meas_cccd_wr_sec = SEC_OPEN;
-    hts_init.ht_type_rd_sec      = SEC_OPEN;
-
-    err_code = ble_hts_init(&m_hts, &hts_init);
-    APP_ERROR_CHECK(err_code);
-
-    // Initialize Heart Rate Service.
-    body_sensor_location = BLE_HRS_BODY_SENSOR_LOCATION_FINGER;
-
-    memset(&hrs_init, 0, sizeof(hrs_init));
-
-    hrs_init.evt_handler                 = NULL;
-    hrs_init.is_sensor_contact_supported = true;
-    hrs_init.p_body_sensor_location      = &body_sensor_location;
-
-    // Here the sec level for the Heart Rate Service can be changed/increased.
-    hrs_init.hrm_cccd_wr_sec = SEC_OPEN;
-    hrs_init.bsl_rd_sec      = SEC_OPEN;
-
-    err_code = ble_hrs_init(&m_hrs, &hrs_init);
-    APP_ERROR_CHECK(err_code);
-
-    // Initialize Battery Service.
-    memset(&bas_init, 0, sizeof(bas_init));
-
-    // Here the sec level for the Battery Service can be changed/increased.
-    bas_init.bl_rd_sec        = SEC_OPEN;
-    bas_init.bl_cccd_wr_sec   = SEC_OPEN;
-    bas_init.bl_report_rd_sec = SEC_OPEN;
-
-    bas_init.evt_handler          = NULL;
-    bas_init.support_notification = true;
-    bas_init.p_report_ref         = NULL;
-    bas_init.initial_batt_level   = 100;
-
-    err_code = ble_bas_init(&m_bas, &bas_init);
-    APP_ERROR_CHECK(err_code);
-
-    // Initialize Device Information Service.
-    memset(&dis_init, 0, sizeof(dis_init));
-
-    ble_srv_ascii_to_utf8(&dis_init.manufact_name_str, MANUFACTURER_NAME);
-    //ble_srv_ascii_to_utf8(&dis_init.model_num_str, MODEL_NUM);
-
-    //sys_id.manufacturer_id            = MANUFACTURER_ID;
-    //sys_id.organizationally_unique_id = ORG_UNIQUE_ID;
-    //dis_init.p_sys_id                 = &sys_id;
-
-    dis_init.dis_char_rd_sec = SEC_OPEN;
-
-    err_code = ble_dis_init(&dis_init);
-    APP_ERROR_CHECK(err_code);
-}
 
 
 /**@brief Function for initializing the sensor simulators.
