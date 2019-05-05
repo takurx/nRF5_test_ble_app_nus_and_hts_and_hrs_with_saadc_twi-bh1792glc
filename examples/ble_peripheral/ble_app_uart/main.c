@@ -1369,7 +1369,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                 //NRF_LOG_INFO("string: %c, %d", p_evt->params.rx_data.p_data[i], i);
                 //sprintf(com_buf[i], "%c", (char)(p_evt->params.rx_data.p_data[i]));
                 com_buf[i] = p_evt->params.rx_data.p_data[i];
-                NRF_LOG_INFO("string: %c, %d, %c", p_evt->params.rx_data.p_data[i], i, com_buf[i]);
+                //NRF_LOG_INFO("string: %c, %d, %c", p_evt->params.rx_data.p_data[i], i, com_buf[i]);
                 //NRF_LOG_INFO("command: %s", com_buf[0]);
             } while (err_code == NRF_ERROR_BUSY);
         }
@@ -1449,9 +1449,9 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         temp_year =  strtol((const char *)(&com_buf[4]), NULL, 10);
                         temp_month = strtol((const char *)(&com_buf[9]), NULL, 10);
                         temp_day =  strtol((const char *)(&com_buf[12]), NULL, 10);
-                        NRF_LOG_INFO("year: %d", temp_year);
-                        NRF_LOG_INFO("month: %d", temp_month);
-                        NRF_LOG_INFO("day: %d", temp_day);
+                        //NRF_LOG_INFO("year: %d", temp_year);
+                        //NRF_LOG_INFO("month: %d", temp_month);
+                        //NRF_LOG_INFO("day: %d", temp_day);
                         
                         max_temp_days = month_days[temp_month];
                         if (temp_month == 2)
@@ -1483,9 +1483,9 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         temp_hours =   strtol((const char *)(&com_buf[4]), NULL, 10);
                         temp_minutes = strtol((const char *)(&com_buf[7]), NULL, 10);
                         temp_seconds = strtol((const char *)(&com_buf[10]), NULL, 10);
-                        NRF_LOG_INFO("hours: %d", temp_hours);
-                        NRF_LOG_INFO("minutes: %d", temp_minutes);
-                        NRF_LOG_INFO("seconds: %d", temp_seconds);
+                        //NRF_LOG_INFO("hours: %d", temp_hours);
+                        //NRF_LOG_INFO("minutes: %d", temp_minutes);
+                        //NRF_LOG_INFO("seconds: %d", temp_seconds);
                         if ((temp_hours >= 0 && temp_hours < 24) &&
                             (temp_minutes >= 0 && temp_minutes < 60) &&
                             (temp_seconds >= 0 && temp_seconds < 60))
