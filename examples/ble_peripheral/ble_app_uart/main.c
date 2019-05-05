@@ -1274,7 +1274,7 @@ static void nrf_qwr_error_handler(uint32_t nrf_error)
     APP_ERROR_HANDLER(nrf_error);
 }
 
-uint16_t Number_of_command = 7;
+uint16_t Number_of_command = 8;
 static const char * NusCommand[] = 
 {
     "sta",    /* 0: start measurement command */
@@ -1284,6 +1284,7 @@ static const char * NusCommand[] =
     "dhr",    /* 4: debug output heart rate command     */
     "dbt",    /* 5: debug output temperature command    */
     "dsp",    /* 6: debug output stop command           */
+    "dct",    /* 7: debut output current time */
 };
 
 /**@brief Function for handling the data from the Nordic UART Service.
@@ -1303,7 +1304,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         char com_buf[256] = {};
         uint16_t i;
 
-        char restime[] =    "2018-12-25T12:20:15+9";
+        char restime[] =    "2018-12-25T12:20:15";
         char resdatanum[] = ",10";
         char respulse[] =   ",100,101,102,103,104,105,106,107,108,109";
         char restemp[] =    ",36.00,36.01,36.02,36.03,36.04,36.05,36.06,36.07,36.08,36.09";
@@ -1404,7 +1405,14 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                       Debug_output_body_temperature = false;
                       reslength = 3;
                       err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
-                      break;                      
+                      break;
+                  case 7:   // 7: dct
+                      //char restime[] =    "2018-12-25T12:20:15";
+                      NRF_LOG_INFO("%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
+                      sprintf(restime, "%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
+                      reslength = strlen(restime);
+                      err_code = ble_nus_data_send(&m_nus, &restime[0], &reslength, m_conn_handle);
+                      break;   
                   default:
                       break;
               }
