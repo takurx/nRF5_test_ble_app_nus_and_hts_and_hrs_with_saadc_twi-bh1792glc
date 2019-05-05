@@ -1347,15 +1347,6 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         char restemp[] =    ",36.00,36.01,36.02,36.03,36.04,36.05,36.06,36.07,36.08,36.09";
         char resdata[256] = "";
 
-        // NRF_LOG_INFO("nus_data_handler");
-
-        //NRF_LOG_DEBUG("Received data from BLE NUS. Writing data on UART.");
-        //NRF_LOG_HEXDUMP_DEBUG(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length);
-
-        //NRF_LOG_INFO("p_evt->params.rx_data.p_data: %s", p_evt->params.rx_data.p_data);
-        // for (uint32_t i = 0; i < p_evt->params.rx_data.length; i++)
-        
-        //buf_ind = 0;
         for (i = 0; i < p_evt->params.rx_data.length; i++)
         {
             do
@@ -1367,10 +1358,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                     APP_ERROR_CHECK(err_code);
                 }
                 //NRF_LOG_INFO("string: %c, %d", p_evt->params.rx_data.p_data[i], i);
-                //sprintf(com_buf[i], "%c", (char)(p_evt->params.rx_data.p_data[i]));
                 com_buf[i] = p_evt->params.rx_data.p_data[i];
-                //NRF_LOG_INFO("string: %c, %d, %c", p_evt->params.rx_data.p_data[i], i, com_buf[i]);
-                //NRF_LOG_INFO("command: %s", com_buf[0]);
             } while (err_code == NRF_ERROR_BUSY);
         }
         if (p_evt->params.rx_data.p_data[p_evt->params.rx_data.length - 1] == '\r')
@@ -1381,20 +1369,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         com_buf[p_evt->params.rx_data.length] = '\0';
         //NRF_LOG_INFO("command: %s", (uint8_t)(&com_buf[0]));
         NRF_LOG_INFO("command: %s", p_evt->params.rx_data.p_data);
-        //sprintf(com_buf, "%s", p_evt->params.rx_data.p_data);
-        //strcpy((char *)(p_evt->params.rx_data.p_data), com_buf);
-        //NRF_LOG_INFO("command: %s", &com_buf[0]);
-        //memcpy((void *)(p_evt->params.rx_data.p_data), (const void *)(&com_buf[0]), 0);
-        //NRF_LOG_INFO("command1: %s", com_buf);
-        /*
-        err_code = ble_nus_data_send(&m_nus, com_buf, &i, m_conn_handle);
-        if ((err_code != NRF_ERROR_INVALID_STATE) &&
-            (err_code != NRF_ERROR_RESOURCES) &&
-            (err_code != NRF_ERROR_NOT_FOUND))
-        {
-            APP_ERROR_CHECK(err_code);
-        }
-        */
+
         uint16_t reslength;
         long temp_year;
         long temp_month;
@@ -1408,17 +1383,6 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         {
             if((strncmp(com_buf, NusCommand[i], 3)) == 0)
             {
-                //NRF_LOG_INFO("ack");
-                /*
-                reslength = 3;
-                err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
-                if ((err_code != NRF_ERROR_INVALID_STATE) &&
-                    (err_code != NRF_ERROR_RESOURCES) &&
-                    (err_code != NRF_ERROR_NOT_FOUND))
-                {
-                    APP_ERROR_CHECK(err_code);
-                }
-                */
                 switch (i)
                 {
                     case 0:   // 0: sta
@@ -1449,9 +1413,6 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         temp_year =  strtol((const char *)(&com_buf[4]), NULL, 10);
                         temp_month = strtol((const char *)(&com_buf[9]), NULL, 10);
                         temp_day =  strtol((const char *)(&com_buf[12]), NULL, 10);
-                        //NRF_LOG_INFO("year: %d", temp_year);
-                        //NRF_LOG_INFO("month: %d", temp_month);
-                        //NRF_LOG_INFO("day: %d", temp_day);
                         
                         max_temp_days = month_days[temp_month];
                         if (temp_month == 2)
@@ -1483,9 +1444,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         temp_hours =   strtol((const char *)(&com_buf[4]), NULL, 10);
                         temp_minutes = strtol((const char *)(&com_buf[7]), NULL, 10);
                         temp_seconds = strtol((const char *)(&com_buf[10]), NULL, 10);
-                        //NRF_LOG_INFO("hours: %d", temp_hours);
-                        //NRF_LOG_INFO("minutes: %d", temp_minutes);
-                        //NRF_LOG_INFO("seconds: %d", temp_seconds);
+
                         if ((temp_hours >= 0 && temp_hours < 24) &&
                             (temp_minutes >= 0 && temp_minutes < 60) &&
                             (temp_seconds >= 0 && temp_seconds < 60))
