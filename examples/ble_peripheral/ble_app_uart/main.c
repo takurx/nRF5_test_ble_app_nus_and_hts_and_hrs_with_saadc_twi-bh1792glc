@@ -1882,9 +1882,9 @@ void saadc_sampling_event_init(void)
 
 
 static uint8_t  m_adc_channel_enabled; 
-static nrf_saadc_channel_config_t  channel_0_config;
-static nrf_saadc_channel_config_t  channel_1_config;
-static nrf_saadc_channel_config_t  channel_2_config;
+static nrf_saadc_channel_config_t  channel_0_config = NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN0);    //NRF_SAADC_INPUT_AIN0: P0.02, body temprature
+static nrf_saadc_channel_config_t  channel_1_config = NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN1);    //NRF_SAADC_INPUT_AIN1: P0.03, battery temprature
+static nrf_saadc_channel_config_t  channel_5_config = NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN5);    //NRF_SAADC_INPUT_AIN5: P0.29, battery voltage
 
 void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
 {
@@ -1908,64 +1908,106 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
     //maybe need nrf_log_flush()
     if (p_event->type == NRF_DRV_SAADC_EVT_DONE)
     {
-        ret_code_t err_code;
+        static ret_code_t err_code;
+
+        if (m_adc_channel_enabled == 0)
+        {
+            err_code = nrf_drv_saadc_channel_uninit(0);
+            APP_ERROR_CHECK(err_code);
+            err_code = nrf_drv_saadc_channel_init(1, &channel_1_config);
+            APP_ERROR_CHECK(err_code);
+            m_adc_channel_enabled = 1;
+        }
+        else if (m_adc_channel_enabled == 1)
+        {
+            err_code = nrf_drv_saadc_channel_uninit(1);
+            APP_ERROR_CHECK(err_code);
+            err_code = nrf_drv_saadc_channel_init(5, &channel_5_config);
+            APP_ERROR_CHECK(err_code);
+            m_adc_channel_enabled = 5;
+        }
+        else if (m_adc_channel_enabled == 5)
+        {
+            err_code = nrf_drv_saadc_channel_uninit(5);
+            APP_ERROR_CHECK(err_code);
+            err_code = nrf_drv_saadc_channel_init(0, &channel_0_config);
+            APP_ERROR_CHECK(err_code);
+            m_adc_channel_enabled = 0;
+        }
 
         err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES_IN_BUFFER);
         APP_ERROR_CHECK(err_code);
+        NRF_LOG_INFO("Channel %d value: %d", m_adc_channel_enabled, p_event->data.done.p_buffer[0]);
 
         int i;
         //NRF_LOG_INFO("ADC event number: %d", (int)m_adc_evt_counter);
 
-        Average_temperature = 0;
-        for (i = 0; i < SAMPLES_IN_BUFFER; i++)
+        if (m_adc_channel_enabled == 0)
         {
-            ad_val = (int)p_event->data.done.p_buffer[i];
-            //ad_voltage = (float)(ad_val) / resolution * vcc;
-            ad_voltage = (float)(ad_val + correction_term) / resolution * vcc;
-            ad_resistance = (resistance1 * ad_voltage) / (vcc - ad_voltage);
-            //ad_resistance = (resistance0 * ad_voltage) / (vcc - ad_voltage);
-            //tempreture = 1/(1/(standard_temp) + logf(ad_resistance/resistance0)/b) - 273.15;
-            //temperature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15 + correction_term;
-            temperature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15;
-            //ad_resistance1 = abs(b/(temperature + 273.15) - b/standard_temp);
-            //ad_resistance1 = resistance0 * expf(abs(b/(temperature + 273.15) - b/standard_temp));
-            //NRF_LOG_INFO("%d,%f", p_event->data.done.p_buffer[i], temprature);
-            //NRF_LOG_INFO(NRF_LOG_FLOAT_MARKER, NRF_LOG_FLOAT(temprature));
+            Average_temperature = 0;
+            for (i = 0; i < SAMPLES_IN_BUFFER; i++)
+            {
+                ad_val = (int)p_event->data.done.p_buffer[i];
+                //ad_voltage = (float)(ad_val) / resolution * vcc;
+                ad_voltage = (float)(ad_val + correction_term) / resolution * vcc;
+                ad_resistance = (resistance1 * ad_voltage) / (vcc - ad_voltage);
+                //ad_resistance = (resistance0 * ad_voltage) / (vcc - ad_voltage);
+                //tempreture = 1/(1/(standard_temp) + logf(ad_resistance/resistance0)/b) - 273.15;
+                //temperature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15 + correction_term;
+                temperature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15;
+                //ad_resistance1 = abs(b/(temperature + 273.15) - b/standard_temp);
+                //ad_resistance1 = resistance0 * expf(abs(b/(temperature + 273.15) - b/standard_temp));
+                //NRF_LOG_INFO("%d,%f", p_event->data.done.p_buffer[i], temprature);
+                //NRF_LOG_INFO(NRF_LOG_FLOAT_MARKER, NRF_LOG_FLOAT(temprature));
             
-            if(Debug_output_body_temperature == true){
-              //NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "\n", p_event->data.done.p_buffer[i], NRF_LOG_FLOAT(temprature));
-              NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER ",", ad_val, NRF_LOG_FLOAT(temperature));
-              NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
-              //NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_resistance));
-              //NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_resistance1));
-              //NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "\n", ad_val, NRF_LOG_FLOAT(ad_voltage), NRF_LOG_FLOAT(ad_resistance), NRF_LOG_FLOAT(temprature));
-            }
+                if(Debug_output_body_temperature == true){
+                    //NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "\n", p_event->data.done.p_buffer[i], NRF_LOG_FLOAT(temprature));
+                    NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER ",", ad_val, NRF_LOG_FLOAT(temperature));
+                    NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
+                    //NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_resistance));
+                    //NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_resistance1));
+                    //NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "\n", ad_val, NRF_LOG_FLOAT(ad_voltage), NRF_LOG_FLOAT(ad_resistance), NRF_LOG_FLOAT(temprature));
+                }
 
-            //printf("%d,%f\r\n", p_event->data.done.p_buffer[i], temprature);
-            Average_temperature = Average_temperature + temperature;
+                //printf("%d,%f\r\n", p_event->data.done.p_buffer[i], temprature);
+                Average_temperature = Average_temperature + temperature;
+            }
+            Average_temperature = Average_temperature / SAMPLES_IN_BUFFER;
+            //m_adc_evt_counter++;
         }
-        Average_temperature = Average_temperature / SAMPLES_IN_BUFFER;
-        //m_adc_evt_counter++;
+        else
+        {
+            for (i = 0; i < SAMPLES_IN_BUFFER; i++)
+            {
+                //printf("Channel %d value: %d\r\n", m_adc_channel_enabled, p_event->data.done.p_buffer[i]);
+                NRF_LOG_INFO("Channel %d value: %d", m_adc_channel_enabled, p_event->data.done.p_buffer[i]);
+            }
+        }
     }
 }
 
 void saadc_init(void)
 {
     ret_code_t err_code;
+    /*
     nrf_saadc_channel_config_t channel_config =
         NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN0);    //NRF_SAADC_INPUT_AIN0: P0.02 on nRF52DK board
+    */
+    //nrf_saadc_channel_config_t channel_config;
+    //channel_config = NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN0); 
 
     err_code = nrf_drv_saadc_init(NULL, saadc_callback);
     APP_ERROR_CHECK(err_code);
 
-    err_code = nrf_drv_saadc_channel_init(0, &channel_config);
+    err_code = nrf_drv_saadc_channel_init(0, &channel_0_config);
     APP_ERROR_CHECK(err_code);
+    m_adc_channel_enabled = 0;
 
     err_code = nrf_drv_saadc_buffer_convert(m_buffer_pool[0], SAMPLES_IN_BUFFER);
     APP_ERROR_CHECK(err_code);
 
-    err_code = nrf_drv_saadc_buffer_convert(m_buffer_pool[1], SAMPLES_IN_BUFFER);
-    APP_ERROR_CHECK(err_code);
+    //err_code = nrf_drv_saadc_buffer_convert(m_buffer_pool[1], SAMPLES_IN_BUFFER);
+    //APP_ERROR_CHECK(err_code);
 }
 
 
