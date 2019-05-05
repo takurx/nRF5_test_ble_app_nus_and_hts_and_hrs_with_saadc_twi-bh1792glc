@@ -1337,22 +1337,25 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
     if (p_evt->type == BLE_NUS_EVT_RX_DATA)
     {
         uint32_t err_code;
-        char com_buf[256] = {};
+        static char com_buf[256] = "";
         uint16_t i;
+        uint16_t buf_ind;
 
         char restime[] =    "2018-12-25T12:20:15";
         char resdatanum[] = ",10";
         char respulse[] =   ",100,101,102,103,104,105,106,107,108,109";
         char restemp[] =    ",36.00,36.01,36.02,36.03,36.04,36.05,36.06,36.07,36.08,36.09";
-        char resdata[256] = {};
+        char resdata[256] = "";
 
         // NRF_LOG_INFO("nus_data_handler");
 
-        NRF_LOG_DEBUG("Received data from BLE NUS. Writing data on UART.");
-        NRF_LOG_HEXDUMP_DEBUG(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length);
+        //NRF_LOG_DEBUG("Received data from BLE NUS. Writing data on UART.");
+        //NRF_LOG_HEXDUMP_DEBUG(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length);
 
-        // NRF_LOG_INFO("p_evt->params.rx_data.p_data: %s", p_evt->params.rx_data.p_data);
+        //NRF_LOG_INFO("p_evt->params.rx_data.p_data: %s", p_evt->params.rx_data.p_data);
         // for (uint32_t i = 0; i < p_evt->params.rx_data.length; i++)
+        
+        //buf_ind = 0;
         for (i = 0; i < p_evt->params.rx_data.length; i++)
         {
             do
@@ -1363,16 +1366,26 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                     NRF_LOG_ERROR("Failed receiving NUS message. Error 0x%x. ", err_code);
                     APP_ERROR_CHECK(err_code);
                 }
-                //NRF_LOG_INFO("string: %c", p_evt->params.rx_data.p_data[i]);
+                //NRF_LOG_INFO("string: %c, %d", p_evt->params.rx_data.p_data[i], i);
+                //sprintf(com_buf[i], "%c", (char)(p_evt->params.rx_data.p_data[i]));
                 com_buf[i] = p_evt->params.rx_data.p_data[i];
+                NRF_LOG_INFO("string: %c, %d, %c", p_evt->params.rx_data.p_data[i], i, com_buf[i]);
+                //NRF_LOG_INFO("command: %s", com_buf[0]);
             } while (err_code == NRF_ERROR_BUSY);
         }
         if (p_evt->params.rx_data.p_data[p_evt->params.rx_data.length - 1] == '\r')
         {
             while (app_uart_put('\n') == NRF_ERROR_BUSY);
         }
-        com_buf[i] = '\0';
-        NRF_LOG_INFO("command: %s", com_buf);
+
+        com_buf[p_evt->params.rx_data.length] = '\0';
+        //NRF_LOG_INFO("command: %s", (uint8_t)(&com_buf[0]));
+        NRF_LOG_INFO("command: %s", p_evt->params.rx_data.p_data);
+        //sprintf(com_buf, "%s", p_evt->params.rx_data.p_data);
+        //strcpy((char *)(p_evt->params.rx_data.p_data), com_buf);
+        //NRF_LOG_INFO("command: %s", &com_buf[0]);
+        //memcpy((void *)(p_evt->params.rx_data.p_data), (const void *)(&com_buf[0]), 0);
+        //NRF_LOG_INFO("command1: %s", com_buf);
         /*
         err_code = ble_nus_data_send(&m_nus, com_buf, &i, m_conn_handle);
         if ((err_code != NRF_ERROR_INVALID_STATE) &&
@@ -1385,10 +1398,11 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         uint16_t reslength;
         long temp_year;
         long temp_month;
-        long temp_days;
+        long temp_day;
         long temp_hours;
         long temp_minutes;
         long temp_seconds;
+        long max_temp_days;
 
         for (i = 0; i < Number_of_command; i++)
         {
@@ -1431,22 +1445,62 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
                         break;
                     case 4:   // 4: scd
-                        /* Ex. "scd 2018-12-25" */
-                        temp_year = strtol((const char *)(&com_buf[4]), (char * *)(&com_buf[7]), 10);
-                        /*int temp_month;
-                        int temp_days;*/
+                        /* Ex. "scd 2018-01-03" */
+                        temp_year =  strtol((const char *)(&com_buf[4]), NULL, 10);
+                        temp_month = strtol((const char *)(&com_buf[9]), NULL, 10);
+                        temp_day =  strtol((const char *)(&com_buf[12]), NULL, 10);
                         NRF_LOG_INFO("year: %d", temp_year);
-                        reslength = 3;
-                        err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        NRF_LOG_INFO("month: %d", temp_month);
+                        NRF_LOG_INFO("day: %d", temp_day);
+                        
+                        max_temp_days = month_days[temp_month];
+                        if (temp_month == 2)
+                        {
+                            if ((temp_year % 4 == 0 && temp_year % 100 != 0) || (temp_year % 400 == 0)) //leap year
+                            {
+                                max_temp_days = max_temp_days + 1;
+                            }
+                        }
+
+                        if ((temp_year >= 1900 && temp_year < 2200) &&
+                            (temp_month >= 1 && temp_month < 12) &&
+                            (temp_day >= 1 && temp_day <= max_temp_days))
+                        {
+                          time_stamp.year = temp_year;
+                          time_stamp.month = temp_month;
+                          time_stamp.day = temp_day;
+                          reslength = 3;
+                          err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        }
+                        else
+                        {
+                          reslength = 3;
+                          err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
+                        }
                         break;
                     case 5:   // 5: sct
-                        /* Ex. "sct 12:20:15" */
-                        temp_hours = strtol((const char *)(&com_buf[4]), (char * *)(&com_buf[5]), 10);
-                        /*int temp_minutes;
-                        int temp_seconds;*/
+                        /* Ex. "sct 23:59:55" */
+                        temp_hours =   strtol((const char *)(&com_buf[4]), NULL, 10);
+                        temp_minutes = strtol((const char *)(&com_buf[7]), NULL, 10);
+                        temp_seconds = strtol((const char *)(&com_buf[10]), NULL, 10);
                         NRF_LOG_INFO("hours: %d", temp_hours);
-                        reslength = 3;
-                        err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        NRF_LOG_INFO("minutes: %d", temp_minutes);
+                        NRF_LOG_INFO("seconds: %d", temp_seconds);
+                        if ((temp_hours >= 0 && temp_hours < 24) &&
+                            (temp_minutes >= 0 && temp_minutes < 60) &&
+                            (temp_seconds >= 0 && temp_seconds < 60))
+                        {
+                          time_stamp.hours = temp_hours;
+                          time_stamp.minutes = temp_minutes;
+                          time_stamp.seconds = temp_seconds;
+                          reslength = 3;
+                          err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        }
+                        else
+                        {
+                          reslength = 3;
+                          err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
+                        }
                         break;
                     case 30:   // 30: dhr
                         Debug_output_heart_rate = true;
@@ -1488,6 +1542,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         if (i == Number_of_command)
         {
             //NRF_LOG_INFO("nak");
+            NRF_LOG_INFO("Number_of_command: %d", Number_of_command);
             reslength = 3;
             err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
             if ((err_code != NRF_ERROR_INVALID_STATE) &&
