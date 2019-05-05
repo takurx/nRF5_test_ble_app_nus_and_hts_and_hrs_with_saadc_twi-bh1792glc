@@ -1834,6 +1834,53 @@ static void peer_manager_init(void)
 
 
 
+
+
+
+void saadc_timer_handler(nrf_timer_event_t event_type, void * p_context)
+{
+
+}
+
+void saadc_sampling_event_init(void)
+{
+    ret_code_t err_code;
+
+    err_code = nrf_drv_ppi_init();
+    APP_ERROR_CHECK(err_code);
+
+    nrf_drv_timer_config_t timer_cfg = NRF_DRV_TIMER_DEFAULT_CONFIG;
+    timer_cfg.bit_width = NRF_TIMER_BIT_WIDTH_32;
+    err_code = nrf_drv_timer_init(&m_timer, &timer_cfg, saadc_timer_handler);
+    APP_ERROR_CHECK(err_code);
+
+    /* setup m_timer for compare event every 400ms */
+    uint32_t ticks = nrf_drv_timer_ms_to_ticks(&m_timer, 400);
+    nrf_drv_timer_extended_compare(&m_timer,
+                                   NRF_TIMER_CC_CHANNEL0,
+                                   //NRF_TIMER_CC_CHANNEL1,
+                                   ticks,
+                                   NRF_TIMER_SHORT_COMPARE0_CLEAR_MASK,
+                                   false);
+    nrf_drv_timer_enable(&m_timer);
+
+    uint32_t timer_compare_event_addr = nrf_drv_timer_compare_event_address_get(&m_timer,
+                                                                                NRF_TIMER_CC_CHANNEL0);
+                                                                                //NRF_TIMER_CC_CHANNEL1);
+    uint32_t saadc_sample_task_addr   = nrf_drv_saadc_sample_task_get();
+
+    /* setup ppi channel so that timer compare event is triggering sample task in SAADC */
+    err_code = nrf_drv_ppi_channel_alloc(&m_ppi_channel);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = nrf_drv_ppi_channel_assign(m_ppi_channel,
+                                          timer_compare_event_addr,
+                                          saadc_sample_task_addr);
+    APP_ERROR_CHECK(err_code);
+}
+
+
+
 void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
 {
     int ad_val;
@@ -1913,50 +1960,6 @@ void saadc_init(void)
     APP_ERROR_CHECK(err_code);
 
     err_code = nrf_drv_saadc_buffer_convert(m_buffer_pool[1], SAMPLES_IN_BUFFER);
-    APP_ERROR_CHECK(err_code);
-}
-
-
-
-void saadc_timer_handler(nrf_timer_event_t event_type, void * p_context)
-{
-
-}
-
-void saadc_sampling_event_init(void)
-{
-    ret_code_t err_code;
-
-    err_code = nrf_drv_ppi_init();
-    APP_ERROR_CHECK(err_code);
-
-    nrf_drv_timer_config_t timer_cfg = NRF_DRV_TIMER_DEFAULT_CONFIG;
-    timer_cfg.bit_width = NRF_TIMER_BIT_WIDTH_32;
-    err_code = nrf_drv_timer_init(&m_timer, &timer_cfg, saadc_timer_handler);
-    APP_ERROR_CHECK(err_code);
-
-    /* setup m_timer for compare event every 400ms */
-    uint32_t ticks = nrf_drv_timer_ms_to_ticks(&m_timer, 400);
-    nrf_drv_timer_extended_compare(&m_timer,
-                                   NRF_TIMER_CC_CHANNEL0,
-                                   //NRF_TIMER_CC_CHANNEL1,
-                                   ticks,
-                                   NRF_TIMER_SHORT_COMPARE0_CLEAR_MASK,
-                                   false);
-    nrf_drv_timer_enable(&m_timer);
-
-    uint32_t timer_compare_event_addr = nrf_drv_timer_compare_event_address_get(&m_timer,
-                                                                                NRF_TIMER_CC_CHANNEL0);
-                                                                                //NRF_TIMER_CC_CHANNEL1);
-    uint32_t saadc_sample_task_addr   = nrf_drv_saadc_sample_task_get();
-
-    /* setup ppi channel so that timer compare event is triggering sample task in SAADC */
-    err_code = nrf_drv_ppi_channel_alloc(&m_ppi_channel);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = nrf_drv_ppi_channel_assign(m_ppi_channel,
-                                          timer_compare_event_addr,
-                                          saadc_sample_task_addr);
     APP_ERROR_CHECK(err_code);
 }
 
@@ -2407,10 +2410,10 @@ int main(void)
     conn_params_init();
     NRF_LOG_INFO("Finish conn params init");
     peer_manager_init();
-    NRF_LOG_INFO("Finish peer manager init");
-    saadc_init();
     NRF_LOG_INFO("Finish saadc_init init");
     saadc_sampling_event_init();
+    NRF_LOG_INFO("Finish peer manager init");
+    saadc_init();
     NRF_LOG_INFO("Finish saadc_sampling_event_init init");
     saadc_sampling_event_enable();
     NRF_LOG_INFO("SAADC HAL simple example started.");
