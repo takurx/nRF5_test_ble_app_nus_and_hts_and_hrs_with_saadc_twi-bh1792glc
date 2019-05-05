@@ -246,8 +246,8 @@ static ble_uuid_t m_adv_uuids[]          =                                      
     {BLE_UUID_DEVICE_INFORMATION_SERVICE,   BLE_UUID_TYPE_BLE}
 };
 
-#define SAMPLES_IN_BUFFER 5
-volatile uint8_t state = 1;
+#define SAMPLES_IN_BUFFER 1
+//volatile uint8_t state = 1;
 
 //static const nrf_drv_timer_t m_timer = NRF_DRV_TIMER_INSTANCE(0);
 static const nrf_drv_timer_t m_timer = NRF_DRV_TIMER_INSTANCE(1);
@@ -1854,8 +1854,8 @@ void saadc_sampling_event_init(void)
     err_code = nrf_drv_timer_init(&m_timer, &timer_cfg, saadc_timer_handler);
     APP_ERROR_CHECK(err_code);
 
-    /* setup m_timer for compare event every 400ms */
-    uint32_t ticks = nrf_drv_timer_ms_to_ticks(&m_timer, 400);
+    /* setup m_timer for compare event every 1000ms */
+    uint32_t ticks = nrf_drv_timer_ms_to_ticks(&m_timer, 1000);
     nrf_drv_timer_extended_compare(&m_timer,
                                    NRF_TIMER_CC_CHANNEL0,
                                    //NRF_TIMER_CC_CHANNEL1,
@@ -1880,6 +1880,11 @@ void saadc_sampling_event_init(void)
 }
 
 
+
+static uint8_t  m_adc_channel_enabled; 
+static nrf_saadc_channel_config_t  channel_0_config;
+static nrf_saadc_channel_config_t  channel_1_config;
+static nrf_saadc_channel_config_t  channel_2_config;
 
 void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
 {
