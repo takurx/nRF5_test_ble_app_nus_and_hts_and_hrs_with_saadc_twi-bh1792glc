@@ -1311,7 +1311,8 @@ static const char * NusCommand[] =
     "sto",    /* 1: stop measurement command  */
     "rqs",    /* 2: request series command    */
     "rqd",    /* 3: request data command      */
-    "", "", "", "", "", "",     /* 4-9 */
+    "sct",    /* 4: set current time command  Ex. "sct 2018-12-25T12:20:15" */
+    "", "", "", "", "",     /* 5-9 */
     "", "", "", "", "", "", "", "", "", "",     /* 10-19 */
     "", "", "", "", "", "", "", "", "", "",     /* 20-29 */
     "dhr",    /* 30: debug output heart rate command     */
@@ -1384,80 +1385,84 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
 
         for (i = 0; i < Number_of_command; i++)
         {
-          if((strcmp(com_buf, NusCommand[i])) == 0)
-          {
-              //NRF_LOG_INFO("ack");
-              /*
-              reslength = 3;
-              err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
-              if ((err_code != NRF_ERROR_INVALID_STATE) &&
-                  (err_code != NRF_ERROR_RESOURCES) &&
-                  (err_code != NRF_ERROR_NOT_FOUND))
-              {
-                  APP_ERROR_CHECK(err_code);
-              }
-              */
-              switch (i)
-              {
-                  case 0:   // 0: sta
-                      reslength = 3;
-                      err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
-                      break;
-                  case 1:   // 1: sto
-                      reslength = 3;
-                      err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
-                      break;
-                  case 2:   // 2: rqs
-                      reslength = 3;
-                      err_code = ble_nus_data_send(&m_nus, "100", &reslength, m_conn_handle);
-                      break;
-                  case 3:   // 3: rqd
-                      reslength = strlen(restime) + strlen(resdatanum) + strlen(respulse) + strlen(restemp);
-                      //char resdata[reslength];
-                      strcpy(resdata, restime);
-                      //memcpy(resdata, restime, 0);
-                      strcat(resdata, resdatanum);
-                      strcat(resdata, respulse);
-                      strcat(resdata, restemp);
-                      NRF_LOG_INFO("res: %s", resdata);
-                      err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
-                      break;
-                  case 30:   // 30: dhr
-                      Debug_output_heart_rate = true;
-                      Debug_output_body_temperature = false;
-                      reslength = 3;
-                      err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
-                      break;
-                  case 31:   // 31: dbt
-                      Debug_output_heart_rate = false;
-                      Debug_output_body_temperature = true;
-                      reslength = 3;
-                      err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
-                      break;
-                  case 32:   // 32: dsp
-                      Debug_output_heart_rate = false;
-                      Debug_output_body_temperature = false;
-                      reslength = 3;
-                      err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
-                      break;
-                  case 33:   // 33: dct
-                      //char restime[] =    "2018-12-25T12:20:15";
-                      NRF_LOG_INFO("%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
-                      sprintf(restime, "%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
-                      reslength = strlen(restime);
-                      err_code = ble_nus_data_send(&m_nus, &restime[0], &reslength, m_conn_handle);
-                      break;   
-                  default:
-                      break;
-              }
-              if ((err_code != NRF_ERROR_INVALID_STATE) &&
-                  (err_code != NRF_ERROR_RESOURCES) &&
-                  (err_code != NRF_ERROR_NOT_FOUND))
-              {
-                  APP_ERROR_CHECK(err_code);
-              }
-              break;
-          }
+            if((strncmp(com_buf, NusCommand[i], 3)) == 0)
+            {
+                //NRF_LOG_INFO("ack");
+                /*
+                reslength = 3;
+                err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                if ((err_code != NRF_ERROR_INVALID_STATE) &&
+                    (err_code != NRF_ERROR_RESOURCES) &&
+                    (err_code != NRF_ERROR_NOT_FOUND))
+                {
+                    APP_ERROR_CHECK(err_code);
+                }
+                */
+                switch (i)
+                {
+                    case 0:   // 0: sta
+                        reslength = 3;
+                        err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        break;
+                    case 1:   // 1: sto
+                        reslength = 3;
+                        err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        break;
+                    case 2:   // 2: rqs
+                        reslength = 3;
+                        err_code = ble_nus_data_send(&m_nus, "100", &reslength, m_conn_handle);
+                        break;
+                    case 3:   // 3: rqd
+                        reslength = strlen(restime) + strlen(resdatanum) + strlen(respulse) + strlen(restemp);
+                        //char resdata[reslength];
+                        strcpy(resdata, restime);
+                        //memcpy(resdata, restime, 0);
+                        strcat(resdata, resdatanum);
+                        strcat(resdata, respulse);
+                        strcat(resdata, restemp);
+                        NRF_LOG_INFO("res: %s", resdata);
+                        err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
+                        break;
+                    case 4:   // 4: sct
+                        reslength = 3;
+                        err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        break;
+                    case 30:   // 30: dhr
+                        Debug_output_heart_rate = true;
+                        Debug_output_body_temperature = false;
+                        reslength = 3;
+                        err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        break;
+                    case 31:   // 31: dbt
+                        Debug_output_heart_rate = false;
+                        Debug_output_body_temperature = true;
+                        reslength = 3;
+                        err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        break;
+                    case 32:   // 32: dsp
+                        Debug_output_heart_rate = false;
+                        Debug_output_body_temperature = false;
+                        reslength = 3;
+                        err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        break;
+                    case 33:   // 33: dct
+                        //char restime[] =    "2018-12-25T12:20:15";
+                        NRF_LOG_INFO("%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
+                        sprintf(restime, "%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
+                        reslength = strlen(restime);
+                        err_code = ble_nus_data_send(&m_nus, &restime[0], &reslength, m_conn_handle);
+                        break;   
+                    default:
+                        break;
+                }
+                if ((err_code != NRF_ERROR_INVALID_STATE) &&
+                    (err_code != NRF_ERROR_RESOURCES) &&
+                    (err_code != NRF_ERROR_NOT_FOUND))
+                {
+                    APP_ERROR_CHECK(err_code);
+                }
+                break;
+            }
         }
         if (i == Number_of_command)
         {
