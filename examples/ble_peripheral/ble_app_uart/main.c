@@ -694,7 +694,7 @@ static void rr_interval_timeout_handler(void * p_context)
  */
 volatile float Average_temperature = 0.0;
 
-static ble_date_time_t time_stamp = { 2019, 5, 4, 11, 46, 5 };
+static ble_date_time_t time_stamp = { 2019, 2, 28, 23, 59, 50 };
 static const int month_days[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
 static void hts_sim_measurement(ble_hts_meas_t * p_meas)
@@ -732,12 +732,31 @@ static void hts_sim_measurement(ble_hts_meas_t * p_meas)
                 time_stamp.day++;
                 if (time_stamp.day > month_days[time_stamp.month])
                 {
-                    time_stamp.day = 1;
-                    time_stamp.month++;
-                    if (time_stamp.month > 12)
+                    if (time_stamp.month == 2)
                     {
-                        time_stamp.month = 1;
-                        time_stamp.year++;
+                        if ((time_stamp.year % 4 == 0 && time_stamp.year % 100 != 0) || (time_stamp.year % 400 == 0))   // leap year
+                        {
+                            if (time_stamp.day > month_days[time_stamp.month] + 1)
+                            {
+                                time_stamp.day = 1;
+                                time_stamp.month++;
+                            }
+                        }
+                        else    // not leap year
+                        {
+                            time_stamp.day = 1;
+                            time_stamp.month++;
+                        }
+                    }
+                    else
+                    {
+                        time_stamp.day = 1;
+                        time_stamp.month++;
+                        if (time_stamp.month > 12)
+                        {
+                            time_stamp.month = 1;
+                            time_stamp.year++;
+                        }
                     }
                 }
             }
