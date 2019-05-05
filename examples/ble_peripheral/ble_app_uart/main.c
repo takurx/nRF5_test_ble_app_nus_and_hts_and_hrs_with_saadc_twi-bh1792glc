@@ -1274,17 +1274,21 @@ static void nrf_qwr_error_handler(uint32_t nrf_error)
     APP_ERROR_HANDLER(nrf_error);
 }
 
-uint16_t Number_of_command = 8;
+uint16_t Number_of_command = 40;
 static const char * NusCommand[] = 
 {
     "sta",    /* 0: start measurement command */
     "sto",    /* 1: stop measurement command  */
     "rqs",    /* 2: request series command    */
     "rqd",    /* 3: request data command      */
-    "dhr",    /* 4: debug output heart rate command     */
-    "dbt",    /* 5: debug output temperature command    */
-    "dsp",    /* 6: debug output stop command           */
-    "dct",    /* 7: debut output current time */
+    "", "", "", "", "", "",     /* 4-9 */
+    "", "", "", "", "", "", "", "", "", "",     /* 10-19 */
+    "", "", "", "", "", "", "", "", "", "",     /* 20-29 */
+    "dhr",    /* 30: debug output heart rate command     */
+    "dbt",    /* 31: debug output temperature command    */
+    "dsp",    /* 32: debug output stop command           */
+    "dct",    /* 33: debut output current time */
+    "", "", "", "", "", "",     /* 34-39 */
 };
 
 /**@brief Function for handling the data from the Nordic UART Service.
@@ -1388,25 +1392,25 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                       NRF_LOG_INFO("res: %s", resdata);
                       err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
                       break;
-                  case 4:   // 4: dhr
+                  case 30:   // 30: dhr
                       Debug_output_heart_rate = true;
                       Debug_output_body_temperature = false;
                       reslength = 3;
                       err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                       break;
-                  case 5:   // 5: dbt
+                  case 31:   // 31: dbt
                       Debug_output_heart_rate = false;
                       Debug_output_body_temperature = true;
                       reslength = 3;
                       err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                       break;
-                  case 6:   // 6: dsp
+                  case 32:   // 32: dsp
                       Debug_output_heart_rate = false;
                       Debug_output_body_temperature = false;
                       reslength = 3;
                       err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                       break;
-                  case 7:   // 7: dct
+                  case 33:   // 33: dct
                       //char restime[] =    "2018-12-25T12:20:15";
                       NRF_LOG_INFO("%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
                       sprintf(restime, "%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
