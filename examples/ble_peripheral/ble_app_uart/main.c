@@ -1768,7 +1768,7 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
     float ad_voltage;
     float ad_resistance;
     float ad_resistance1;
-    float vcc = 2.98;
+    float vcc = 3.00;
     //float resistance0 = 10000;   // R0, termista, 10k ohm (normal, 25deg) 
     float resistance0 = 6706.7;   // R0, termista, 10k ohm (normal, 36deg)
     float resistance1 = 6800.0;   // R1, split voltage resitance, 6.8k ohm
@@ -1777,7 +1777,7 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
     //float standard_temp = 298.15;  // 25.0 deg + 273.15 absolute temp. [kelbin]
     float standard_temp = 309.15;  // 36.0 deg + 273.15 absolute temp. [kelbin]
     float temperature;
-    float correction_term = -9.0;
+    float correction_term = 1292;
 
     //maybe need nrf_log_flush()
     if (p_event->type == NRF_DRV_SAADC_EVT_DONE)
@@ -1794,11 +1794,13 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
         for (i = 0; i < SAMPLES_IN_BUFFER; i++)
         {
             ad_val = (int)p_event->data.done.p_buffer[i];
-            ad_voltage = (float)(ad_val) / resolution * vcc;
+            //ad_voltage = (float)(ad_val) / resolution * vcc;
+            ad_voltage = (float)(ad_val + correction_term) / resolution * vcc;
             ad_resistance = (resistance1 * ad_voltage) / (vcc - ad_voltage);
             //ad_resistance = (resistance0 * ad_voltage) / (vcc - ad_voltage);
             //tempreture = 1/(1/(standard_temp) + logf(ad_resistance/resistance0)/b) - 273.15;
-            temperature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15 + correction_term;
+            //temperature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15 + correction_term;
+            temperature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15;
             //ad_resistance1 = abs(b/(temperature + 273.15) - b/standard_temp);
             //ad_resistance1 = resistance0 * expf(abs(b/(temperature + 273.15) - b/standard_temp));
             //NRF_LOG_INFO("%d,%f", p_event->data.done.p_buffer[i], temprature);
