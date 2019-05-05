@@ -1311,8 +1311,9 @@ static const char * NusCommand[] =
     "sto",    /* 1: stop measurement command  */
     "rqs",    /* 2: request series command    */
     "rqd",    /* 3: request data command      */
-    "sct",    /* 4: set current time command  Ex. "sct 2018-12-25T12:20:15" */
-    "", "", "", "", "",     /* 5-9 */
+    "scd",    /* 4: set current days command  Ex. "scd 2018-12-25" */
+    "sct",    /* 5: set current time command  Ex. "sct 12:20:15"   */
+    "", "", "", "",     /* 6-9 */
     "", "", "", "", "", "", "", "", "", "",     /* 10-19 */
     "", "", "", "", "", "", "", "", "", "",     /* 20-29 */
     "dhr",    /* 30: debug output heart rate command     */
@@ -1382,6 +1383,12 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         }
         */
         uint16_t reslength;
+        long temp_year;
+        long temp_month;
+        long temp_days;
+        long temp_hours;
+        long temp_minutes;
+        long temp_seconds;
 
         for (i = 0; i < Number_of_command; i++)
         {
@@ -1423,7 +1430,21 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         NRF_LOG_INFO("res: %s", resdata);
                         err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
                         break;
-                    case 4:   // 4: sct
+                    case 4:   // 4: scd
+                        /* Ex. "scd 2018-12-25" */
+                        temp_year = strtol((const char *)(&com_buf[4]), (char * *)(&com_buf[7]), 10);
+                        /*int temp_month;
+                        int temp_days;*/
+                        NRF_LOG_INFO("year: %d", temp_year);
+                        reslength = 3;
+                        err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        break;
+                    case 5:   // 5: sct
+                        /* Ex. "sct 12:20:15" */
+                        temp_hours = strtol((const char *)(&com_buf[4]), (char * *)(&com_buf[5]), 10);
+                        /*int temp_minutes;
+                        int temp_seconds;*/
+                        NRF_LOG_INFO("hours: %d", temp_hours);
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         break;
