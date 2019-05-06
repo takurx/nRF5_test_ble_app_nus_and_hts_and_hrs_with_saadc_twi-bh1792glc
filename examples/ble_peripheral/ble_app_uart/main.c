@@ -175,6 +175,8 @@
 
 #define SENSOR_CONTACT_DETECTED_INTERVAL    APP_TIMER_TICKS(5000)                   /**< Sensor Contact Detected toggle interval (ticks). */
 
+#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(10000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+
 #define TEMP_TYPE_AS_CHARACTERISTIC     0                                           /**< Determines if temperature type is given as characteristic (1) or as a field of measurement (0). */
 
 #define MIN_CELCIUS_DEGREES             3688                                        /**< Minimum temperature in celcius for use in the simulated measurement function (multiplied by 100 to avoid floating point arithmetic). */
@@ -218,6 +220,8 @@ APP_TIMER_DEF(m_rr_interval_timer_id);                              /**< RR inte
 APP_TIMER_DEF(m_sensor_contact_timer_id);                           /**< Sensor contact detected timer. */
 
 APP_TIMER_DEF(m_temperature_timer_id);                               /**< Temperature measurement timer. */
+
+APP_TIMER_DEF(m_data_record_timer_id);                               /**< Measurement data record timer. */
 
 static uint16_t   m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3;            /**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
 static bool     m_rr_interval_enabled = true;                       /**< Flag for enabling and disabling the registration of new RR interval measurements (the purpose of disabling this is just to test sending HRM without RR interval data. */
@@ -532,6 +536,7 @@ static void rr_interval_timeout_handler(void * p_context);
 static void temperature_meas_timeout_handler(void * p_context);
 static void sensor_contact_detected_timeout_handler(void * p_context);
 static void bh1792glc_meas_timeout_handler(void * p_context);
+static void meas_data_record_timeout_handler(void * p_context);
 
 /**@brief Function for initializing the timer module.
  */
@@ -572,6 +577,11 @@ static void timers_init(void)
     err_code = app_timer_create(&m_bh1792glc_timer_id,
                                 APP_TIMER_MODE_REPEATED,
                                 bh1792glc_meas_timeout_handler);        
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_create(&m_data_record_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                meas_data_record_timeout_handler);        
     APP_ERROR_CHECK(err_code);
 }
 
@@ -917,6 +927,18 @@ void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
         default:
             break;
     }
+}
+
+
+
+/**
+ * @brief Measurement data record events handler.
+ */
+static void meas_data_record_timeout_handler(void * p_context)
+{
+    UNUSED_PARAMETER(p_context);
+
+    NRF_LOG_INFO("10 second interval, it will measurement dara record");
 }
 
 
@@ -1390,10 +1412,16 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                 switch (i)
                 {
                     case 0:   // 0: sta
+                        err_code = app_timer_start(m_data_record_timer_id, DATA_RECORD_MEAS_INTERVAL, NULL);
+                        APP_ERROR_CHECK(err_code);
+                        NRF_LOG_INFO("10 second measure and 10 minutes record start");
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         break;
                     case 1:   // 1: sto
+                        err_code = app_timer_stop(m_data_record_timer_id);
+                        APP_ERROR_CHECK(err_code);
+                        NRF_LOG_INFO("10 second measure and 10 minutes record stop");
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         break;
@@ -2379,6 +2407,9 @@ static void application_timers_start(void)
 
     err_code = app_timer_start(m_bh1792glc_timer_id, BH1792GLC_MEAS_INTERVAL, NULL);
     APP_ERROR_CHECK(err_code);
+
+    //err_code = app_timer_start(m_data_record_timer_id, DATA_RECORD_MEAS_INTERVAL, NULL);
+    //APP_ERROR_CHECK(err_code);
 }
 
 
