@@ -1910,15 +1910,18 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
     {
         static ret_code_t err_code;
 
-        if (m_adc_channel_enabled == 0)
+        if (m_adc_channel_enabled == 0)   //NRF_SAADC_INPUT_AIN0: P0.02, body temprature
         {
             err_code = nrf_drv_saadc_channel_uninit(0);
             APP_ERROR_CHECK(err_code);
             err_code = nrf_drv_saadc_channel_init(1, &channel_1_config);
             APP_ERROR_CHECK(err_code);
+
+
+
             m_adc_channel_enabled = 1;
         }
-        else if (m_adc_channel_enabled == 1)
+        else if (m_adc_channel_enabled == 1)    //NRF_SAADC_INPUT_AIN1: P0.03, battery temprature
         {
             err_code = nrf_drv_saadc_channel_uninit(1);
             APP_ERROR_CHECK(err_code);
@@ -1926,7 +1929,7 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
             APP_ERROR_CHECK(err_code);
             m_adc_channel_enabled = 5;
         }
-        else if (m_adc_channel_enabled == 5)
+        else if (m_adc_channel_enabled == 5)    //NRF_SAADC_INPUT_AIN5: P0.29, battery voltage
         {
             err_code = nrf_drv_saadc_channel_uninit(5);
             APP_ERROR_CHECK(err_code);
@@ -1939,49 +1942,23 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
         APP_ERROR_CHECK(err_code);
         NRF_LOG_INFO("Channel %d value: %d", m_adc_channel_enabled, p_event->data.done.p_buffer[0]);
 
-        int i;
-        //NRF_LOG_INFO("ADC event number: %d", (int)m_adc_evt_counter);
-
         if (m_adc_channel_enabled == 0)
         {
-            Average_temperature = 0;
-            for (i = 0; i < SAMPLES_IN_BUFFER; i++)
-            {
-                ad_val = (int)p_event->data.done.p_buffer[i];
-                //ad_voltage = (float)(ad_val) / resolution * vcc;
-                ad_voltage = (float)(ad_val + correction_term) / resolution * vcc;
-                ad_resistance = (resistance1 * ad_voltage) / (vcc - ad_voltage);
-                //ad_resistance = (resistance0 * ad_voltage) / (vcc - ad_voltage);
-                //tempreture = 1/(1/(standard_temp) + logf(ad_resistance/resistance0)/b) - 273.15;
-                //temperature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15 + correction_term;
-                temperature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15;
-                //ad_resistance1 = abs(b/(temperature + 273.15) - b/standard_temp);
-                //ad_resistance1 = resistance0 * expf(abs(b/(temperature + 273.15) - b/standard_temp));
-                //NRF_LOG_INFO("%d,%f", p_event->data.done.p_buffer[i], temprature);
-                //NRF_LOG_INFO(NRF_LOG_FLOAT_MARKER, NRF_LOG_FLOAT(temprature));
+            ad_val = (int)p_event->data.done.p_buffer[0];
+            ad_voltage = (float)(ad_val + correction_term) / resolution * vcc;
+            ad_resistance = (resistance1 * ad_voltage) / (vcc - ad_voltage);
+            temperature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15;
             
-                if(Debug_output_body_temperature == true){
-                    //NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "\n", p_event->data.done.p_buffer[i], NRF_LOG_FLOAT(temprature));
-                    NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER ",", ad_val, NRF_LOG_FLOAT(temperature));
-                    NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
-                    //NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_resistance));
-                    //NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_resistance1));
-                    //NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "\n", ad_val, NRF_LOG_FLOAT(ad_voltage), NRF_LOG_FLOAT(ad_resistance), NRF_LOG_FLOAT(temprature));
-                }
-
-                //printf("%d,%f\r\n", p_event->data.done.p_buffer[i], temprature);
-                Average_temperature = Average_temperature + temperature;
+            if(Debug_output_body_temperature == true)
+            {
+                NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER ",", ad_val, NRF_LOG_FLOAT(temperature));
+                NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
             }
-            Average_temperature = Average_temperature / SAMPLES_IN_BUFFER;
-            //m_adc_evt_counter++;
+            Average_temperature = temperature;
         }
         else
         {
-            for (i = 0; i < SAMPLES_IN_BUFFER; i++)
-            {
-                //printf("Channel %d value: %d\r\n", m_adc_channel_enabled, p_event->data.done.p_buffer[i]);
-                NRF_LOG_INFO("Channel %d value: %d", m_adc_channel_enabled, p_event->data.done.p_buffer[i]);
-            }
+            NRF_LOG_INFO("Channel %d value: %d", m_adc_channel_enabled, p_event->data.done.p_buffer[0]);
         }
     }
 }
