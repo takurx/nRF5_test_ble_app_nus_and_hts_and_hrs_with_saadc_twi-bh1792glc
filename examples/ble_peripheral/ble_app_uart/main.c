@@ -246,8 +246,8 @@ static ble_uuid_t m_adv_uuids[]          =                                      
     {BLE_UUID_DEVICE_INFORMATION_SERVICE,   BLE_UUID_TYPE_BLE}
 };
 
-#define SAMPLES_IN_BUFFER 5
-volatile uint8_t state = 1;
+#define SAMPLES_IN_BUFFER 1
+//volatile uint8_t state = 1;
 
 //static const nrf_drv_timer_t m_timer = NRF_DRV_TIMER_INSTANCE(0);
 static const nrf_drv_timer_t m_timer = NRF_DRV_TIMER_INSTANCE(1);
@@ -692,7 +692,9 @@ static void rr_interval_timeout_handler(void * p_context)
 
 /**@brief Function for populating simulated health thermometer measurement.
  */
-volatile float Average_temperature = 0.0;
+volatile float Body_temperature = 0.0;
+volatile float Battery_temperature = 0.0;
+volatile float Battery_percent = 0.0;
 
 static ble_date_time_t time_stamp = { 2019, 2, 28, 23, 59, 50 };
 static const int month_days[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
@@ -706,7 +708,7 @@ static void hts_sim_measurement(ble_hts_meas_t * p_meas)
     p_meas->temp_type_present  = (TEMP_TYPE_AS_CHARACTERISTIC ? false : true);
 
     //celciusX100 = sensorsim_measure(&m_temp_celcius_sim_state, &m_temp_celcius_sim_cfg);
-    celciusX100 = (uint32_t)(Average_temperature * 100);
+    celciusX100 = (uint32_t)(Body_temperature * 100);
 
     p_meas->temp_in_celcius.exponent = -2;
     p_meas->temp_in_celcius.mantissa = celciusX100;
@@ -1834,87 +1836,6 @@ static void peer_manager_init(void)
 
 
 
-void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
-{
-    int ad_val;
-    //float resolution = 1024.0; //1024 = 2^10, please check ad bit setting
-    float resolution = 16384.0; //16384 = 2^14, please check ad bit setting
-    float ad_voltage;
-    float ad_resistance;
-    float ad_resistance1;
-    float vcc = 3.00;
-    //float resistance0 = 10000;   // R0, termista, 10k ohm (normal, 25deg) 
-    float resistance0 = 6706.7;   // R0, termista, 10k ohm (normal, 36deg)
-    float resistance1 = 6800.0;   // R1, split voltage resitance, 6.8k ohm
-    float e = 2.7182818284; // Napier's constant
-    float b = 3380.0; // B parameter termista value when 25 deg. = 3380
-    //float standard_temp = 298.15;  // 25.0 deg + 273.15 absolute temp. [kelbin]
-    float standard_temp = 309.15;  // 36.0 deg + 273.15 absolute temp. [kelbin]
-    float temperature;
-    float correction_term = 1292;
-
-    //maybe need nrf_log_flush()
-    if (p_event->type == NRF_DRV_SAADC_EVT_DONE)
-    {
-        ret_code_t err_code;
-
-        err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES_IN_BUFFER);
-        APP_ERROR_CHECK(err_code);
-
-        int i;
-        //NRF_LOG_INFO("ADC event number: %d", (int)m_adc_evt_counter);
-
-        Average_temperature = 0;
-        for (i = 0; i < SAMPLES_IN_BUFFER; i++)
-        {
-            ad_val = (int)p_event->data.done.p_buffer[i];
-            //ad_voltage = (float)(ad_val) / resolution * vcc;
-            ad_voltage = (float)(ad_val + correction_term) / resolution * vcc;
-            ad_resistance = (resistance1 * ad_voltage) / (vcc - ad_voltage);
-            //ad_resistance = (resistance0 * ad_voltage) / (vcc - ad_voltage);
-            //tempreture = 1/(1/(standard_temp) + logf(ad_resistance/resistance0)/b) - 273.15;
-            //temperature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15 + correction_term;
-            temperature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15;
-            //ad_resistance1 = abs(b/(temperature + 273.15) - b/standard_temp);
-            //ad_resistance1 = resistance0 * expf(abs(b/(temperature + 273.15) - b/standard_temp));
-            //NRF_LOG_INFO("%d,%f", p_event->data.done.p_buffer[i], temprature);
-            //NRF_LOG_INFO(NRF_LOG_FLOAT_MARKER, NRF_LOG_FLOAT(temprature));
-            
-            if(Debug_output_body_temperature == true){
-              //NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "\n", p_event->data.done.p_buffer[i], NRF_LOG_FLOAT(temprature));
-              NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER ",", ad_val, NRF_LOG_FLOAT(temperature));
-              NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
-              //NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_resistance));
-              //NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_resistance1));
-              //NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "\n", ad_val, NRF_LOG_FLOAT(ad_voltage), NRF_LOG_FLOAT(ad_resistance), NRF_LOG_FLOAT(temprature));
-            }
-
-            //printf("%d,%f\r\n", p_event->data.done.p_buffer[i], temprature);
-            Average_temperature = Average_temperature + temperature;
-        }
-        Average_temperature = Average_temperature / SAMPLES_IN_BUFFER;
-        //m_adc_evt_counter++;
-    }
-}
-
-void saadc_init(void)
-{
-    ret_code_t err_code;
-    nrf_saadc_channel_config_t channel_config =
-        NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN0);    //NRF_SAADC_INPUT_AIN0: P0.02 on nRF52DK board
-
-    err_code = nrf_drv_saadc_init(NULL, saadc_callback);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = nrf_drv_saadc_channel_init(0, &channel_config);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = nrf_drv_saadc_buffer_convert(m_buffer_pool[0], SAMPLES_IN_BUFFER);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = nrf_drv_saadc_buffer_convert(m_buffer_pool[1], SAMPLES_IN_BUFFER);
-    APP_ERROR_CHECK(err_code);
-}
 
 
 
@@ -1935,8 +1856,8 @@ void saadc_sampling_event_init(void)
     err_code = nrf_drv_timer_init(&m_timer, &timer_cfg, saadc_timer_handler);
     APP_ERROR_CHECK(err_code);
 
-    /* setup m_timer for compare event every 400ms */
-    uint32_t ticks = nrf_drv_timer_ms_to_ticks(&m_timer, 400);
+    /* setup m_timer for compare event every 1000ms */
+    uint32_t ticks = nrf_drv_timer_ms_to_ticks(&m_timer, 1000);
     nrf_drv_timer_extended_compare(&m_timer,
                                    NRF_TIMER_CC_CHANNEL0,
                                    //NRF_TIMER_CC_CHANNEL1,
@@ -1958,6 +1879,153 @@ void saadc_sampling_event_init(void)
                                           timer_compare_event_addr,
                                           saadc_sample_task_addr);
     APP_ERROR_CHECK(err_code);
+}
+
+
+
+static uint8_t  m_adc_channel_enabled; 
+static nrf_saadc_channel_config_t  channel_0_config = NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN0);    //NRF_SAADC_INPUT_AIN0: P0.02, body temprature
+static nrf_saadc_channel_config_t  channel_1_config = NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN1);    //NRF_SAADC_INPUT_AIN1: P0.03, battery temprature
+static nrf_saadc_channel_config_t  channel_5_config = NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN5);    //NRF_SAADC_INPUT_AIN5: P0.29, battery voltage
+
+void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
+{
+    int ad_val;
+    //float resolution = 1024.0; //1024 = 2^10, please check ad bit setting
+    float resolution = 16384.0; //16384 = 2^14, please check ad bit setting
+    float ad_voltage;
+    float ad_resistance;
+    float ad_resistance1;
+    float vcc = 2.70;   // adc max 2.70v? vcc:3.00v
+    //float resistance0 = 10000;   // R0, termista, 10k ohm (normal, 25deg) 
+    float resistance0 = 6706.7;   // R0, termista, 10k ohm (normal, 36deg)
+    float resistance1 = 6800.0;   // R1, split voltage resitance, 6.8k ohm
+    float e = 2.7182818284; // Napier's constant
+    float b = 3380.0; // B parameter termista value when 25 deg. = 3380
+    //float standard_temp = 298.15;  // 25.0 deg + 273.15 absolute temp. [kelbin]
+    float standard_temp = 309.15;  // 36.0 deg + 273.15 absolute temp. [kelbin]
+    float temperature;
+    float correction_term = 1292;
+    float bat_voltage;
+    float bat_percent;
+
+    //maybe need nrf_log_flush()
+    if (p_event->type == NRF_DRV_SAADC_EVT_DONE)
+    {
+        static ret_code_t err_code;
+
+        if (m_adc_channel_enabled == 0)   //NRF_SAADC_INPUT_AIN0: P0.02, body temprature
+        {
+            err_code = nrf_drv_saadc_channel_uninit(0);
+            APP_ERROR_CHECK(err_code);
+            err_code = nrf_drv_saadc_channel_init(1, &channel_1_config);
+            APP_ERROR_CHECK(err_code);
+
+            err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES_IN_BUFFER);
+            APP_ERROR_CHECK(err_code);
+            NRF_LOG_INFO("Channel %d value: %d", m_adc_channel_enabled, p_event->data.done.p_buffer[0]);
+
+            ad_val = (int)p_event->data.done.p_buffer[0];
+            ad_voltage = (float)(ad_val + correction_term) / resolution * vcc;
+            ad_resistance = (resistance1 * ad_voltage) / (vcc - ad_voltage);
+            temperature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15;
+            
+            if(Debug_output_body_temperature == true)
+            {
+                NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER ",", ad_val, NRF_LOG_FLOAT(temperature));
+                NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
+            }
+            Body_temperature = temperature;
+
+            m_adc_channel_enabled = 1;
+        }
+        else if (m_adc_channel_enabled == 1)    //NRF_SAADC_INPUT_AIN1: P0.03, battery temprature
+        {
+            err_code = nrf_drv_saadc_channel_uninit(1);
+            APP_ERROR_CHECK(err_code);
+            err_code = nrf_drv_saadc_channel_init(5, &channel_5_config);
+            APP_ERROR_CHECK(err_code);
+
+            err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES_IN_BUFFER);
+            APP_ERROR_CHECK(err_code);
+            NRF_LOG_INFO("Channel %d value: %d", m_adc_channel_enabled, p_event->data.done.p_buffer[0]);
+
+            ad_val = (int)p_event->data.done.p_buffer[0];
+            ad_voltage = (float)(ad_val + correction_term) / resolution * vcc;
+            ad_resistance = (resistance1 * ad_voltage) / (vcc - ad_voltage);
+            temperature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15;
+            
+            if(Debug_output_body_temperature == true)
+            {
+                NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER ",", ad_val, NRF_LOG_FLOAT(temperature));
+                NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
+            }
+            Battery_temperature = temperature;
+
+            m_adc_channel_enabled = 5;
+        }
+        else if (m_adc_channel_enabled == 5)    //NRF_SAADC_INPUT_AIN5: P0.29, battery voltage
+        {
+            err_code = nrf_drv_saadc_channel_uninit(5);
+            APP_ERROR_CHECK(err_code);
+            err_code = nrf_drv_saadc_channel_init(0, &channel_0_config);
+            APP_ERROR_CHECK(err_code);
+
+            err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES_IN_BUFFER);
+            APP_ERROR_CHECK(err_code);            
+            NRF_LOG_INFO("Channel %d value: %d", m_adc_channel_enabled, p_event->data.done.p_buffer[0]);
+
+            ad_val = (int)p_event->data.done.p_buffer[0];
+            ad_voltage = (float)(ad_val) / resolution * vcc;
+            bat_voltage = ad_voltage * 2.03;    // 2.03 = 3.98V / 1.96V, measurement, ratio of resistance
+            
+            if (bat_voltage > 4.10)
+            {
+                bat_percent = 100;
+            }
+            else if (bat_voltage < 3.40)
+            {
+                bat_percent = 1;
+            }
+            else
+            {
+                bat_percent = (bat_voltage - 3.40) / 0.50 * 100;    // 0.50 = 4.10 - 3.40, max 4.2 V - min 3.3 V, I found that battery stop 4.05V
+            }
+
+            if(Debug_output_body_temperature == true)
+            {
+                NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER ",", ad_val, NRF_LOG_FLOAT(bat_percent));
+                NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
+            }
+            Battery_percent = bat_percent;
+
+            m_adc_channel_enabled = 0;
+        }
+    }
+}
+
+void saadc_init(void)
+{
+    ret_code_t err_code;
+    /*
+    nrf_saadc_channel_config_t channel_config =
+        NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN0);    //NRF_SAADC_INPUT_AIN0: P0.02 on nRF52DK board
+    */
+    //nrf_saadc_channel_config_t channel_config;
+    //channel_config = NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN0); 
+
+    err_code = nrf_drv_saadc_init(NULL, saadc_callback);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = nrf_drv_saadc_channel_init(0, &channel_0_config);
+    APP_ERROR_CHECK(err_code);
+    m_adc_channel_enabled = 0;
+
+    err_code = nrf_drv_saadc_buffer_convert(m_buffer_pool[0], SAMPLES_IN_BUFFER);
+    APP_ERROR_CHECK(err_code);
+
+    //err_code = nrf_drv_saadc_buffer_convert(m_buffer_pool[1], SAMPLES_IN_BUFFER);
+    //APP_ERROR_CHECK(err_code);
 }
 
 
@@ -2376,7 +2444,7 @@ static void idle_state_handle(void)
 /**@brief Application main function.
  */
 int main(void)
-{
+  {
     bool erase_bonds;
 
     // Initialize.
@@ -2407,10 +2475,10 @@ int main(void)
     conn_params_init();
     NRF_LOG_INFO("Finish conn params init");
     peer_manager_init();
-    NRF_LOG_INFO("Finish peer manager init");
-    saadc_init();
     NRF_LOG_INFO("Finish saadc_init init");
     saadc_sampling_event_init();
+    NRF_LOG_INFO("Finish peer manager init");
+    saadc_init();
     NRF_LOG_INFO("Finish saadc_sampling_event_init init");
     saadc_sampling_event_enable();
     NRF_LOG_INFO("SAADC HAL simple example started.");
