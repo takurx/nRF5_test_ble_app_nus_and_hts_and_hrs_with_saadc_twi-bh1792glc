@@ -701,7 +701,7 @@ volatile float Battery_temperature = 0.0;
 static ble_date_time_t time_stamp = { 2019, 2, 28, 23, 59, 50 };
 static const int month_days[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
-static void hts_sim_measurement(ble_hts_meas_t * p_meas)
+static void hts_measurement(ble_hts_meas_t * p_meas)
 {    
     uint32_t celciusX100;
 
@@ -784,7 +784,7 @@ static void temperature_meas_timeout_handler(void * p_context)
 
     UNUSED_PARAMETER(p_context);
 
-    hts_sim_measurement(&simulated_meas);
+    hts_measurement(&simulated_meas);
 
     err_code = ble_hts_measurement_send(&m_hts, &simulated_meas);
 
@@ -1529,7 +1529,7 @@ static void temperature_measurement_send(void)
 
     if (!m_hts_meas_ind_conf_pending)
     {
-        hts_sim_measurement(&simulated_meas);
+        hts_measurement(&simulated_meas);
 
         err_code = ble_hts_measurement_send(&m_hts, &simulated_meas);
 
