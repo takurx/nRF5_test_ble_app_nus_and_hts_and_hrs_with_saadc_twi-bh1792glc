@@ -577,12 +577,15 @@ static void timers_init(void)
 
 /**@brief Function for performing a battery measurement, and update the Battery Level characteristic in the Battery Service.
  */
+volatile float Battery_percent = 0.0;
+
 static void battery_level_update(void)
 {
     ret_code_t err_code;
     uint8_t  battery_level;
 
-    battery_level = (uint8_t)sensorsim_measure(&m_battery_sim_state, &m_battery_sim_cfg);
+    //battery_level = (uint8_t)sensorsim_measure(&m_battery_sim_state, &m_battery_sim_cfg);
+    battery_level = (uint8_t)(Battery_percent);
 
     err_code = ble_bas_battery_level_update(&m_bas, battery_level, BLE_CONN_HANDLE_ALL);
     if ((err_code != NRF_SUCCESS) &&
@@ -694,7 +697,6 @@ static void rr_interval_timeout_handler(void * p_context)
  */
 volatile float Body_temperature = 0.0;
 volatile float Battery_temperature = 0.0;
-volatile float Battery_percent = 0.0;
 
 static ble_date_time_t time_stamp = { 2019, 2, 28, 23, 59, 50 };
 static const int month_days[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
@@ -1400,10 +1402,9 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         err_code = ble_nus_data_send(&m_nus, "100", &reslength, m_conn_handle);
                         break;
                     case 3:   // 3: rqd
+                        sprintf(restime, "%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
                         reslength = strlen(restime) + strlen(resdatanum) + strlen(respulse) + strlen(restemp);
-                        //char resdata[reslength];
                         strcpy(resdata, restime);
-                        //memcpy(resdata, restime, 0);
                         strcat(resdata, resdatanum);
                         strcat(resdata, respulse);
                         strcat(resdata, restemp);
