@@ -692,7 +692,9 @@ static void rr_interval_timeout_handler(void * p_context)
 
 /**@brief Function for populating simulated health thermometer measurement.
  */
-volatile float Average_temperature = 0.0;
+volatile float Body_temperature = 0.0;
+volatile float Battery_temperature = 0.0;
+volatile float Battery_percent = 0.0;
 
 static ble_date_time_t time_stamp = { 2019, 2, 28, 23, 59, 50 };
 static const int month_days[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
@@ -706,7 +708,7 @@ static void hts_sim_measurement(ble_hts_meas_t * p_meas)
     p_meas->temp_type_present  = (TEMP_TYPE_AS_CHARACTERISTIC ? false : true);
 
     //celciusX100 = sensorsim_measure(&m_temp_celcius_sim_state, &m_temp_celcius_sim_cfg);
-    celciusX100 = (uint32_t)(Average_temperature * 100);
+    celciusX100 = (uint32_t)(Body_temperature * 100);
 
     p_meas->temp_in_celcius.exponent = -2;
     p_meas->temp_in_celcius.mantissa = celciusX100;
@@ -1894,7 +1896,7 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
     float ad_voltage;
     float ad_resistance;
     float ad_resistance1;
-    float vcc = 3.00;
+    float vcc = 2.70;   // adc max 2.70v? vcc:3.00v
     //float resistance0 = 10000;   // R0, termista, 10k ohm (normal, 25deg) 
     float resistance0 = 6706.7;   // R0, termista, 10k ohm (normal, 36deg)
     float resistance1 = 6800.0;   // R1, split voltage resitance, 6.8k ohm
@@ -1904,6 +1906,8 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
     float standard_temp = 309.15;  // 36.0 deg + 273.15 absolute temp. [kelbin]
     float temperature;
     float correction_term = 1292;
+    float bat_voltage;
+    float bat_percent;
 
     //maybe need nrf_log_flush()
     if (p_event->type == NRF_DRV_SAADC_EVT_DONE)
@@ -1931,7 +1935,7 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
                 NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER ",", ad_val, NRF_LOG_FLOAT(temperature));
                 NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
             }
-            Average_temperature = temperature;
+            Body_temperature = temperature;
 
             m_adc_channel_enabled = 1;
         }
@@ -1946,6 +1950,18 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
             APP_ERROR_CHECK(err_code);
             NRF_LOG_INFO("Channel %d value: %d", m_adc_channel_enabled, p_event->data.done.p_buffer[0]);
 
+            ad_val = (int)p_event->data.done.p_buffer[0];
+            ad_voltage = (float)(ad_val + correction_term) / resolution * vcc;
+            ad_resistance = (resistance1 * ad_voltage) / (vcc - ad_voltage);
+            temperature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15;
+            
+            if(Debug_output_body_temperature == true)
+            {
+                NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER ",", ad_val, NRF_LOG_FLOAT(temperature));
+                NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
+            }
+            Battery_temperature = temperature;
+
             m_adc_channel_enabled = 5;
         }
         else if (m_adc_channel_enabled == 5)    //NRF_SAADC_INPUT_AIN5: P0.29, battery voltage
@@ -1958,6 +1974,30 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
             err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES_IN_BUFFER);
             APP_ERROR_CHECK(err_code);            
             NRF_LOG_INFO("Channel %d value: %d", m_adc_channel_enabled, p_event->data.done.p_buffer[0]);
+
+            ad_val = (int)p_event->data.done.p_buffer[0];
+            ad_voltage = (float)(ad_val) / resolution * vcc;
+            bat_voltage = ad_voltage * 2.03;    // 2.03 = 3.98V / 1.96V, measurement, ratio of resistance
+            
+            if (bat_voltage > 4.10)
+            {
+                bat_percent = 100;
+            }
+            else if (bat_voltage < 3.40)
+            {
+                bat_percent = 1;
+            }
+            else
+            {
+                bat_percent = (bat_voltage - 3.40) / 0.50 * 100;    // 0.50 = 4.10 - 3.40, max 4.2 V - min 3.3 V, I found that battery stop 4.05V
+            }
+
+            if(Debug_output_body_temperature == true)
+            {
+                NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER ",", ad_val, NRF_LOG_FLOAT(bat_percent));
+                NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
+            }
+            Battery_percent = bat_percent;
 
             m_adc_channel_enabled = 0;
         }
