@@ -1917,33 +1917,10 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
             err_code = nrf_drv_saadc_channel_init(1, &channel_1_config);
             APP_ERROR_CHECK(err_code);
 
-
-
-            m_adc_channel_enabled = 1;
-        }
-        else if (m_adc_channel_enabled == 1)    //NRF_SAADC_INPUT_AIN1: P0.03, battery temprature
-        {
-            err_code = nrf_drv_saadc_channel_uninit(1);
+            err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES_IN_BUFFER);
             APP_ERROR_CHECK(err_code);
-            err_code = nrf_drv_saadc_channel_init(5, &channel_5_config);
-            APP_ERROR_CHECK(err_code);
-            m_adc_channel_enabled = 5;
-        }
-        else if (m_adc_channel_enabled == 5)    //NRF_SAADC_INPUT_AIN5: P0.29, battery voltage
-        {
-            err_code = nrf_drv_saadc_channel_uninit(5);
-            APP_ERROR_CHECK(err_code);
-            err_code = nrf_drv_saadc_channel_init(0, &channel_0_config);
-            APP_ERROR_CHECK(err_code);
-            m_adc_channel_enabled = 0;
-        }
+            NRF_LOG_INFO("Channel %d value: %d", m_adc_channel_enabled, p_event->data.done.p_buffer[0]);
 
-        err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES_IN_BUFFER);
-        APP_ERROR_CHECK(err_code);
-        NRF_LOG_INFO("Channel %d value: %d", m_adc_channel_enabled, p_event->data.done.p_buffer[0]);
-
-        if (m_adc_channel_enabled == 0)
-        {
             ad_val = (int)p_event->data.done.p_buffer[0];
             ad_voltage = (float)(ad_val + correction_term) / resolution * vcc;
             ad_resistance = (resistance1 * ad_voltage) / (vcc - ad_voltage);
@@ -1955,10 +1932,34 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
                 NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
             }
             Average_temperature = temperature;
+
+            m_adc_channel_enabled = 1;
         }
-        else
+        else if (m_adc_channel_enabled == 1)    //NRF_SAADC_INPUT_AIN1: P0.03, battery temprature
         {
+            err_code = nrf_drv_saadc_channel_uninit(1);
+            APP_ERROR_CHECK(err_code);
+            err_code = nrf_drv_saadc_channel_init(5, &channel_5_config);
+            APP_ERROR_CHECK(err_code);
+
+            err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES_IN_BUFFER);
+            APP_ERROR_CHECK(err_code);
             NRF_LOG_INFO("Channel %d value: %d", m_adc_channel_enabled, p_event->data.done.p_buffer[0]);
+
+            m_adc_channel_enabled = 5;
+        }
+        else if (m_adc_channel_enabled == 5)    //NRF_SAADC_INPUT_AIN5: P0.29, battery voltage
+        {
+            err_code = nrf_drv_saadc_channel_uninit(5);
+            APP_ERROR_CHECK(err_code);
+            err_code = nrf_drv_saadc_channel_init(0, &channel_0_config);
+            APP_ERROR_CHECK(err_code);
+
+            err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES_IN_BUFFER);
+            APP_ERROR_CHECK(err_code);            
+            NRF_LOG_INFO("Channel %d value: %d", m_adc_channel_enabled, p_event->data.done.p_buffer[0]);
+
+            m_adc_channel_enabled = 0;
         }
     }
 }
@@ -2403,7 +2404,7 @@ static void idle_state_handle(void)
 /**@brief Application main function.
  */
 int main(void)
-{
+  {
     bool erase_bonds;
 
     // Initialize.
