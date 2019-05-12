@@ -934,11 +934,33 @@ void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
 /**
  * @brief Measurement data record events handler.
  */
+static int Meas10sec = 0;
+/**@brief */
+typedef struct
+{
+    ble_date_time_t start_time; 
+    int body_temperature_array[6];
+    int heart_rate;
+} ble_data_ht_hr_t;
+static ble_data_ht_hr_t data_hr_hr[244] = {};
+
 static void meas_data_record_timeout_handler(void * p_context)
 {
     UNUSED_PARAMETER(p_context);
 
     NRF_LOG_INFO("10 second interval, it will measurement dara record");
+    
+    //  measure 10 seconds, record 10 minutes
+    if (Meas10sec < 6)
+    {
+        NRF_LOG_INFO("10 second measure, 6 times");
+    }
+
+    Meas10sec++;
+    if (Meas10sec > 59)   // 10 minutes
+    {
+        Meas10sec == 0;
+    }
 }
 
 
@@ -2018,7 +2040,7 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
             }
             else
             {
-                bat_percent = (bat_voltage - 3.40) / 0.50 * 100;    // 0.50 = 4.10 - 3.40, max 4.2 V - min 3.3 V, I found that battery stop 4.05V
+                bat_percent = (bat_voltage - 3.40) / 0.70 * 100;    // 0.70 = 4.10 - 3.40, max 4.2 V - min 3.3 V, I found that battery stop 4.05V
             }
 
             if(Debug_output_body_temperature == true)
