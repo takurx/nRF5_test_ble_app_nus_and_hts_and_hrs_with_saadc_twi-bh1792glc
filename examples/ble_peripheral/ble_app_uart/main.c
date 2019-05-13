@@ -175,6 +175,8 @@
 
 #define SENSOR_CONTACT_DETECTED_INTERVAL    APP_TIMER_TICKS(5000)                   /**< Sensor Contact Detected toggle interval (ticks). */
 
+#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(10000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+
 #define TEMP_TYPE_AS_CHARACTERISTIC     0                                           /**< Determines if temperature type is given as characteristic (1) or as a field of measurement (0). */
 
 #define MIN_CELCIUS_DEGREES             3688                                        /**< Minimum temperature in celcius for use in the simulated measurement function (multiplied by 100 to avoid floating point arithmetic). */
@@ -219,6 +221,8 @@ APP_TIMER_DEF(m_sensor_contact_timer_id);                           /**< Sensor 
 
 APP_TIMER_DEF(m_temperature_timer_id);                               /**< Temperature measurement timer. */
 
+APP_TIMER_DEF(m_data_record_timer_id);                               /**< Measurement data record timer. */
+
 static uint16_t   m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3;            /**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
 static bool     m_rr_interval_enabled = true;                       /**< Flag for enabling and disabling the registration of new RR interval measurements (the purpose of disabling this is just to test sending HRM without RR interval data. */
 static uint16_t          m_conn_handle = BLE_CONN_HANDLE_INVALID;                   /**< Handle of the current connection. */
@@ -254,6 +258,15 @@ static const nrf_drv_timer_t m_timer = NRF_DRV_TIMER_INSTANCE(1);
 static nrf_saadc_value_t     m_buffer_pool[2][SAMPLES_IN_BUFFER];
 static nrf_ppi_channel_t     m_ppi_channel;
 //static uint32_t              m_adc_evt_counter;
+
+static volatile int State_keeper = 0;
+//typedef enum
+//{
+static const int     STATE_ADVERTISING = 0;   /* 0: state of advertising */
+static const int     STATE_PAIRING     = 1;   /* 1: state of pairing */
+static const int     STATE_MASURERING  = 2;   /* 2: state of measurising */
+//} state_body_temperature_t;
+//static state_body_temperature_t state_body_temperature;
 
 /* TWI instance ID. */
 #define TWI_INSTANCE_ID     0
@@ -532,6 +545,7 @@ static void rr_interval_timeout_handler(void * p_context);
 static void temperature_meas_timeout_handler(void * p_context);
 static void sensor_contact_detected_timeout_handler(void * p_context);
 static void bh1792glc_meas_timeout_handler(void * p_context);
+static void meas_data_record_timeout_handler(void * p_context);
 
 /**@brief Function for initializing the timer module.
  */
@@ -572,6 +586,11 @@ static void timers_init(void)
     err_code = app_timer_create(&m_bh1792glc_timer_id,
                                 APP_TIMER_MODE_REPEATED,
                                 bh1792glc_meas_timeout_handler);        
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_create(&m_data_record_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                meas_data_record_timeout_handler);        
     APP_ERROR_CHECK(err_code);
 }
 
@@ -921,6 +940,72 @@ void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
 
 
 
+/**
+ * @brief Measurement data record events handler.
+ */
+#define Num_of_data_hr_hr   256
+static volatile int Meas10sec = 0;
+static volatile int Write_index_data_hr_hr = 0;
+static volatile int Read_index_data_hr_hr = 0;
+static volatile int Count_index_data_hr_hr = 0;
+/**@brief record every 10 mintutes, 
+ * temprature: 6 points between 10 seconds
+ * heart_rate: 60 second average
+ */
+typedef struct
+{
+    ble_date_time_t start_time; 
+    int body_temperature_array[6];
+    int heart_rate;
+} ble_data_ht_hr_t;
+static volatile ble_data_ht_hr_t data_hr_hr[Num_of_data_hr_hr] = {};
+//static ble_date_time_t time_stamp = { 2019, 2, 28, 23, 59, 50 };
+
+static void meas_data_record_timeout_handler(void * p_context)
+{
+    UNUSED_PARAMETER(p_context);
+
+    NRF_LOG_INFO("10 second interval, it will measurement dara record");
+    Meas10sec++;
+
+    //  measure 10 seconds, record 10 minutes
+    if (Meas10sec < 7)
+    {
+        NRF_LOG_INFO("10 second measure, 6 times");
+        if (Meas10sec == 1)
+        {
+            data_hr_hr[Write_index_data_hr_hr].start_time.year     = time_stamp.year;
+            data_hr_hr[Write_index_data_hr_hr].start_time.month    = time_stamp.month;
+            data_hr_hr[Write_index_data_hr_hr].start_time.day      = time_stamp.day;
+            data_hr_hr[Write_index_data_hr_hr].start_time.hours    = time_stamp.hours;
+            data_hr_hr[Write_index_data_hr_hr].start_time.minutes  = time_stamp.minutes;
+            data_hr_hr[Write_index_data_hr_hr].start_time.seconds  = time_stamp.seconds;
+        }
+        data_hr_hr[Write_index_data_hr_hr].body_temperature_array[Meas10sec - 1] = Body_temperature;
+        if (Meas10sec == 6)
+        {
+            //data_hr_hr[Write_index_data_hr_hr].heart_rate = BPM;
+            Write_index_data_hr_hr++;
+            if (Write_index_data_hr_hr > Num_of_data_hr_hr - 1)
+            {
+                Write_index_data_hr_hr = 0;
+            }
+
+            if (Count_index_data_hr_hr < Num_of_data_hr_hr)
+            {
+                Count_index_data_hr_hr++;
+            }
+        }
+    }
+
+    if (Meas10sec > 59)   // 10 minutes
+    {
+        Meas10sec = 0;
+    }
+}
+
+
+
 
 
 
@@ -1020,6 +1105,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
             err_code = nrf_ble_qwr_conn_handle_assign(&m_qwr, m_conn_handle);
             APP_ERROR_CHECK(err_code);
+            State_keeper = 1;
             break;
 
         case BLE_GAP_EVT_DISCONNECTED:
@@ -1028,6 +1114,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             // LED indication will be changed when advertising starts.
             m_conn_handle = BLE_CONN_HANDLE_INVALID;
             m_hts_meas_ind_conf_pending = false;
+            State_keeper = 0;
             break;
 
         case BLE_GAP_EVT_PHY_UPDATE_REQUEST:
@@ -1343,12 +1430,14 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         uint32_t err_code;
         static char com_buf[256] = "";
         uint16_t i;
+        uint16_t j;
         uint16_t buf_ind;
+        int ind;
 
         char restime[] =    "2018-12-25T12:20:15";
-        char resdatanum[] = ",10";
-        char respulse[] =   ",100,101,102,103,104,105,106,107,108,109";
-        char restemp[] =    ",36.00,36.01,36.02,36.03,36.04,36.05,36.06,36.07,36.08,36.09";
+        char resdatanum[] = "100";
+        char respulse[] =   "100";
+        char restemp[] =    "36.00,36.01,36.02,36.03,36.04,36.05";
         char resdata[256] = "";
 
         for (i = 0; i < p_evt->params.rx_data.length; i++)
@@ -1390,26 +1479,65 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                 switch (i)
                 {
                     case 0:   // 0: sta
+                        err_code = app_timer_start(m_data_record_timer_id, DATA_RECORD_MEAS_INTERVAL, NULL);
+                        APP_ERROR_CHECK(err_code);
+                        NRF_LOG_INFO("10 second measure and 10 minutes record start");
+                        Meas10sec = 0;
+                        Count_index_data_hr_hr = 0;
+                        State_keeper = 2;
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         break;
                     case 1:   // 1: sto
+                        err_code = app_timer_stop(m_data_record_timer_id);
+                        APP_ERROR_CHECK(err_code);
+                        NRF_LOG_INFO("10 second measure and 10 minutes record stop");
+                        State_keeper = 1;
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         break;
                     case 2:   // 2: rqs
+                        sprintf(resdatanum, "%03d", Num_of_data_hr_hr);
                         reslength = 3;
-                        err_code = ble_nus_data_send(&m_nus, "100", &reslength, m_conn_handle);
+                        err_code = ble_nus_data_send(&m_nus, resdatanum, &reslength, m_conn_handle);
                         break;
                     case 3:   // 3: rqd
-                        sprintf(restime, "%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
-                        reslength = strlen(restime) + strlen(resdatanum) + strlen(respulse) + strlen(restemp);
-                        strcpy(resdata, restime);
-                        strcat(resdata, resdatanum);
-                        strcat(resdata, respulse);
-                        strcat(resdata, restemp);
-                        NRF_LOG_INFO("res: %s", resdata);
-                        err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
+                        for (j = 0; j < Count_index_data_hr_hr; j++)
+                        {
+                            ind = Read_index_data_hr_hr + j;
+                            if (ind > Num_of_data_hr_hr)
+                            {
+                                ind = ind - Num_of_data_hr_hr;
+                            }
+                            //data_hr_hr[Write_index_data_hr_hr].body_temperature_array[Meas10sec - 1] = Body_temperature;
+                            //data_hr_hr[Write_index_data_hr_hr].heart_rate = BPM;
+                            sprintf(restime, "%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
+                            sprintf(resdatanum, "%03d", Num_of_data_hr_hr);
+                            sprintf(respulse,"%03d", data_hr_hr[ind].heart_rate);
+                            sprintf(restemp, "%05.2f,%05.2f,%05.2f,%05.2f,%05.2f,%05.2f", 
+                            data_hr_hr[ind].body_temperature_array[0],
+                            data_hr_hr[ind].body_temperature_array[1],
+                            data_hr_hr[ind].body_temperature_array[2],
+                            data_hr_hr[ind].body_temperature_array[3],
+                            data_hr_hr[ind].body_temperature_array[4],
+                            data_hr_hr[ind].body_temperature_array[5]);
+                            reslength = strlen(restime) + 1 + strlen(resdatanum) + 1 + strlen(respulse) + 1 + strlen(restemp);
+                            strcpy(resdata, restime);
+                            strcat(resdata, ",");
+                            strcat(resdata, resdatanum);
+                            strcat(resdata, ",");
+                            strcat(resdata, respulse);
+                            strcat(resdata, ",");
+                            strcat(resdata, restemp);
+                            NRF_LOG_INFO("res: %s", resdata);
+                            err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
+                        }
+                        
+                        Read_index_data_hr_hr = Read_index_data_hr_hr + Count_index_data_hr_hr;
+                        if (Read_index_data_hr_hr > Num_of_data_hr_hr)
+                        {
+                            Read_index_data_hr_hr = Read_index_data_hr_hr - Num_of_data_hr_hr;
+                        }
                         break;
                     case 4:   // 4: scd
                         /* Ex. "scd 2018-01-03" */
@@ -1990,7 +2118,7 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
             }
             else
             {
-                bat_percent = (bat_voltage - 3.40) / 0.50 * 100;    // 0.50 = 4.10 - 3.40, max 4.2 V - min 3.3 V, I found that battery stop 4.05V
+                bat_percent = (bat_voltage - 3.40) / 0.70 * 100;    // 0.70 = 4.10 - 3.40, max 4.2 V - min 3.3 V, I found that battery stop 4.05V
             }
 
             if(Debug_output_body_temperature == true)
@@ -2326,9 +2454,33 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
         // Blink GREEN and RED: Emergency
         */
 
+        switch (State_keeper)
+        {
+            case 0: //STATE_ADVERTISING:
+                nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
+                nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                break;
+            case 1: //STATE_PAIRING:
+                nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                nrf_drv_gpiote_out_clear(LED_3_COLOR_GREEN_PIN);
+                nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                break;
+            case 2: //STATE_MEASURING:
+                nrf_drv_gpiote_out_clear(LED_3_COLOR_RED_PIN);
+                nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                break;
+            default:
+                nrf_drv_gpiote_out_toggle(LED_3_COLOR_RED_PIN);
+                nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
+                nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+        }
         //nrf_gpio_pin_toggle(TICK_EVENT_OUTPUT);
         //nrf_drv_gpiote_out_toggle(LED_3_COLOR_BLUE_PIN);
-        nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
+        //nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
+        //nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+        //nrf_drv_gpiote_out_clear(LED_3_COLOR_GREEN_PIN);
         //nrf_drv_gpiote_out_toggle(LED_3_COLOR_RED_PIN);
     }
 }
@@ -2379,6 +2531,9 @@ static void application_timers_start(void)
 
     err_code = app_timer_start(m_bh1792glc_timer_id, BH1792GLC_MEAS_INTERVAL, NULL);
     APP_ERROR_CHECK(err_code);
+
+    //err_code = app_timer_start(m_data_record_timer_id, DATA_RECORD_MEAS_INTERVAL, NULL);
+    //APP_ERROR_CHECK(err_code);
 }
 
 
