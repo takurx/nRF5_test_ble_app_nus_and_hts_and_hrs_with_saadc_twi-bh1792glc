@@ -259,6 +259,13 @@ static nrf_saadc_value_t     m_buffer_pool[2][SAMPLES_IN_BUFFER];
 static nrf_ppi_channel_t     m_ppi_channel;
 //static uint32_t              m_adc_evt_counter;
 
+typedef enum
+{
+    STATE_ADVERTISING,    /* 0: state of advertising */
+    STATE_PAIRING,        /* 1: state of pairing */
+    STATE_MASURERING,     /* 2: state of measurising */
+} state_body_temperature_t;
+
 /* TWI instance ID. */
 #define TWI_INSTANCE_ID     0
 
@@ -934,32 +941,63 @@ void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
 /**
  * @brief Measurement data record events handler.
  */
-static int Meas10sec = 0;
-/**@brief */
+#define Num_of_data_hr_hr   256
+static volatile int Meas10sec = 0;
+static volatile int Index_data_hr_hr = 0;
+static volatile int Count_of_data_hr_hr = 0;
+/**@brief record every 10 mintutes, 
+ * temprature: 6 points between 10 seconds
+ * heart_rate: 60 second average
+ */
 typedef struct
 {
     ble_date_time_t start_time; 
     int body_temperature_array[6];
     int heart_rate;
 } ble_data_ht_hr_t;
-static ble_data_ht_hr_t data_hr_hr[244] = {};
+static volatile ble_data_ht_hr_t data_hr_hr[Num_of_data_hr_hr] = {};
+//static ble_date_time_t time_stamp = { 2019, 2, 28, 23, 59, 50 };
 
 static void meas_data_record_timeout_handler(void * p_context)
 {
     UNUSED_PARAMETER(p_context);
 
     NRF_LOG_INFO("10 second interval, it will measurement dara record");
-    
+    Meas10sec++;
+
     //  measure 10 seconds, record 10 minutes
-    if (Meas10sec < 6)
+    if (Meas10sec < 7)
     {
         NRF_LOG_INFO("10 second measure, 6 times");
+        if (Meas10sec == 1)
+        {
+            data_hr_hr[Index_data_hr_hr].start_time.year     = time_stamp.year;
+            data_hr_hr[Index_data_hr_hr].start_time.month    = time_stamp.month;
+            data_hr_hr[Index_data_hr_hr].start_time.day      = time_stamp.day;
+            data_hr_hr[Index_data_hr_hr].start_time.hours    = time_stamp.hours;
+            data_hr_hr[Index_data_hr_hr].start_time.minutes  = time_stamp.minutes;
+            data_hr_hr[Index_data_hr_hr].start_time.seconds  = time_stamp.seconds;
+        }
+        data_hr_hr[Index_data_hr_hr].body_temperature_array[Meas10sec - 1] = Body_temperature;
+        if (Meas10sec == 6)
+        {
+            //data_hr_hr[Index_data_hr_hr].heart_rate = BPM;
+            Index_data_hr_hr++;
+            if (Index_data_hr_hr > Num_of_data_hr_hr - 1)
+            {
+                Index_data_hr_hr = 0;
+            }
+
+            if (Count_of_data_hr_hr < Num_of_data_hr_hr)
+            {
+                Count_of_data_hr_hr++;
+            }
+        }
     }
 
-    Meas10sec++;
     if (Meas10sec > 59)   // 10 minutes
     {
-        Meas10sec == 0;
+        Meas10sec = 0;
     }
 }
 
@@ -1437,6 +1475,8 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         err_code = app_timer_start(m_data_record_timer_id, DATA_RECORD_MEAS_INTERVAL, NULL);
                         APP_ERROR_CHECK(err_code);
                         NRF_LOG_INFO("10 second measure and 10 minutes record start");
+                        Meas10sec = 0;
+                        Count_of_data_hr_hr = 0;
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         break;
