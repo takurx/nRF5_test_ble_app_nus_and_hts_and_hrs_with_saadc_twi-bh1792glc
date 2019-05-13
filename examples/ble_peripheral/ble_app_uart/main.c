@@ -259,12 +259,14 @@ static nrf_saadc_value_t     m_buffer_pool[2][SAMPLES_IN_BUFFER];
 static nrf_ppi_channel_t     m_ppi_channel;
 //static uint32_t              m_adc_evt_counter;
 
-typedef enum
-{
-    STATE_ADVERTISING,    /* 0: state of advertising */
-    STATE_PAIRING,        /* 1: state of pairing */
-    STATE_MASURERING,     /* 2: state of measurising */
-} state_body_temperature_t;
+static volatile int State_keeper = 0;
+//typedef enum
+//{
+static const int     STATE_ADVERTISING = 0;   /* 0: state of advertising */
+static const int     STATE_PAIRING     = 1;   /* 1: state of pairing */
+static const int     STATE_MASURERING  = 2;   /* 2: state of measurising */
+//} state_body_temperature_t;
+//static state_body_temperature_t state_body_temperature;
 
 /* TWI instance ID. */
 #define TWI_INSTANCE_ID     0
@@ -1102,6 +1104,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
             err_code = nrf_ble_qwr_conn_handle_assign(&m_qwr, m_conn_handle);
             APP_ERROR_CHECK(err_code);
+            State_keeper = 1;
             break;
 
         case BLE_GAP_EVT_DISCONNECTED:
@@ -1110,6 +1113,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             // LED indication will be changed when advertising starts.
             m_conn_handle = BLE_CONN_HANDLE_INVALID;
             m_hts_meas_ind_conf_pending = false;
+            State_keeper = 0;
             break;
 
         case BLE_GAP_EVT_PHY_UPDATE_REQUEST:
@@ -1477,6 +1481,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         NRF_LOG_INFO("10 second measure and 10 minutes record start");
                         Meas10sec = 0;
                         Count_of_data_hr_hr = 0;
+                        State_keeper = 2;
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         break;
@@ -1484,6 +1489,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         err_code = app_timer_stop(m_data_record_timer_id);
                         APP_ERROR_CHECK(err_code);
                         NRF_LOG_INFO("10 second measure and 10 minutes record stop");
+                        State_keeper = 1;
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         break;
@@ -2416,9 +2422,33 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
         // Blink GREEN and RED: Emergency
         */
 
+        switch (State_keeper)
+        {
+            case 0: //STATE_ADVERTISING:
+                nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
+                nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                break;
+            case 1: //STATE_PAIRING:
+                nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                nrf_drv_gpiote_out_clear(LED_3_COLOR_GREEN_PIN);
+                nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                break;
+            case 2: //STATE_MEASURING:
+                nrf_drv_gpiote_out_clear(LED_3_COLOR_RED_PIN);
+                nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                break;
+            default:
+                nrf_drv_gpiote_out_toggle(LED_3_COLOR_RED_PIN);
+                nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
+                nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+        }
         //nrf_gpio_pin_toggle(TICK_EVENT_OUTPUT);
         //nrf_drv_gpiote_out_toggle(LED_3_COLOR_BLUE_PIN);
-        nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
+        //nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
+        //nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+        //nrf_drv_gpiote_out_clear(LED_3_COLOR_GREEN_PIN);
         //nrf_drv_gpiote_out_toggle(LED_3_COLOR_RED_PIN);
     }
 }
