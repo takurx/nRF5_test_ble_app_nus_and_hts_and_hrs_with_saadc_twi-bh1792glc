@@ -1432,7 +1432,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         uint16_t buf_ind;
 
         char restime[] =    "2018-12-25T12:20:15";
-        char resdatanum[] = ",10";
+        char resdatanum[] = ",100";
         char respulse[] =   ",100,101,102,103,104,105,106,107,108,109";
         char restemp[] =    ",36.00,36.01,36.02,36.03,36.04,36.05,36.06,36.07,36.08,36.09";
         char resdata[256] = "";
@@ -1494,8 +1494,9 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         break;
                     case 2:   // 2: rqs
+                        sprintf(resdatanum, "%03d", Num_of_data_hr_hr);
                         reslength = 3;
-                        err_code = ble_nus_data_send(&m_nus, "100", &reslength, m_conn_handle);
+                        err_code = ble_nus_data_send(&m_nus, resdatanum, &reslength, m_conn_handle);
                         break;
                     case 3:   // 3: rqd
                         sprintf(restime, "%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
