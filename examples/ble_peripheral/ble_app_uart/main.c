@@ -945,8 +945,9 @@ void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
  */
 #define Num_of_data_hr_hr   256
 static volatile int Meas10sec = 0;
-static volatile int Index_data_hr_hr = 0;
-static volatile int Count_of_data_hr_hr = 0;
+static volatile int Write_index_data_hr_hr = 0;
+static volatile int Read_index_data_hr_hr = 0;
+static volatile int Count_index_data_hr_hr = 0;
 /**@brief record every 10 mintutes, 
  * temprature: 6 points between 10 seconds
  * heart_rate: 60 second average
@@ -973,26 +974,26 @@ static void meas_data_record_timeout_handler(void * p_context)
         NRF_LOG_INFO("10 second measure, 6 times");
         if (Meas10sec == 1)
         {
-            data_hr_hr[Index_data_hr_hr].start_time.year     = time_stamp.year;
-            data_hr_hr[Index_data_hr_hr].start_time.month    = time_stamp.month;
-            data_hr_hr[Index_data_hr_hr].start_time.day      = time_stamp.day;
-            data_hr_hr[Index_data_hr_hr].start_time.hours    = time_stamp.hours;
-            data_hr_hr[Index_data_hr_hr].start_time.minutes  = time_stamp.minutes;
-            data_hr_hr[Index_data_hr_hr].start_time.seconds  = time_stamp.seconds;
+            data_hr_hr[Write_index_data_hr_hr].start_time.year     = time_stamp.year;
+            data_hr_hr[Write_index_data_hr_hr].start_time.month    = time_stamp.month;
+            data_hr_hr[Write_index_data_hr_hr].start_time.day      = time_stamp.day;
+            data_hr_hr[Write_index_data_hr_hr].start_time.hours    = time_stamp.hours;
+            data_hr_hr[Write_index_data_hr_hr].start_time.minutes  = time_stamp.minutes;
+            data_hr_hr[Write_index_data_hr_hr].start_time.seconds  = time_stamp.seconds;
         }
-        data_hr_hr[Index_data_hr_hr].body_temperature_array[Meas10sec - 1] = Body_temperature;
+        data_hr_hr[Write_index_data_hr_hr].body_temperature_array[Meas10sec - 1] = Body_temperature;
         if (Meas10sec == 6)
         {
-            //data_hr_hr[Index_data_hr_hr].heart_rate = BPM;
-            Index_data_hr_hr++;
-            if (Index_data_hr_hr > Num_of_data_hr_hr - 1)
+            //data_hr_hr[Write_index_data_hr_hr].heart_rate = BPM;
+            Write_index_data_hr_hr++;
+            if (Write_index_data_hr_hr > Num_of_data_hr_hr - 1)
             {
-                Index_data_hr_hr = 0;
+                Write_index_data_hr_hr = 0;
             }
 
-            if (Count_of_data_hr_hr < Num_of_data_hr_hr)
+            if (Count_index_data_hr_hr < Num_of_data_hr_hr)
             {
-                Count_of_data_hr_hr++;
+                Count_index_data_hr_hr++;
             }
         }
     }
@@ -1429,7 +1430,9 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         uint32_t err_code;
         static char com_buf[256] = "";
         uint16_t i;
+        uint16_t j;
         uint16_t buf_ind;
+        int ind;
 
         char restime[] =    "2018-12-25T12:20:15";
         char resdatanum[] = "100";
@@ -1480,7 +1483,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         APP_ERROR_CHECK(err_code);
                         NRF_LOG_INFO("10 second measure and 10 minutes record start");
                         Meas10sec = 0;
-                        Count_of_data_hr_hr = 0;
+                        Count_index_data_hr_hr = 0;
                         State_keeper = 2;
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
@@ -1499,27 +1502,42 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         err_code = ble_nus_data_send(&m_nus, resdatanum, &reslength, m_conn_handle);
                         break;
                     case 3:   // 3: rqd
-                        //data_hr_hr[Index_data_hr_hr].body_temperature_array[Meas10sec - 1] = Body_temperature;
-                        //data_hr_hr[Index_data_hr_hr].heart_rate = BPM;
-                        sprintf(restime, "%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
-                        sprintf(resdatanum, "%03d", Num_of_data_hr_hr);
-                        sprintf(respulse,"%03d", data_hr_hr[0].heart_rate);
-                        sprintf(restemp, "%05.2f,%05.2f,%05.2f,%05.2f,%05.2f,%05.2f", data_hr_hr[0].body_temperature_array[0],
-                        data_hr_hr[0].body_temperature_array[1],
-                        data_hr_hr[0].body_temperature_array[2],
-                        data_hr_hr[0].body_temperature_array[3],
-                        data_hr_hr[0].body_temperature_array[4],
-                        data_hr_hr[0].body_temperature_array[5]);
-                        reslength = strlen(restime) + 1 + strlen(resdatanum) + 1 + strlen(respulse) + 1 + strlen(restemp);
-                        strcpy(resdata, restime);
-                        strcat(resdata, ",");
-                        strcat(resdata, resdatanum);
-                        strcat(resdata, ",");
-                        strcat(resdata, respulse);
-                        strcat(resdata, ",");
-                        strcat(resdata, restemp);
-                        NRF_LOG_INFO("res: %s", resdata);
-                        err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
+                        for (j = 0; j < Count_index_data_hr_hr; j++)
+                        {
+                            ind = Read_index_data_hr_hr + j;
+                            if (ind > Num_of_data_hr_hr)
+                            {
+                                ind = ind - Num_of_data_hr_hr;
+                            }
+                            //data_hr_hr[Write_index_data_hr_hr].body_temperature_array[Meas10sec - 1] = Body_temperature;
+                            //data_hr_hr[Write_index_data_hr_hr].heart_rate = BPM;
+                            sprintf(restime, "%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
+                            sprintf(resdatanum, "%03d", Num_of_data_hr_hr);
+                            sprintf(respulse,"%03d", data_hr_hr[ind].heart_rate);
+                            sprintf(restemp, "%05.2f,%05.2f,%05.2f,%05.2f,%05.2f,%05.2f", 
+                            data_hr_hr[ind].body_temperature_array[0],
+                            data_hr_hr[ind].body_temperature_array[1],
+                            data_hr_hr[ind].body_temperature_array[2],
+                            data_hr_hr[ind].body_temperature_array[3],
+                            data_hr_hr[ind].body_temperature_array[4],
+                            data_hr_hr[ind].body_temperature_array[5]);
+                            reslength = strlen(restime) + 1 + strlen(resdatanum) + 1 + strlen(respulse) + 1 + strlen(restemp);
+                            strcpy(resdata, restime);
+                            strcat(resdata, ",");
+                            strcat(resdata, resdatanum);
+                            strcat(resdata, ",");
+                            strcat(resdata, respulse);
+                            strcat(resdata, ",");
+                            strcat(resdata, restemp);
+                            NRF_LOG_INFO("res: %s", resdata);
+                            err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
+                        }
+                        
+                        Read_index_data_hr_hr = Read_index_data_hr_hr + Count_index_data_hr_hr;
+                        if (Read_index_data_hr_hr > Num_of_data_hr_hr)
+                        {
+                            Read_index_data_hr_hr = Read_index_data_hr_hr - Num_of_data_hr_hr;
+                        }
                         break;
                     case 4:   // 4: scd
                         /* Ex. "scd 2018-01-03" */
