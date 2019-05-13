@@ -1432,9 +1432,9 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         uint16_t buf_ind;
 
         char restime[] =    "2018-12-25T12:20:15";
-        char resdatanum[] = ",100";
-        char respulse[] =   ",100,101,102,103,104,105,106,107,108,109";
-        char restemp[] =    ",36.00,36.01,36.02,36.03,36.04,36.05,36.06,36.07,36.08,36.09";
+        char resdatanum[] = "100";
+        char respulse[] =   "100";
+        char restemp[] =    "36.00,36.01,36.02,36.03,36.04,36.05";
         char resdata[256] = "";
 
         for (i = 0; i < p_evt->params.rx_data.length; i++)
@@ -1499,11 +1499,24 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         err_code = ble_nus_data_send(&m_nus, resdatanum, &reslength, m_conn_handle);
                         break;
                     case 3:   // 3: rqd
+                        //data_hr_hr[Index_data_hr_hr].body_temperature_array[Meas10sec - 1] = Body_temperature;
+                        //data_hr_hr[Index_data_hr_hr].heart_rate = BPM;
                         sprintf(restime, "%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
-                        reslength = strlen(restime) + strlen(resdatanum) + strlen(respulse) + strlen(restemp);
+                        sprintf(resdatanum, "%03d", Num_of_data_hr_hr);
+                        sprintf(respulse,"%03d", data_hr_hr[0].heart_rate);
+                        sprintf(restemp, "%05.2f,%05.2f,%05.2f,%05.2f,%05.2f,%05.2f", data_hr_hr[0].body_temperature_array[0],
+                        data_hr_hr[0].body_temperature_array[1],
+                        data_hr_hr[0].body_temperature_array[2],
+                        data_hr_hr[0].body_temperature_array[3],
+                        data_hr_hr[0].body_temperature_array[4],
+                        data_hr_hr[0].body_temperature_array[5]);
+                        reslength = strlen(restime) + 1 + strlen(resdatanum) + 1 + strlen(respulse) + 1 + strlen(restemp);
                         strcpy(resdata, restime);
+                        strcat(resdata, ",");
                         strcat(resdata, resdatanum);
+                        strcat(resdata, ",");
                         strcat(resdata, respulse);
+                        strcat(resdata, ",");
                         strcat(resdata, restemp);
                         NRF_LOG_INFO("res: %s", resdata);
                         err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
