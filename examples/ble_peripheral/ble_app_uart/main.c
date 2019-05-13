@@ -464,7 +464,11 @@ void in_pin_handler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
     //nrf_drv_gpiote_out_toggle(PIN_OUT);
     //nrf_drv_gpiote_out_toggle(LED_3_COLOR_BLUE_PIN);
     //nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
-    nrf_drv_gpiote_out_toggle(LED_3_COLOR_RED_PIN);
+    //nrf_drv_gpiote_out_toggle(LED_3_COLOR_RED_PIN);
+    ret_code_t err_code;
+    err_code = sd_nvic_SystemReset();
+    APP_ERROR_CHECK(err_code);
+    
 }
 
 static void gpio_init(void)
