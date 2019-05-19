@@ -462,15 +462,10 @@ static void lfclk_request(void)
 
 void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action);
 
+static volatile bool LED_output_state = true;
 void in_pin_handler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
 {
-    //nrf_drv_gpiote_out_toggle(PIN_OUT);
-    //nrf_drv_gpiote_out_toggle(LED_3_COLOR_BLUE_PIN);
-    //nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
-    //nrf_drv_gpiote_out_toggle(LED_3_COLOR_RED_PIN);
-    ret_code_t err_code;
-    err_code = sd_nvic_SystemReset();
-    APP_ERROR_CHECK(err_code);
+    LED_output_state = !LED_output_state;
 }
 
 static void gpio_init(void)
@@ -2579,6 +2574,7 @@ void error_check(int32_t ret, String msg)
  * Triggered on TICK and COMPARE0 match.
  */
 static volatile int Tick_count = 0;
+static volatile int Reset_count = 0;
 static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
 {
     if (int_type == NRF_DRV_RTC_INT_TICK)
@@ -2595,43 +2591,73 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
         // RED: Measring state
         // Blink GREEN and RED: Emergency
         */
-        switch (State_keeper)
+        if (LED_output_state)
         {
-            case 0: //STATE_ADVERTISING:
-                if (Tick_count == 0)
-                {
+            switch (State_keeper)
+            {
+                case 0: //STATE_ADVERTISING:
+                    if (Tick_count == 0)
+                    {
+                        nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                        nrf_drv_gpiote_out_clear(LED_3_COLOR_GREEN_PIN);
+                        nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                        }
+                    else
+                    {
+                        nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                        nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                        nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);               
+                    }
+                    //nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                    //nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
+                    //nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                    break;
+                case 1: //STATE_PAIRING:
                     nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
                     nrf_drv_gpiote_out_clear(LED_3_COLOR_GREEN_PIN);
                     nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
-                    }
-                else
-                {
+                    break;
+                case 2: //STATE_MEASURING:
+                    nrf_drv_gpiote_out_clear(LED_3_COLOR_RED_PIN);
+                    nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                    nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                    break;
+                case 3: //STATE_EMERGENCY:
+                    nrf_drv_gpiote_out_toggle(LED_3_COLOR_RED_PIN);
+                    nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
+                    nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                default:
                     nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
                     nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
-                    nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);               
-                }
-                //nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
-                //nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
-                //nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
-                break;
-            case 1: //STATE_PAIRING:
-                nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
-                nrf_drv_gpiote_out_clear(LED_3_COLOR_GREEN_PIN);
-                nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
-                break;
-            case 2: //STATE_MEASURING:
-                nrf_drv_gpiote_out_clear(LED_3_COLOR_RED_PIN);
-                nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
-                nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
-                break;
-            case 3: //STATE_EMERGENCY:
-                nrf_drv_gpiote_out_toggle(LED_3_COLOR_RED_PIN);
-                nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
-                nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
-            default:
-                nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
-                nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
-                nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                    nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+            }
+        }
+        else
+        {
+            nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+            nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+            nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+        }
+
+        if (nrf_gpio_pin_read(SWITCH1_PIN))
+        {
+            //NRF_LOG_INFO("swith1 true");
+            Reset_count = 0;
+        }
+        else
+        {
+            //NRF_LOG_INFO("switch1 false");
+            Reset_count++;
+            if (Reset_count > 24)
+            {
+                //3s long push and software reset
+                NRF_LOG_INFO("software reset");
+                NRF_LOG_FLUSH();
+                
+                ret_code_t err_code;
+                err_code = sd_nvic_SystemReset();
+                APP_ERROR_CHECK(err_code);
+            }
         }
 
         Tick_count++;
