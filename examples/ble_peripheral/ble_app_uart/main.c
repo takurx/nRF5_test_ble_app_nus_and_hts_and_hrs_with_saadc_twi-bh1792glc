@@ -454,7 +454,7 @@ static void lfclk_request(void)
 #define LED_3_COLOR_GREEN_PIN   18
 #define LED_3_COLOR_RED_PIN     4
 #define SWITCH1_PIN             8
-#define CHARGE_FINISH_PIN       28
+//#define CHARGE_FINISH_PIN       28
 
 #define BH1792GLC_SCL_PIN 7
 #define BH1792GLC_SDA_PIN 6
@@ -471,7 +471,6 @@ void in_pin_handler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
     ret_code_t err_code;
     err_code = sd_nvic_SystemReset();
     APP_ERROR_CHECK(err_code);
-    
 }
 
 static void gpio_init(void)
@@ -532,13 +531,13 @@ static void gpio_init(void)
     nrf_drv_gpiote_in_event_enable(SWITCH1_PIN, true);
 
     // CHARGE_FINISH_PIN, 28
-    nrf_drv_gpiote_in_config_t in_config_charge = GPIOTE_CONFIG_IN_SENSE_TOGGLE(true);
-    in_config_switch1.pull = NRF_GPIO_PIN_PULLDOWN;
+    //nrf_drv_gpiote_in_config_t in_config_charge = GPIOTE_CONFIG_IN_SENSE_TOGGLE(true);
+    //in_config_switch1.pull = NRF_GPIO_PIN_PULLDOWN;
 
-    err_code = nrf_drv_gpiote_in_init(CHARGE_FINISH_PIN, &in_config_charge, in_pin_handler);
-    APP_ERROR_CHECK(err_code);
+    //err_code = nrf_drv_gpiote_in_init(CHARGE_FINISH_PIN, &in_config_charge, in_pin_handler);
+    //APP_ERROR_CHECK(err_code);
 
-    nrf_drv_gpiote_in_event_enable(CHARGE_FINISH_PIN, false);
+    //nrf_drv_gpiote_in_event_enable(CHARGE_FINISH_PIN, false);
 }
 
 
