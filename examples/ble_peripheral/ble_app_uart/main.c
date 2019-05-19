@@ -1038,8 +1038,8 @@ static void meas_data_record_timeout_handler(void * p_context)
         }
     }
 
-    //if (Meas10sec > 59)   // 10 minutes
-    if (Meas10sec > 9)   // 100 seconds
+    if (Meas10sec > 59)   // 10 minutes
+    //if (Meas10sec > 9)   // 100 seconds
     {
         Meas10sec = 0;
     }
