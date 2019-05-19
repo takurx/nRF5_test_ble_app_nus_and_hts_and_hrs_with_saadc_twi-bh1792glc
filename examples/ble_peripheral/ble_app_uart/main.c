@@ -176,6 +176,7 @@
 #define SENSOR_CONTACT_DETECTED_INTERVAL    APP_TIMER_TICKS(5000)                   /**< Sensor Contact Detected toggle interval (ticks). */
 
 #define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(1000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+#define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(25)                     /**< nus(nordic uart service) data output interval (ticks). */
 
 #define TEMP_TYPE_AS_CHARACTERISTIC     0                                           /**< Determines if temperature type is given as characteristic (1) or as a field of measurement (0). */
 
@@ -222,6 +223,7 @@ APP_TIMER_DEF(m_sensor_contact_timer_id);                           /**< Sensor 
 APP_TIMER_DEF(m_temperature_timer_id);                               /**< Temperature measurement timer. */
 
 APP_TIMER_DEF(m_data_record_timer_id);                               /**< Measurement data record timer. */
+APP_TIMER_DEF(m_data_output_timer_id);                               /**< Measurement data output timer. */
 
 static uint16_t   m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3;            /**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
 static bool     m_rr_interval_enabled = true;                       /**< Flag for enabling and disabling the registration of new RR interval measurements (the purpose of disabling this is just to test sending HRM without RR interval data. */
@@ -550,6 +552,7 @@ static void temperature_meas_timeout_handler(void * p_context);
 static void sensor_contact_detected_timeout_handler(void * p_context);
 static void bh1792glc_meas_timeout_handler(void * p_context);
 static void meas_data_record_timeout_handler(void * p_context);
+static void meas_data_output_timeout_handler(void * p_context);
 
 /**@brief Function for initializing the timer module.
  */
@@ -595,6 +598,11 @@ static void timers_init(void)
     err_code = app_timer_create(&m_data_record_timer_id,
                                 APP_TIMER_MODE_REPEATED,
                                 meas_data_record_timeout_handler);        
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_create(&m_data_output_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                meas_data_output_timeout_handler);        
     APP_ERROR_CHECK(err_code);
 }
 
@@ -971,7 +979,7 @@ static void meas_data_record_timeout_handler(void * p_context)
 {
     UNUSED_PARAMETER(p_context);
 
-    NRF_LOG_INFO("10 second interval, it will measurement dara record");
+    //NRF_LOG_INFO("10 second interval, it will measurement dara record");
     Meas10sec++;
 
     //  measure 10 seconds, record 10 minutes
@@ -997,15 +1005,16 @@ static void meas_data_record_timeout_handler(void * p_context)
                 Write_index_data_hr_hr = 0;
             }
 
-            if (Count_index_data_hr_hr < Num_of_data_hr_hr)
+            Count_index_data_hr_hr++;
+            if (Count_index_data_hr_hr > Num_of_data_hr_hr)
             {
-                Count_index_data_hr_hr++;
-                NRF_LOG_INFO("data increment:%03d", Count_index_data_hr_hr);
+                Count_index_data_hr_hr = Num_of_data_hr_hr;
+                Read_index_data_hr_hr = Write_index_data_hr_hr;
+                NRF_LOG_INFO("data full:%03d", Count_index_data_hr_hr);
             }
             else
             {
-                Read_index_data_hr_hr = Write_index_data_hr_hr;
-                NRF_LOG_INFO("data full:%03d", Count_index_data_hr_hr);
+                NRF_LOG_INFO("data increment:%03d", Count_index_data_hr_hr);
             }
         }
     }
@@ -1014,6 +1023,91 @@ static void meas_data_record_timeout_handler(void * p_context)
     if (Meas10sec > 9)   // 100 seconds
     {
         Meas10sec = 0;
+    }
+}
+
+static void meas_data_output_timeout_handler(void * p_context)
+{
+    UNUSED_PARAMETER(p_context);
+    
+    uint32_t err_code;
+    static char com_buf[128] = "";
+    uint16_t j;
+    int ind;
+
+    char restime[] =    "2018-12-25T12:20:15";
+    char resdatanum[] = "100";
+    char respulse[] =   "100";
+    char restemp[] =    "36.00,36.01,36.02,36.03,36.04,36.05";
+    char resdata[128] = "";
+    uint16_t reslength;
+
+    NRF_LOG_INFO("it will measurement data output");
+
+    //for (j = 0; j < Count_index_data_hr_hr; j++)
+    //{
+    ind = Read_index_data_hr_hr;
+    //if (ind > Num_of_data_hr_hr)
+    //{
+    //    ind = ind - Num_of_data_hr_hr;
+    //}
+    //data_hr_hr[Write_index_data_hr_hr].body_temperature_array[Meas10sec - 1] = Body_temperature;
+    //data_hr_hr[Write_index_data_hr_hr].heart_rate = BPM;
+    sprintf(restime, "%04d-%02d-%02dT%02d:%02d:%02d", 
+    data_hr_hr[ind].start_time.year, 
+    data_hr_hr[ind].start_time.month, 
+    data_hr_hr[ind].start_time.day, 
+    data_hr_hr[ind].start_time.hours, 
+    data_hr_hr[ind].start_time.minutes, 
+    data_hr_hr[ind].start_time.seconds);
+    //sprintf(resdatanum, "%03d", Count_index_data_hr_hr - j);
+    sprintf(resdatanum, "%03d", Count_index_data_hr_hr);
+    sprintf(respulse,"%03d", data_hr_hr[ind].heart_rate);
+
+    //sprintf(restemp, "%05.2f,%05.2f,%05.2f,%05.2f,%05.2f,%05.2f", 
+    //    data_hr_hr[ind].body_temperature_array[0],
+    //    data_hr_hr[ind].body_temperature_array[1],
+    //    data_hr_hr[ind].body_temperature_array[2],
+    //    data_hr_hr[ind].body_temperature_array[3],
+    //    data_hr_hr[ind].body_temperature_array[4],
+    //    data_hr_hr[ind].body_temperature_array[5]);
+
+    //NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
+    sprintf(restemp, 
+        "" NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "", 
+        NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[0]),
+        NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[1]),
+        NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[2]),
+        NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[3]),
+        NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[4]),
+        NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[5]));
+    reslength = strlen(restime) + 1 + strlen(resdatanum) + 1 + strlen(respulse) + 1 + strlen(restemp);
+    strcpy(resdata, restime);
+    strcat(resdata, ",");
+    strcat(resdata, resdatanum);
+    strcat(resdata, ",");
+    strcat(resdata, respulse);
+    strcat(resdata, ",");
+    strcat(resdata, restemp);
+    NRF_LOG_INFO("res: %s", resdata);
+    err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
+    //}
+
+    Read_index_data_hr_hr++;
+    //Read_index_data_hr_hr = Read_index_data_hr_hr + Count_index_data_hr_hr;
+    if (Read_index_data_hr_hr > Num_of_data_hr_hr)
+    {
+        Read_index_data_hr_hr = Read_index_data_hr_hr - Num_of_data_hr_hr;
+    }
+
+    //Count_index_data_hr_hr = 0;
+    Count_index_data_hr_hr--;
+    NRF_LOG_INFO("data decrement:%03d", Count_index_data_hr_hr);
+
+    if (Count_index_data_hr_hr < 1)
+    {
+        err_code = app_timer_stop(m_data_output_timer_id);
+        APP_ERROR_CHECK(err_code);
     }
 }
 
@@ -1515,6 +1609,22 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         err_code = ble_nus_data_send(&m_nus, resdatanum, &reslength, m_conn_handle);
                         break;
                     case 3:   // 3: rqd
+                        if (Count_index_data_hr_hr > 0)
+                        {
+                            err_code = app_timer_start(m_data_output_timer_id, DATA_OUTPUT_INTERVAL, NULL);
+                            APP_ERROR_CHECK(err_code);
+                            NRF_LOG_INFO("data output start");
+                            reslength = 3;
+                            err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        }
+                        else
+                        {
+                            NRF_LOG_INFO("data output not start, none data");
+                            reslength = 3;
+                            err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
+                        }
+                        
+                        /*
                         for (j = 0; j < Count_index_data_hr_hr; j++)
                         {
                             ind = Read_index_data_hr_hr + j;
@@ -1533,15 +1643,15 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                                 data_hr_hr[ind].start_time.seconds);
                             sprintf(resdatanum, "%03d", Count_index_data_hr_hr - j);
                             sprintf(respulse,"%03d", data_hr_hr[ind].heart_rate);
-                            /*
-                            sprintf(restemp, "%05.2f,%05.2f,%05.2f,%05.2f,%05.2f,%05.2f", 
-                                data_hr_hr[ind].body_temperature_array[0],
-                                data_hr_hr[ind].body_temperature_array[1],
-                                data_hr_hr[ind].body_temperature_array[2],
-                                data_hr_hr[ind].body_temperature_array[3],
-                                data_hr_hr[ind].body_temperature_array[4],
-                                data_hr_hr[ind].body_temperature_array[5]);
-                            */
+                            
+                            //sprintf(restemp, "%05.2f,%05.2f,%05.2f,%05.2f,%05.2f,%05.2f", 
+                            //    data_hr_hr[ind].body_temperature_array[0],
+                            //    data_hr_hr[ind].body_temperature_array[1],
+                            //    data_hr_hr[ind].body_temperature_array[2],
+                            //    data_hr_hr[ind].body_temperature_array[3],
+                            //    data_hr_hr[ind].body_temperature_array[4],
+                            //    data_hr_hr[ind].body_temperature_array[5]);
+                            
                             //NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
                             sprintf(restemp, 
                                 "" NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "", 
@@ -1571,7 +1681,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
 
                         Count_index_data_hr_hr = 0;
                         NRF_LOG_INFO("data decrement:%03d", Count_index_data_hr_hr);
-
+                        */
                         break;
                     case 4:   // 4: scd
                         /* Ex. "scd 2018-01-03" */
