@@ -522,7 +522,7 @@ static void gpio_init(void)
     APP_ERROR_CHECK(err_code);
 
     // SWITCH1, 8
-    nrf_drv_gpiote_in_config_t in_config_switch1 = GPIOTE_CONFIG_IN_SENSE_TOGGLE(true);
+    nrf_drv_gpiote_in_config_t in_config_switch1 = GPIOTE_CONFIG_IN_SENSE_HITOLO(true);
     in_config_switch1.pull = NRF_GPIO_PIN_PULLUP;
 
     err_code = nrf_drv_gpiote_in_init(SWITCH1_PIN, &in_config_switch1, in_pin_handler);
