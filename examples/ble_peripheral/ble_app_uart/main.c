@@ -1515,7 +1515,13 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                             }
                             //data_hr_hr[Write_index_data_hr_hr].body_temperature_array[Meas10sec - 1] = Body_temperature;
                             //data_hr_hr[Write_index_data_hr_hr].heart_rate = BPM;
-                            sprintf(restime, "%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
+                            sprintf(restime, "%04d-%02d-%02dT%02d:%02d:%02d", 
+                                data_hr_hr[ind].start_time.year, 
+                                data_hr_hr[ind].start_time.month, 
+                                data_hr_hr[ind].start_time.day, 
+                                data_hr_hr[ind].start_time.hours, 
+                                data_hr_hr[ind].start_time.minutes, 
+                                data_hr_hr[ind].start_time.seconds);
                             sprintf(resdatanum, "%03d", Num_of_data_hr_hr);
                             sprintf(respulse,"%03d", data_hr_hr[ind].heart_rate);
                             sprintf(restemp, "%05.2f,%05.2f,%05.2f,%05.2f,%05.2f,%05.2f", 
