@@ -1441,7 +1441,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
     if (p_evt->type == BLE_NUS_EVT_RX_DATA)
     {
         uint32_t err_code;
-        static char com_buf[256] = "";
+        static char com_buf[128] = "";
         uint16_t i;
         uint16_t j;
         uint16_t buf_ind;
@@ -1451,7 +1451,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         char resdatanum[] = "100";
         char respulse[] =   "100";
         char restemp[] =    "36.00,36.01,36.02,36.03,36.04,36.05";
-        char resdata[256] = "";
+        char resdata[128] = "";
 
         for (i = 0; i < p_evt->params.rx_data.length; i++)
         {
