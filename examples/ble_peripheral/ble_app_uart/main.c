@@ -136,9 +136,9 @@
 
 #include "nrf_drv_clock.h"
 
-#define DEVICE_NAME                     "Simulator"                               /**< Name of device. Will be included in the advertising data. */
+#define DEVICE_NAME                     "Herbio"                               /**< Name of device. Will be included in the advertising data. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
-#define MANUFACTURER_NAME               "NordicSemiconductor"                       /**< Manufacturer. Will be passed to Device Information Service. */
+#define MANUFACTURER_NAME               "Herbio Co., Ltd."                       /**< Manufacturer. Will be passed to Device Information Service. */
 //#define MODEL_NUM                       "EXAMPLE"                            /**< Model number. Will be passed to Device Information Service. */
 #define MANUFACTURER_ID                 0x1122334455                                /**< Manufacturer ID, part of System ID. Will be passed to Device Information Service. */
 #define ORG_UNIQUE_ID                   0x667788                                    /**< Organizational Unique ID, part of System ID. Will be passed to Device Information Service. */
@@ -649,9 +649,10 @@ static void battery_level_meas_timeout_handler(void * p_context)
  *                       app_start_timer() call to the timeout handler.
  */
 volatile bool Debug_output_heart_rate = false;
-volatile bool Debug_output_body_temperature = true;
+volatile bool Debug_output_body_temperature = false;
 volatile bool Debug_output_battery_temperature = false;
 volatile bool Debug_output_battery_voltage = false;
+volatile bool Debug_output_current_time = true;
 
 // Volatile Variables, used in the interrupt service routine!
 volatile int BPM;                   // int that holds raw Analog in 0. updated every 2mS
@@ -795,8 +796,11 @@ static void hts_measurement(ble_hts_meas_t * p_meas)
             }
         }
     }
-
-    NRF_LOG_INFO("%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
+    
+    if (Debug_output_current_time == true)
+    {
+        NRF_LOG_INFO("%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
+    }
 }
 
 /**@brief Function for handling the Temperature measurement timer timeout.
@@ -1229,6 +1233,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             err_code = nrf_ble_qwr_conn_handle_assign(&m_qwr, m_conn_handle);
             APP_ERROR_CHECK(err_code);
             State_keeper = 1;
+            NRF_LOG_INFO("State_keeper: 1");
             break;
 
         case BLE_GAP_EVT_DISCONNECTED:
@@ -1238,6 +1243,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             m_conn_handle = BLE_CONN_HANDLE_INVALID;
             m_hts_meas_ind_conf_pending = false;
             State_keeper = 0;
+            NRF_LOG_INFO("State_keeper: 0");
             break;
 
         case BLE_GAP_EVT_PHY_UPDATE_REQUEST:
@@ -1602,7 +1608,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                 switch (i)
                 {
                     case 0:   // 0: sta
-                        if (State_keeper != 2)
+                        if (State_keeper == 1)
                         {
                             err_code = app_timer_start(m_data_record_timer_id, DATA_RECORD_MEAS_INTERVAL, NULL);
                             APP_ERROR_CHECK(err_code);
@@ -1610,6 +1616,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                             Meas10sec = 0;
                             Count_index_data_hr_hr = 0;
                             State_keeper = 2;
+                            NRF_LOG_INFO("State_keeper: 2");
                             reslength = 3;
                             err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         }
@@ -1627,6 +1634,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         if (State_keeper == 2)
                         {
                             State_keeper = 1;
+                            NRF_LOG_INFO("State_keeper: 1");
                             reslength = 3;
                             err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         }
