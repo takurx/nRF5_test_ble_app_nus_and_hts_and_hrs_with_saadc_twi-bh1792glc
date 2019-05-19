@@ -175,7 +175,8 @@
 
 #define SENSOR_CONTACT_DETECTED_INTERVAL    APP_TIMER_TICKS(5000)                   /**< Sensor Contact Detected toggle interval (ticks). */
 
-#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(1000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(10000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+//#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(1000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
 #define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(25)                     /**< nus(nordic uart service) data output interval (ticks). */
 
 #define TEMP_TYPE_AS_CHARACTERISTIC     0                                           /**< Determines if temperature type is given as characteristic (1) or as a field of measurement (0). */
@@ -957,8 +958,8 @@ void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
 /**
  * @brief Measurement data record events handler.
  */
-//#define Num_of_data_hr_hr   256
-#define Num_of_data_hr_hr   4
+#define Num_of_data_hr_hr   256
+//#define Num_of_data_hr_hr   4
 static volatile int Meas10sec = 0;
 static volatile int Write_index_data_hr_hr = 0;
 static volatile int Read_index_data_hr_hr = 0;
@@ -970,7 +971,7 @@ static volatile int Count_index_data_hr_hr = 0;
 typedef struct
 {
     ble_date_time_t start_time; 
-    int body_temperature_array[6];
+    float body_temperature_array[6];
     int heart_rate;
 } ble_data_ht_hr_t;
 static volatile ble_data_ht_hr_t data_hr_hr[Num_of_data_hr_hr] = {};
@@ -1005,7 +1006,10 @@ static void meas_data_record_timeout_handler(void * p_context)
                 }
             }
         }
+
         data_hr_hr[Write_index_data_hr_hr].body_temperature_array[Meas10sec - 1] = Body_temperature;
+        NRF_LOG_INFO("R10sec %d:" NRF_LOG_FLOAT_MARKER "\n", Meas10sec, NRF_LOG_FLOAT(Body_temperature));
+        
         if (Meas10sec == 6)
         {
             //data_hr_hr[Write_index_data_hr_hr].heart_rate = BPM;
@@ -1048,7 +1052,7 @@ static void meas_data_output_timeout_handler(void * p_context)
     uint32_t err_code;
     static char com_buf[128] = "";
     uint16_t j;
-    static volatile int ind;
+    int ind;
 
     char restime[] =    "2018-12-25T12:20:15";
     char resdatanum[] = "100";
