@@ -175,7 +175,7 @@
 
 #define SENSOR_CONTACT_DETECTED_INTERVAL    APP_TIMER_TICKS(5000)                   /**< Sensor Contact Detected toggle interval (ticks). */
 
-#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(10000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(1000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
 
 #define TEMP_TYPE_AS_CHARACTERISTIC     0                                           /**< Determines if temperature type is given as characteristic (1) or as a field of measurement (0). */
 
@@ -646,6 +646,8 @@ static void battery_level_meas_timeout_handler(void * p_context)
  */
 volatile bool Debug_output_heart_rate = false;
 volatile bool Debug_output_body_temperature = true;
+volatile bool Debug_output_battery_temperature = false;
+volatile bool Debug_output_battery_voltage = false;
 
 // Volatile Variables, used in the interrupt service routine!
 volatile int BPM;                   // int that holds raw Analog in 0. updated every 2mS
@@ -975,7 +977,7 @@ static void meas_data_record_timeout_handler(void * p_context)
     //  measure 10 seconds, record 10 minutes
     if (Meas10sec < 7)
     {
-        NRF_LOG_INFO("10 second measure, 6 times");
+        //NRF_LOG_INFO("10 second measure, 6 times");
         if (Meas10sec == 1)
         {
             data_hr_hr[Write_index_data_hr_hr].start_time.year     = time_stamp.year;
@@ -998,11 +1000,18 @@ static void meas_data_record_timeout_handler(void * p_context)
             if (Count_index_data_hr_hr < Num_of_data_hr_hr)
             {
                 Count_index_data_hr_hr++;
+                NRF_LOG_INFO("data increment:%03d", Count_index_data_hr_hr);
+            }
+            else
+            {
+                Read_index_data_hr_hr = Write_index_data_hr_hr;
+                NRF_LOG_INFO("data full:%03d", Count_index_data_hr_hr);
             }
         }
     }
 
-    if (Meas10sec > 59)   // 10 minutes
+    //if (Meas10sec > 59)   // 10 minutes
+    if (Meas10sec > 9)   // 100 seconds
     {
         Meas10sec = 0;
     }
@@ -1501,7 +1510,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         break;
                     case 2:   // 2: rqs
-                        sprintf(resdatanum, "%03d", Num_of_data_hr_hr);
+                        sprintf(resdatanum, "%03d", Count_index_data_hr_hr);
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, resdatanum, &reslength, m_conn_handle);
                         break;
@@ -1522,15 +1531,26 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                                 data_hr_hr[ind].start_time.hours, 
                                 data_hr_hr[ind].start_time.minutes, 
                                 data_hr_hr[ind].start_time.seconds);
-                            sprintf(resdatanum, "%03d", Num_of_data_hr_hr);
+                            sprintf(resdatanum, "%03d", Count_index_data_hr_hr - j);
                             sprintf(respulse,"%03d", data_hr_hr[ind].heart_rate);
+                            /*
                             sprintf(restemp, "%05.2f,%05.2f,%05.2f,%05.2f,%05.2f,%05.2f", 
-                            data_hr_hr[ind].body_temperature_array[0],
-                            data_hr_hr[ind].body_temperature_array[1],
-                            data_hr_hr[ind].body_temperature_array[2],
-                            data_hr_hr[ind].body_temperature_array[3],
-                            data_hr_hr[ind].body_temperature_array[4],
-                            data_hr_hr[ind].body_temperature_array[5]);
+                                data_hr_hr[ind].body_temperature_array[0],
+                                data_hr_hr[ind].body_temperature_array[1],
+                                data_hr_hr[ind].body_temperature_array[2],
+                                data_hr_hr[ind].body_temperature_array[3],
+                                data_hr_hr[ind].body_temperature_array[4],
+                                data_hr_hr[ind].body_temperature_array[5]);
+                            */
+                            //NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
+                            sprintf(restemp, 
+                                "" NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "", 
+                                NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[0]),
+                                NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[1]),
+                                NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[2]),
+                                NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[3]),
+                                NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[4]),
+                                NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[5]));
                             reslength = strlen(restime) + 1 + strlen(resdatanum) + 1 + strlen(respulse) + 1 + strlen(restemp);
                             strcpy(resdata, restime);
                             strcat(resdata, ",");
@@ -1548,6 +1568,10 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         {
                             Read_index_data_hr_hr = Read_index_data_hr_hr - Num_of_data_hr_hr;
                         }
+
+                        Count_index_data_hr_hr = 0;
+                        NRF_LOG_INFO("data decrement:%03d", Count_index_data_hr_hr);
+
                         break;
                     case 4:   // 4: scd
                         /* Ex. "scd 2018-01-03" */
@@ -2062,7 +2086,11 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
 
             err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES_IN_BUFFER);
             APP_ERROR_CHECK(err_code);
-            NRF_LOG_INFO("Channel %d value: %d", m_adc_channel_enabled, p_event->data.done.p_buffer[0]);
+
+            if(Debug_output_body_temperature == true)
+            {
+                NRF_LOG_INFO("Channel %d value: %d", m_adc_channel_enabled, p_event->data.done.p_buffer[0]);
+            }
 
             ad_val = (int)p_event->data.done.p_buffer[0];
             ad_voltage = (float)(ad_val + correction_term) / resolution * vcc;
@@ -2087,14 +2115,18 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
 
             err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES_IN_BUFFER);
             APP_ERROR_CHECK(err_code);
-            NRF_LOG_INFO("Channel %d value: %d", m_adc_channel_enabled, p_event->data.done.p_buffer[0]);
+            
+            if(Debug_output_battery_temperature == true)
+            {
+                NRF_LOG_INFO("Channel %d value: %d", m_adc_channel_enabled, p_event->data.done.p_buffer[0]);
+            }
 
             ad_val = (int)p_event->data.done.p_buffer[0];
             ad_voltage = (float)(ad_val + correction_term) / resolution * vcc;
             ad_resistance = (resistance1 * ad_voltage) / (vcc - ad_voltage);
             temperature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15;
             
-            if(Debug_output_body_temperature == true)
+            if(Debug_output_battery_temperature == true)
             {
                 NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER ",", ad_val, NRF_LOG_FLOAT(temperature));
                 NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
@@ -2111,8 +2143,12 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
             APP_ERROR_CHECK(err_code);
 
             err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES_IN_BUFFER);
-            APP_ERROR_CHECK(err_code);            
-            NRF_LOG_INFO("Channel %d value: %d", m_adc_channel_enabled, p_event->data.done.p_buffer[0]);
+            APP_ERROR_CHECK(err_code);
+
+            if(Debug_output_battery_voltage == true)
+            {
+                NRF_LOG_INFO("Channel %d value: %d", m_adc_channel_enabled, p_event->data.done.p_buffer[0]);
+            }
 
             ad_val = (int)p_event->data.done.p_buffer[0];
             ad_voltage = (float)(ad_val) / resolution * vcc;
@@ -2131,7 +2167,7 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
                 bat_percent = (bat_voltage - 3.40) / 0.70 * 100;    // 0.70 = 4.10 - 3.40, max 4.2 V - min 3.3 V, I found that battery stop 4.05V
             }
 
-            if(Debug_output_body_temperature == true)
+            if(Debug_output_battery_voltage == true)
             {
                 NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER ",", ad_val, NRF_LOG_FLOAT(bat_percent));
                 NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
