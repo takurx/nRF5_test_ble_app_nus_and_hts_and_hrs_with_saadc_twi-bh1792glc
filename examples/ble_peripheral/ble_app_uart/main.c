@@ -732,7 +732,7 @@ static void rr_interval_timeout_handler(void * p_context)
 volatile float Body_temperature = 0.0;
 volatile float Battery_temperature = 0.0;
 
-static ble_date_time_t time_stamp = { 2019, 2, 28, 23, 59, 50 };
+static ble_date_time_t time_stamp = { 2019, 5, 19, 23, 59, 50 };
 static const int month_days[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
 static void hts_measurement(ble_hts_meas_t * p_meas)
@@ -1008,7 +1008,7 @@ static void meas_data_record_timeout_handler(void * p_context)
         }
 
         data_hr_hr[Write_index_data_hr_hr].body_temperature_array[Meas10sec - 1] = Body_temperature;
-        NRF_LOG_INFO("R10sec %d:" NRF_LOG_FLOAT_MARKER "\n", Meas10sec, NRF_LOG_FLOAT(Body_temperature));
+        NRF_LOG_INFO("R10sec %d:" NRF_LOG_FLOAT_MARKER "", Meas10sec, NRF_LOG_FLOAT(Body_temperature));
         
         if (Meas10sec == 6)
         {
@@ -1607,20 +1607,32 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                 switch (i)
                 {
                     case 0:   // 0: sta
-                        err_code = app_timer_start(m_data_record_timer_id, DATA_RECORD_MEAS_INTERVAL, NULL);
-                        APP_ERROR_CHECK(err_code);
-                        NRF_LOG_INFO("10 second measure and 10 minutes record start");
-                        Meas10sec = 0;
-                        Count_index_data_hr_hr = 0;
-                        State_keeper = 2;
-                        reslength = 3;
-                        err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        if (State_keeper != 2)
+                        {
+                            err_code = app_timer_start(m_data_record_timer_id, DATA_RECORD_MEAS_INTERVAL, NULL);
+                            APP_ERROR_CHECK(err_code);
+                            NRF_LOG_INFO("10 second measure and 10 minutes record start");
+                            Meas10sec = 0;
+                            Count_index_data_hr_hr = 0;
+                            State_keeper = 2;
+                            reslength = 3;
+                            err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        }
+                        else
+                        {
+                            NRF_LOG_INFO("already record started");
+                            reslength = 3;
+                            err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);                            
+                        }
                         break;
                     case 1:   // 1: sto
                         err_code = app_timer_stop(m_data_record_timer_id);
                         APP_ERROR_CHECK(err_code);
                         NRF_LOG_INFO("10 second measure and 10 minutes record stop");
-                        State_keeper = 1;
+                        if (State_keeper == 2)
+                        {
+                            State_keeper = 1;
+                        }
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         break;
