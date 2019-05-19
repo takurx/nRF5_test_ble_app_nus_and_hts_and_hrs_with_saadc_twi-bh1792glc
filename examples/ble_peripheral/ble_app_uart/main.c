@@ -1632,9 +1632,14 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         if (State_keeper == 2)
                         {
                             State_keeper = 1;
+                            reslength = 3;
+                            err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         }
-                        reslength = 3;
-                        err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        else
+                        {
+                            reslength = 3;
+                            err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
+                        }
                         break;
                     case 2:   // 2: rqs
                         sprintf(resdatanum, "%03d", Count_index_data_hr_hr);
@@ -1656,65 +1661,6 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                             reslength = 3;
                             err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
                         }
-                        
-                        /*
-                        for (j = 0; j < Count_index_data_hr_hr; j++)
-                        {
-                            ind = Read_index_data_hr_hr + j;
-                            if (ind > Num_of_data_hr_hr)
-                            {
-                                ind = ind - Num_of_data_hr_hr;
-                            }
-                            //data_hr_hr[Write_index_data_hr_hr].body_temperature_array[Meas10sec - 1] = Body_temperature;
-                            //data_hr_hr[Write_index_data_hr_hr].heart_rate = BPM;
-                            sprintf(restime, "%04d-%02d-%02dT%02d:%02d:%02d", 
-                                data_hr_hr[ind].start_time.year, 
-                                data_hr_hr[ind].start_time.month, 
-                                data_hr_hr[ind].start_time.day, 
-                                data_hr_hr[ind].start_time.hours, 
-                                data_hr_hr[ind].start_time.minutes, 
-                                data_hr_hr[ind].start_time.seconds);
-                            sprintf(resdatanum, "%03d", Count_index_data_hr_hr - j);
-                            sprintf(respulse,"%03d", data_hr_hr[ind].heart_rate);
-                            
-                            //sprintf(restemp, "%05.2f,%05.2f,%05.2f,%05.2f,%05.2f,%05.2f", 
-                            //    data_hr_hr[ind].body_temperature_array[0],
-                            //    data_hr_hr[ind].body_temperature_array[1],
-                            //    data_hr_hr[ind].body_temperature_array[2],
-                            //    data_hr_hr[ind].body_temperature_array[3],
-                            //    data_hr_hr[ind].body_temperature_array[4],
-                            //    data_hr_hr[ind].body_temperature_array[5]);
-                            
-                            //NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
-                            sprintf(restemp, 
-                                "" NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "", 
-                                NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[0]),
-                                NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[1]),
-                                NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[2]),
-                                NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[3]),
-                                NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[4]),
-                                NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[5]));
-                            reslength = strlen(restime) + 1 + strlen(resdatanum) + 1 + strlen(respulse) + 1 + strlen(restemp);
-                            strcpy(resdata, restime);
-                            strcat(resdata, ",");
-                            strcat(resdata, resdatanum);
-                            strcat(resdata, ",");
-                            strcat(resdata, respulse);
-                            strcat(resdata, ",");
-                            strcat(resdata, restemp);
-                            NRF_LOG_INFO("res: %s", resdata);
-                            err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
-                        }
-                        
-                        Read_index_data_hr_hr = Read_index_data_hr_hr + Count_index_data_hr_hr;
-                        if (Read_index_data_hr_hr > Num_of_data_hr_hr)
-                        {
-                            Read_index_data_hr_hr = Read_index_data_hr_hr - Num_of_data_hr_hr;
-                        }
-
-                        Count_index_data_hr_hr = 0;
-                        NRF_LOG_INFO("data decrement:%03d", Count_index_data_hr_hr);
-                        */
                         break;
                     case 4:   // 4: scd
                         /* Ex. "scd 2018-01-03" */
@@ -2632,11 +2578,16 @@ void error_check(int32_t ret, String msg)
 /** @brief: Function for handling the RTC0 interrupts.
  * Triggered on TICK and COMPARE0 match.
  */
+static volatile int Tick_count = 0;
 static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
 {
     if (int_type == NRF_DRV_RTC_INT_TICK)
     {
-        m_xfer_done = true;
+        if (Tick_count == 4 || Tick_count == 8)
+        {
+            m_xfer_done = true;
+        }
+
 
         /*I will add state of LED
         // Blink GREEN: Before Pairing
@@ -2644,13 +2595,24 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
         // RED: Measring state
         // Blink GREEN and RED: Emergency
         */
-
         switch (State_keeper)
         {
             case 0: //STATE_ADVERTISING:
-                nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
-                nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
-                nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                if (Tick_count == 0)
+                {
+                    nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                    nrf_drv_gpiote_out_clear(LED_3_COLOR_GREEN_PIN);
+                    nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                    }
+                else
+                {
+                    nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                    nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                    nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);               
+                }
+                //nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                //nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
+                //nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
                 break;
             case 1: //STATE_PAIRING:
                 nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
@@ -2662,17 +2624,21 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
                 nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
                 break;
-            default:
+            case 3: //STATE_EMERGENCY:
                 nrf_drv_gpiote_out_toggle(LED_3_COLOR_RED_PIN);
                 nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
                 nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+            default:
+                nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
         }
-        //nrf_gpio_pin_toggle(TICK_EVENT_OUTPUT);
-        //nrf_drv_gpiote_out_toggle(LED_3_COLOR_BLUE_PIN);
-        //nrf_drv_gpiote_out_toggle(LED_3_COLOR_GREEN_PIN);
-        //nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
-        //nrf_drv_gpiote_out_clear(LED_3_COLOR_GREEN_PIN);
-        //nrf_drv_gpiote_out_toggle(LED_3_COLOR_RED_PIN);
+
+        Tick_count++;
+        if (Tick_count > 9)
+        {
+            Tick_count = 0;
+        }
     }
 }
 
