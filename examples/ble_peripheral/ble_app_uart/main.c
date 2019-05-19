@@ -957,7 +957,8 @@ void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
 /**
  * @brief Measurement data record events handler.
  */
-#define Num_of_data_hr_hr   256
+//#define Num_of_data_hr_hr   256
+#define Num_of_data_hr_hr   4
 static volatile int Meas10sec = 0;
 static volatile int Write_index_data_hr_hr = 0;
 static volatile int Read_index_data_hr_hr = 0;
@@ -994,6 +995,15 @@ static void meas_data_record_timeout_handler(void * p_context)
             data_hr_hr[Write_index_data_hr_hr].start_time.hours    = time_stamp.hours;
             data_hr_hr[Write_index_data_hr_hr].start_time.minutes  = time_stamp.minutes;
             data_hr_hr[Write_index_data_hr_hr].start_time.seconds  = time_stamp.seconds;
+
+            if (Count_index_data_hr_hr > Num_of_data_hr_hr - 1)
+            {
+                Read_index_data_hr_hr = Write_index_data_hr_hr + 1;
+                if (Read_index_data_hr_hr > Num_of_data_hr_hr - 1)
+                {
+                    Read_index_data_hr_hr = Read_index_data_hr_hr - Num_of_data_hr_hr;
+                }
+            }
         }
         data_hr_hr[Write_index_data_hr_hr].body_temperature_array[Meas10sec - 1] = Body_temperature;
         if (Meas10sec == 6)
@@ -1002,14 +1012,19 @@ static void meas_data_record_timeout_handler(void * p_context)
             Write_index_data_hr_hr++;
             if (Write_index_data_hr_hr > Num_of_data_hr_hr - 1)
             {
-                Write_index_data_hr_hr = 0;
+                Write_index_data_hr_hr = Write_index_data_hr_hr - Num_of_data_hr_hr;
             }
 
             Count_index_data_hr_hr++;
-            if (Count_index_data_hr_hr > Num_of_data_hr_hr)
+            if (Count_index_data_hr_hr > Num_of_data_hr_hr - 1)
             {
                 Count_index_data_hr_hr = Num_of_data_hr_hr;
                 Read_index_data_hr_hr = Write_index_data_hr_hr;
+                //Read_index_data_hr_hr = Write_index_data_hr_hr + 1;
+                //if (Read_index_data_hr_hr > Num_of_data_hr_hr - 1)
+                //{
+                //    Read_index_data_hr_hr = Read_index_data_hr_hr - Num_of_data_hr_hr;
+                //}
                 NRF_LOG_INFO("data full:%03d", Count_index_data_hr_hr);
             }
             else
@@ -1033,7 +1048,7 @@ static void meas_data_output_timeout_handler(void * p_context)
     uint32_t err_code;
     static char com_buf[128] = "";
     uint16_t j;
-    int ind;
+    static volatile int ind;
 
     char restime[] =    "2018-12-25T12:20:15";
     char resdatanum[] = "100";
@@ -1047,10 +1062,12 @@ static void meas_data_output_timeout_handler(void * p_context)
     //for (j = 0; j < Count_index_data_hr_hr; j++)
     //{
     ind = Read_index_data_hr_hr;
-    //if (ind > Num_of_data_hr_hr)
+    //ind = Read_index_data_hr_hr + 1;
+    //if (ind > Num_of_data_hr_hr - 1)
     //{
     //    ind = ind - Num_of_data_hr_hr;
     //}
+
     //data_hr_hr[Write_index_data_hr_hr].body_temperature_array[Meas10sec - 1] = Body_temperature;
     //data_hr_hr[Write_index_data_hr_hr].heart_rate = BPM;
     sprintf(restime, "%04d-%02d-%02dT%02d:%02d:%02d", 
@@ -1095,7 +1112,7 @@ static void meas_data_output_timeout_handler(void * p_context)
 
     Read_index_data_hr_hr++;
     //Read_index_data_hr_hr = Read_index_data_hr_hr + Count_index_data_hr_hr;
-    if (Read_index_data_hr_hr > Num_of_data_hr_hr)
+    if (Read_index_data_hr_hr > Num_of_data_hr_hr - 1)
     {
         Read_index_data_hr_hr = Read_index_data_hr_hr - Num_of_data_hr_hr;
     }
