@@ -187,8 +187,8 @@ uint32_t bsp_btn_ble_sleep_mode_prepare(void)
     err_code = bsp_wakeup_button_enable(BTN_ID_WAKEUP);
     RETURN_ON_ERROR_NOT_NOT_SUPPORTED(err_code);
 
-    err_code = bsp_wakeup_button_enable(BTN_ID_WAKEUP_BOND_DELETE);
-    RETURN_ON_ERROR_NOT_NOT_SUPPORTED(err_code);
+    //err_code = bsp_wakeup_button_enable(BTN_ID_WAKEUP_BOND_DELETE);
+    //RETURN_ON_ERROR_NOT_NOT_SUPPORTED(err_code);
 
     return NRF_SUCCESS;
 }

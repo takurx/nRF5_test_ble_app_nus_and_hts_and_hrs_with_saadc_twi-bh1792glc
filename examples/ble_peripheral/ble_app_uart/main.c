@@ -1847,12 +1847,20 @@ static void on_hts_evt(ble_hts_t * p_hts, ble_hts_evt_t * p_evt)
  */
 static void sleep_mode_enter(void)
 {
-    uint32_t err_code = bsp_indication_set(BSP_INDICATE_IDLE);
-    APP_ERROR_CHECK(err_code);
+    uint32_t err_code;
+
+    //err_code = bsp_indication_set(BSP_INDICATE_IDLE);
+    //APP_ERROR_CHECK(err_code);
 
     // Prepare wakeup buttons.
     err_code = bsp_btn_ble_sleep_mode_prepare();
     APP_ERROR_CHECK(err_code);
+    
+    int i;
+    for(i = 0;i < 100000000;i++)
+    {
+      ;
+    }
 
     // Go to system-off mode (this function will not return; wakeup will cause a reset).
     err_code = sd_power_system_off();
