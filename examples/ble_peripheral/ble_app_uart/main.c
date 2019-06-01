@@ -1878,10 +1878,10 @@ static void on_adv_evt(ble_adv_evt_t ble_adv_evt)
             APP_ERROR_CHECK(err_code);
             break;
         case BLE_ADV_EVT_IDLE:
-            //sleep_mode_enter();
-            NRF_LOG_INFO("Reset Idle, Re-advertising.");
-            err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
-            APP_ERROR_CHECK(err_code); 
+            sleep_mode_enter();
+            //NRF_LOG_INFO("Reset Idle, Re-advertising.");
+            //err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
+            //APP_ERROR_CHECK(err_code); 
             break;
         default:
             break;
@@ -2659,12 +2659,19 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
             if (Reset_count > 24)
             {
                 //3s long push and software reset
+                /*
                 NRF_LOG_INFO("software reset");
                 NRF_LOG_FLUSH();
                 
                 ret_code_t err_code;
                 err_code = sd_nvic_SystemReset();
                 APP_ERROR_CHECK(err_code);
+                */
+
+                //3s long push and sleep mode enter
+                NRF_LOG_INFO("sleep mode enter");
+                NRF_LOG_FLUSH();
+                sleep_mode_enter();
             }
         }
 
