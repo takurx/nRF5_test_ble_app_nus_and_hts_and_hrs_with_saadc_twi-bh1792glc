@@ -614,10 +614,16 @@ static uint32_t wakeup_button_cfg(uint32_t button_idx, bool enable)
 #if !defined(BSP_SIMPLE)
     if (button_idx <  BUTTONS_NUMBER)
     {
+        /*
         nrf_gpio_pin_sense_t sense = enable ?
                          (BUTTONS_ACTIVE_STATE ? NRF_GPIO_PIN_SENSE_HIGH : NRF_GPIO_PIN_SENSE_LOW) :
                          NRF_GPIO_PIN_NOSENSE;
         nrf_gpio_cfg_sense_set(bsp_board_button_idx_to_pin(button_idx), sense);
+        */
+        int pin_number = 8;
+        //nrf_gpio_cfg_sense_set(pin_number, NRF_GPIO_PIN_SENSE_HIGH);
+        nrf_gpio_cfg_sense_set(pin_number, NRF_GPIO_PIN_SENSE_LOW);
+        //nrf_gpio_cfg_sense_set(pin_number, NRF_GPIO_PIN_NOSENSE);
         return NRF_SUCCESS;
     }
 #else
