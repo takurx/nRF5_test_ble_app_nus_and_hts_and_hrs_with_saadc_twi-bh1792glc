@@ -1886,10 +1886,10 @@ static void on_adv_evt(ble_adv_evt_t ble_adv_evt)
             APP_ERROR_CHECK(err_code);
             break;
         case BLE_ADV_EVT_IDLE:
-            sleep_mode_enter();
-            //NRF_LOG_INFO("Reset Idle, Re-advertising.");
-            //err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
-            //APP_ERROR_CHECK(err_code); 
+            //sleep_mode_enter();
+            NRF_LOG_INFO("Reset Idle, Re-advertising.");
+            err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
+            APP_ERROR_CHECK(err_code); 
             break;
         default:
             break;
