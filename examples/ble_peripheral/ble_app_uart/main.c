@@ -2775,7 +2775,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
 
         if (State_keeper == STATE_SLEEPING)
         {
-            if (Wait_sleep_count < 8)
+            if (Wait_sleep_count < 16)
             {
                 Wait_sleep_count++;
             }
