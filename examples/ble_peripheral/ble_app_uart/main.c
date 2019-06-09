@@ -1878,6 +1878,8 @@ static void sleep_mode_enter(void)
     err_code = bsp_btn_ble_sleep_mode_prepare();
     APP_ERROR_CHECK(err_code);
     
+    State_keeper = STATE_SLEEPING;
+    /*
     int i;
     for(i = 0;i < 100000000;i++)
     {
@@ -1887,6 +1889,7 @@ static void sleep_mode_enter(void)
     // Go to system-off mode (this function will not return; wakeup will cause a reset).
     err_code = sd_power_system_off();
     APP_ERROR_CHECK(err_code);
+    */
 }
 
 
@@ -2612,7 +2615,10 @@ void error_check(int32_t ret, String msg)
  * Triggered on TICK and COMPARE0 match.
  */
 static volatile int Tick_count = 0;
-static volatile int Reset_count = 0;
+static volatile int Enter_sleep_count = 0;
+static volatile int Boot_count = 0;
+static volatile int Wait_sleep_count = 0;
+
 static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
 {
     if (int_type == NRF_DRV_RTC_INT_TICK)
@@ -2634,81 +2640,92 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
         */
         if (LED_output_state)
         {
-            switch (State_keeper)
+            if (Boot_count < 8)
             {
-                case 0: //STATE_ADVERTISING:
-                    // Blink GREEN: Advertising that Before Pairing, 0
-                    if (Tick_count == 0)
-                    {
+                // BLUE: boot, reboot from sleep, 5
+                nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                nrf_drv_gpiote_out_clear(LED_3_COLOR_BLUE_PIN);
+                Boot_count++;
+            }
+            else
+            {
+                switch (State_keeper)
+                {
+                    case 0: //STATE_ADVERTISING:
+                        // Blink GREEN: Advertising that Before Pairing, 0
+                        if (Tick_count == 0)
+                        {
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                            nrf_drv_gpiote_out_clear(LED_3_COLOR_GREEN_PIN);
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                            }
+                        else
+                        {
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);               
+                        }
+                        break;
+                    case 1: //STATE_PAIRING:
+                        // GREEN: Pairing and Idle state, 1
                         nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
                         nrf_drv_gpiote_out_clear(LED_3_COLOR_GREEN_PIN);
                         nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
-                        }
-                    else
-                    {
-                        nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
-                        nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
-                        nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);               
-                    }
-                    break;
-                case 1: //STATE_PAIRING:
-                    // GREEN: Pairing and Idle state, 1
-                    nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
-                    nrf_drv_gpiote_out_clear(LED_3_COLOR_GREEN_PIN);
-                    nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
-                    break;
-                case 2: //STATE_MEASURING (and STATE_PAIRING):
-                    // RED: Measring state and Pairing, 2
-                    nrf_drv_gpiote_out_clear(LED_3_COLOR_RED_PIN);
-                    nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
-                    nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
-                    break;
-                case 3: //STATE_EMERGENCY:
-                    // Blink GREEN and RED: Emergency, 3
-                    if (Tick_count % 2 == 0)
-                    {
-                        nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
-                        nrf_drv_gpiote_out_clear(LED_3_COLOR_GREEN_PIN);
-                        nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
-                    }
-                    else
-                    {
+                        break;
+                    case 2: //STATE_MEASURING (and STATE_PAIRING):
+                        // RED: Measring state and Pairing, 2
                         nrf_drv_gpiote_out_clear(LED_3_COLOR_RED_PIN);
                         nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
                         nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
-                    }
-                    break;
-                case 4: //STATE_
-                    // Blink RED: Measuring and Adverting, 4
-                    if (Tick_count == 0)
-                    {
-                        nrf_drv_gpiote_out_clear(LED_3_COLOR_RED_PIN);
-                        nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
-                        nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                        break;
+                    case 3: //STATE_EMERGENCY:
+                        // Blink GREEN and RED: Emergency, 3
+                        if (Tick_count % 2 == 0)
+                        {
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                            nrf_drv_gpiote_out_clear(LED_3_COLOR_GREEN_PIN);
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
                         }
-                    else
-                    {
+                        else
+                        {
+                            nrf_drv_gpiote_out_clear(LED_3_COLOR_RED_PIN);
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                        }
+                        break;
+                    case 4: //STATE_
+                        // Blink RED: Measuring and Adverting, 4
+                        if (Tick_count == 0)
+                        {
+                            nrf_drv_gpiote_out_clear(LED_3_COLOR_RED_PIN);
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                            }
+                        else
+                        {
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);               
+                        }
+                        break;
+                    case 5:
+                        // BLUE: boot, reboot from sleep, 5
                         nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
                         nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
-                        nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);               
-                    }
-                    break;
-                case 5:
-                    // BLUE: boot, reboot from sleep, 5
-                    nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
-                    nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
-                    nrf_drv_gpiote_out_clear(LED_3_COLOR_BLUE_PIN);
-                    break;
-                case 6:
-                    // Blink BLUE: go to sleep, 6
-                    nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
-                    nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
-                    nrf_drv_gpiote_out_toggle(LED_3_COLOR_BLUE_PIN);
-                    break;
-                default:
-                    nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
-                    nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
-                    nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                        nrf_drv_gpiote_out_clear(LED_3_COLOR_BLUE_PIN);
+                        break;
+                    case 6:
+                        // Blink BLUE: go to sleep, 6
+                        nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                        nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                        nrf_drv_gpiote_out_toggle(LED_3_COLOR_BLUE_PIN);
+                        break;
+                    default:
+                        nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                        nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                        nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                }
             }
         }
         else
@@ -2731,13 +2748,13 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
         if (nrf_gpio_pin_read(SWITCH1_PIN))
         {
             //NRF_LOG_INFO("swith1 true");
-            Reset_count = 0;
+            Enter_sleep_count = 0;
         }
         else
         {
             //NRF_LOG_INFO("switch1 false");
-            Reset_count++;
-            if (Reset_count > 24)
+            Enter_sleep_count++;
+            if (Enter_sleep_count == 24)
             {
                 //3s long push and software reset
                 /*
@@ -2753,6 +2770,23 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 NRF_LOG_INFO("sleep mode enter");
                 NRF_LOG_FLUSH();
                 sleep_mode_enter();
+            }
+        }
+
+        if (State_keeper == STATE_SLEEPING)
+        {
+            if (Wait_sleep_count < 8)
+            {
+                Wait_sleep_count++;
+            }
+            else
+            {
+                // Go to system-off mode (this function will not return; wakeup will cause a reset).
+                NRF_LOG_INFO("system-off and sleep");
+                NRF_LOG_FLUSH();
+                sd_power_system_off();
+                //err_code = sd_power_system_off();
+                //APP_ERROR_CHECK(err_code);
             }
         }
 
@@ -2881,8 +2915,11 @@ static void idle_state_handle(void)
 int main(void)
   {
     bool erase_bonds;
+    
 
     // Initialize.
+    State_keeper = STATE_BOOTING;
+    Boot_count = 0;
     log_init();
     uart_init();
     NRF_LOG_INFO("Finish uart init, log init");
@@ -2929,6 +2966,7 @@ int main(void)
     NRF_LOG_INFO("Debug logging for UART over RTT started.");
     NRF_LOG_INFO("Heart Rate Sensor example started.");
     NRF_LOG_INFO("Health Thermometer example started.");
+
     application_timers_start();
     //NRF_LOG_FLUSH();
 
@@ -2944,6 +2982,7 @@ int main(void)
     */
 
     advertising_start(erase_bonds);
+    State_keeper = STATE_ADVERTISING;
     //NRF_LOG_FLUSH();
 
     // Enter main loop.
