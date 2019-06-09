@@ -136,6 +136,7 @@
 
 #include "nrf_drv_clock.h"
 
+#define FIRMWARE_VERSION                "1p0"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'*/
 #define DEVICE_NAME                     "Herbio"                               /**< Name of device. Will be included in the advertising data. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 #define MANUFACTURER_NAME               "Herbio Co., Ltd."                       /**< Manufacturer. Will be passed to Device Information Service. */
@@ -1562,7 +1563,8 @@ static const char * NusCommand[] =
     "dbt",    /* 31: debug output temperature command    */
     "dsp",    /* 32: debug output stop command           */
     "dct",    /* 33: debut output current time */
-    "", "", "", "", "", "",     /* 34-39 */
+    "ver",    /* 34: debug output firmware version "/
+    "", "", "", "", "",     /* 35-39 */
 };
 
 /**@brief Function for handling the data from the Nordic UART Service.
@@ -1764,7 +1766,13 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         sprintf(restime, "%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
                         reslength = strlen(restime);
                         err_code = ble_nus_data_send(&m_nus, &restime[0], &reslength, m_conn_handle);
-                        break;   
+                        break;
+                    case 34:   // 34: ver
+                        NRF_LOG_INFO("FIRMWARE_VERSION: %s", FIRMWARE_VERSION);
+                        sprintf(resdata, "FIRMWARE_VERSION: %s", FIRMWARE_VERSION);
+                        reslength = strlen(resdata);
+                        err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
+                        break;
                     default:
                         break;
                 }
