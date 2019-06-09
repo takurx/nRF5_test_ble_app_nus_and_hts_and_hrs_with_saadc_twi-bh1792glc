@@ -1238,7 +1238,15 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
             err_code = nrf_ble_qwr_conn_handle_assign(&m_qwr, m_conn_handle);
             APP_ERROR_CHECK(err_code);
-            State_keeper = STATE_PAIRING;
+            if (State_keeper == STATE_MEASURINGADVERTISING)
+            {
+                State_keeper = STATE_MEASURING;
+            }
+            else
+            {
+                // not state_measuring
+                State_keeper = STATE_PAIRING;
+            }
             NRF_LOG_INFO("State_keeper: %d", State_keeper);
             break;
 
@@ -1248,7 +1256,15 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             // LED indication will be changed when advertising starts.
             m_conn_handle = BLE_CONN_HANDLE_INVALID;
             m_hts_meas_ind_conf_pending = false;
-            State_keeper = STATE_ADVERTISING;
+            if (State_keeper == STATE_MEASURING)
+            {
+                State_keeper = STATE_MEASURINGADVERTISING;
+            }
+            else
+            {
+                // not state_measuring
+                State_keeper = STATE_ADVERTISING;
+            }
             NRF_LOG_INFO("State_keeper: %d", State_keeper);
             break;
 
