@@ -2850,10 +2850,24 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
             if (Wait_sleep_count == 1)
             {
                 ret_code_t rc;
+                /*
                 NRF_LOG_INFO("Writing \"%x\" to flash.", m_data);
                 rc = nrf_fstorage_write(&fstorage, 0x50000, &m_data, sizeof(m_data), NULL);
                 APP_ERROR_CHECK(rc);
 
+                //wait_for_flash_ready(&fstorage);
+                NRF_LOG_INFO("Done.");
+                */
+                uint8_t write_count = 4;
+                uint32_t write_index = 0x50000;
+                for(uint8_t i = 0; i < write_count; i++)
+                {
+                    uint8_t write_data[sizeof(data_hr_hr[0])];
+                    *(ble_data_ht_hr_t *) write_data = data_hr_hr[0];
+                    rc = nrf_fstorage_write(&fstorage, write_index, &write_data, sizeof(write_data), NULL);
+                    APP_ERROR_CHECK(rc);
+                    write_index = write_index + sizeof(write_data);
+                }
                 //wait_for_flash_ready(&fstorage);
                 NRF_LOG_INFO("Done.");
 
