@@ -2689,6 +2689,8 @@ static volatile int Enter_sleep_count = 0;
 static volatile int Boot_count = 0;
 static volatile int Wait_sleep_count = 0;
 
+void wait_for_flash_ready(nrf_fstorage_t const * p_fstorage);
+
 static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
 {
     if (int_type == NRF_DRV_RTC_INT_TICK)
@@ -2845,7 +2847,19 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
 
         if (State_keeper == STATE_SLEEPING)
         {
-            if (Wait_sleep_count < 16)
+            if (Wait_sleep_count == 1)
+            {
+                ret_code_t rc;
+                NRF_LOG_INFO("Writing \"%x\" to flash.", m_data);
+                rc = nrf_fstorage_write(&fstorage, 0x50000, &m_data, sizeof(m_data), NULL);
+                APP_ERROR_CHECK(rc);
+
+                //wait_for_flash_ready(&fstorage);
+                NRF_LOG_INFO("Done.");
+
+                Wait_sleep_count++;
+            }
+            else if (Wait_sleep_count < 16)
             {
                 Wait_sleep_count++;
             }
@@ -2991,7 +3005,8 @@ void wait_for_flash_ready(nrf_fstorage_t const * p_fstorage)
     while (nrf_fstorage_is_busy(p_fstorage))
     {
         //power_manage();
-        sd_app_evt_wait();
+        //sd_app_evt_wait();
+        nrf_pwr_mgmt_run();
     }
 }
 
@@ -3070,13 +3085,14 @@ int main(void)
     (void) nrf5_flash_end_addr_get();
 
     /* Let's write to flash. */
+    /*
     NRF_LOG_INFO("Writing \"%x\" to flash.", m_data);
     rc = nrf_fstorage_write(&fstorage, 0x50000, &m_data, sizeof(m_data), NULL);
     APP_ERROR_CHECK(rc);
 
     wait_for_flash_ready(&fstorage);
     NRF_LOG_INFO("Done.");
-
+    */
     uint8_t    data[256] = {0};
     uint32_t i = 0;
     
