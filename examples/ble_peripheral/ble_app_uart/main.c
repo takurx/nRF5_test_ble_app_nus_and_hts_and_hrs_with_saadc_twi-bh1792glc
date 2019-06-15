@@ -3145,12 +3145,17 @@ int main(void)
 
     uint32_t read_address = 0x50000;
     uint8_t read_data[sizeof(data_hr_hr[0])];
-    rc = nrf_fstorage_read(&fstorage, read_address, read_data, sizeof(read_data));
-    if (rc != NRF_SUCCESS)
+    
+    for (i = 0; i <  Num_of_data_hr_hr; i++)
     {
-        NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
+        rc = nrf_fstorage_read(&fstorage, read_address, read_data, sizeof(read_data));
+        if (rc != NRF_SUCCESS)
+        {
+            NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
+        }
+        data_hr_hr[i] = *(ble_data_ht_hr_t *)(read_data);
+        NRF_LOG_INFO("Read done, %d", i);
     }
-    data_hr_hr[0] = *(ble_data_ht_hr_t *)(read_data);
 
 /*
     *(ble_data_ht_hr_t *) write_data = data_hr_hr[0];
