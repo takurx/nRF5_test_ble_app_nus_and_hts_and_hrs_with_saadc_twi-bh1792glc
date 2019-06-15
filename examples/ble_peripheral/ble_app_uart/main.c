@@ -3143,6 +3143,22 @@ int main(void)
         NRF_LOG_INFO("0x%x ", data[i]);
     }
 
+    uint32_t read_address = 0x50000;
+    uint8_t read_data[sizeof(data_hr_hr[0])];
+    rc = nrf_fstorage_read(&fstorage, read_address, read_data, sizeof(read_data));
+    if (rc != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
+    }
+    data_hr_hr[0] = *(ble_data_ht_hr_t *)(read_data);
+
+/*
+    *(ble_data_ht_hr_t *) write_data = data_hr_hr[0];
+    rc = nrf_fstorage_write(&fstorage, write_index, &write_data, sizeof(write_data), NULL);
+    APP_ERROR_CHECK(rc);
+    write_index = write_index + sizeof(write_data);
+*/
+
 /*
     m_data = 0xDEADBEEF;
 

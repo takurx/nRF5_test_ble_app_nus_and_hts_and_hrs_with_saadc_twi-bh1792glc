@@ -64,7 +64,7 @@
   <Watches active="0" update="Never"/>
  </Watch4>
  <Files>
-  <SessionOpenFile windowGroup="DockEditLeft" x="2" y="2691" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../main.c" selected="1" top="3103" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="2691" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../main.c" selected="1" top="2650" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="186" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/bsp/bsp_btn_ble.c" selected="0" top="152" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="622" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/bsp/bsp.c" selected="0" top="602" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="84" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/util/app_error_weak.c" selected="0" top="60" codecName="Default"/>
