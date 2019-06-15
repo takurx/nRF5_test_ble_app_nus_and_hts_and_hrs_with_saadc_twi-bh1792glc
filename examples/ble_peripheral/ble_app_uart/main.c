@@ -3154,7 +3154,9 @@ int main(void)
             NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
         }
         data_hr_hr[i] = *(ble_data_ht_hr_t *)(read_data);
-        NRF_LOG_INFO("Read done, %d", i);
+        NRF_LOG_INFO("Read done, %d, 0x%x", i, read_address);
+        NRF_LOG_FLUSH();
+        read_address = read_address + sizeof(read_data);
     }
 
 /*
