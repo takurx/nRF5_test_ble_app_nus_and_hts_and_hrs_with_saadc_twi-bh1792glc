@@ -797,7 +797,7 @@ static void rr_interval_timeout_handler(void * p_context)
 volatile float Body_temperature = 0.0;
 volatile float Battery_temperature = 0.0;
 
-static ble_date_time_t time_stamp = { 2019, 5, 19, 23, 59, 50 };
+static ble_date_time_t time_stamp = { 2019, 6, 16, 15, 8, 50 };
 static const int month_days[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
 static void hts_measurement(ble_hts_meas_t * p_meas)
@@ -2850,9 +2850,9 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
 
         if (State_keeper == STATE_SLEEPING)
         {
+            ret_code_t rc;
             if (Wait_sleep_count < 64)
             {
-                ret_code_t rc;
                 for(uint8_t i = 0; i < write_count; i++)
                 {
                     uint8_t write_data[sizeof(data_hr_hr[0])];
@@ -2862,6 +2862,38 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                     write_index = write_index + sizeof(write_data);
                     //wait_for_flash_ready(&fstorage);
                 }
+                NRF_LOG_INFO("Done, %d", Wait_sleep_count);
+                NRF_LOG_FLUSH();
+
+                Wait_sleep_count++;
+            }
+            else if (Wait_sleep_count == 64)
+            {
+                //Current time, time_stamp
+                uint8_t write_time_stamp[sizeof(time_stamp)];
+                *(ble_date_time_t *) write_time_stamp = time_stamp;
+                rc = nrf_fstorage_write(&fstorage, write_index, &write_time_stamp, sizeof(write_time_stamp), NULL);
+                APP_ERROR_CHECK(rc);
+                write_index = write_index + sizeof(write_time_stamp);
+                //Write index, Write_index_data_hr_hr
+                uint8_t write_write_index[sizeof(Write_index_data_hr_hr)];
+                *(int *) write_write_index = Write_index_data_hr_hr;
+                rc = nrf_fstorage_write(&fstorage, write_index, &write_write_index, sizeof(Write_index_data_hr_hr), NULL);
+                APP_ERROR_CHECK(rc);
+                write_index = write_index + sizeof(write_write_index);
+                //Read index, Read_index_data_hr_hr
+                uint8_t write_read_index[sizeof(Read_index_data_hr_hr)];
+                *(int *) write_read_index = Read_index_data_hr_hr;
+                rc = nrf_fstorage_write(&fstorage, write_index, &write_read_index, sizeof(Read_index_data_hr_hr), NULL);
+                APP_ERROR_CHECK(rc);
+                write_index = write_index + sizeof(write_read_index);
+                //Count index, Count_index_data_hr_hr
+                uint8_t write_count_index[sizeof(Count_index_data_hr_hr)];
+                *(int *) write_count_index = Count_index_data_hr_hr;
+                rc = nrf_fstorage_write(&fstorage, write_index, &write_count_index, sizeof(Count_index_data_hr_hr), NULL);
+                APP_ERROR_CHECK(rc);
+                write_index = write_index + sizeof(write_count_index);
+
                 NRF_LOG_INFO("Done, %d", Wait_sleep_count);
                 NRF_LOG_FLUSH();
 
