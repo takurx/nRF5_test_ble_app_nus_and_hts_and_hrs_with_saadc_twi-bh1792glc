@@ -3129,9 +3129,10 @@ int main(void)
     wait_for_flash_ready(&fstorage);
     NRF_LOG_INFO("Done.");
     */
-    uint8_t    data[256] = {0};
+    //uint8_t    data[256] = {0};
     uint32_t i = 0;
     
+    /*
     rc = nrf_fstorage_read(&fstorage, 0x50000, data, 4);
     if (rc != NRF_SUCCESS)
     {
@@ -3142,6 +3143,7 @@ int main(void)
     {
         NRF_LOG_INFO("0x%x ", data[i]);
     }
+    */
 
     uint32_t read_address = 0x50000;
     uint8_t read_data[sizeof(data_hr_hr[0])];
