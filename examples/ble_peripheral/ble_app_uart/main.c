@@ -3072,7 +3072,6 @@ void wait_for_flash_ready(nrf_fstorage_t const * p_fstorage)
 int main(void)
   {
     bool erase_bonds;
-    
 
     // Initialize.
     State_keeper = STATE_BOOTING;
@@ -3160,7 +3159,32 @@ int main(void)
     {
         NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
     }
-    time_stamp = *(ble_date_time_t *)(read_time_stamp);
+    //time_stamp = *(ble_date_time_t *)(read_time_stamp);
+    ble_date_time_t temp_stamp = *(ble_date_time_t *)(read_time_stamp);
+    if (temp_stamp.year < 1900 && temp_stamp.year > 2200)
+    {
+        time_stamp.year = temp_stamp.year;
+    }
+    if (temp_stamp.month > 0 && temp_stamp.month < 13)
+    {
+        time_stamp.month = temp_stamp.month;
+    }
+    if (temp_stamp.day > 0 && temp_stamp.day < 32)
+    {
+        time_stamp.day = temp_stamp.day;
+    }
+    if (temp_stamp.hours < 24)
+    {
+        time_stamp.hours = temp_stamp.hours;
+    }
+    if (temp_stamp.minutes < 60)
+    {
+        time_stamp.minutes = temp_stamp.minutes;
+    }
+    if (temp_stamp.seconds < 60)
+    {
+        time_stamp.seconds = temp_stamp.seconds;
+    }
     NRF_LOG_INFO("%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
     NRF_LOG_INFO("Read done, 0x%x", read_address);
     NRF_LOG_FLUSH();
