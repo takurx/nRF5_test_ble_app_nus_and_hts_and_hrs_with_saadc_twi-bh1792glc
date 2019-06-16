@@ -2863,14 +2863,15 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
             ret_code_t rc;
             if (Wait_sleep_count < 64)
             {
+                int index_data_hr_hr = Wait_sleep_count * 4;
                 for(uint8_t i = 0; i < write_count; i++)
                 {
                     uint8_t write_data[sizeof(data_hr_hr[0])];
-                    *(ble_data_ht_hr_t *) write_data = data_hr_hr[0];
+                    *(ble_data_ht_hr_t *) write_data = data_hr_hr[index_data_hr_hr + i];
                     rc = nrf_fstorage_write(&fstorage, write_index, &write_data, sizeof(write_data), NULL);
                     APP_ERROR_CHECK(rc);
                     write_index = write_index + sizeof(write_data);
-                    wait_for_flash_ready(&fstorage);
+                    //wait_for_flash_ready(&fstorage);
                 }
                 
 /*
