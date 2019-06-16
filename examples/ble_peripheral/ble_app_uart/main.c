@@ -342,7 +342,7 @@ NRF_FSTORAGE_DEF(nrf_fstorage_t fstorage) =
      * You must set these manually, even at runtime, before nrf_fstorage_init() is called.
      * The function nrf5_flash_end_addr_get() can be used to retrieve the last address on the
      * last page of flash available to write data. */
-    .start_addr = 0x50000,
+    .start_addr = 0x60000,
     .end_addr   = 0x6ffff,
 };
 
@@ -724,7 +724,7 @@ volatile bool Debug_output_battery_voltage = false;
 volatile bool Debug_output_current_time = true;
 
 // Volatile Variables, used in the interrupt service routine!
-volatile int BPM;                   // int that holds raw Analog in 0. updated every 2mS
+volatile uint16_t BPM;                   // int that holds raw Analog in 0. updated every 2mS
 volatile int Signal;                // holds the incoming raw data
 volatile int IBI = 600;             // int that holds the time interval between beats! Must be seeded!
 volatile bool Pulse = false;     // "True" when User's live heartbeat is detected. "False" when not a "live beat".
@@ -1040,9 +1040,10 @@ typedef struct
 {
     ble_date_time_t start_time; 
     float body_temperature_array[6];
-    int heart_rate;
+    uint16_t heart_rate;
 } ble_data_ht_hr_t;
 static volatile ble_data_ht_hr_t data_hr_hr[Num_of_data_hr_hr] = {};
+static volatile ble_data_ht_hr_t temp_data_hr_hr = {};
 //static ble_date_time_t time_stamp = { 2019, 2, 28, 23, 59, 50 };
 
 static void meas_data_record_timeout_handler(void * p_context)
@@ -1050,21 +1051,21 @@ static void meas_data_record_timeout_handler(void * p_context)
     UNUSED_PARAMETER(p_context);
 
     //NRF_LOG_INFO("10 second interval, it will measurement dara record");
-    Meas10sec++;
 
     //  measure 10 seconds, record 10 minutes
-    if (Meas10sec < 7)
+    if (Meas10sec < 6)
     {
         //NRF_LOG_INFO("10 second measure, 6 times");
-        if (Meas10sec == 1)
+        if (Meas10sec == 0)
         {
-            data_hr_hr[Write_index_data_hr_hr].start_time.year     = time_stamp.year;
-            data_hr_hr[Write_index_data_hr_hr].start_time.month    = time_stamp.month;
-            data_hr_hr[Write_index_data_hr_hr].start_time.day      = time_stamp.day;
-            data_hr_hr[Write_index_data_hr_hr].start_time.hours    = time_stamp.hours;
-            data_hr_hr[Write_index_data_hr_hr].start_time.minutes  = time_stamp.minutes;
-            data_hr_hr[Write_index_data_hr_hr].start_time.seconds  = time_stamp.seconds;
+            temp_data_hr_hr.start_time.year     = time_stamp.year;
+            temp_data_hr_hr.start_time.month    = time_stamp.month;
+            temp_data_hr_hr.start_time.day      = time_stamp.day;
+            temp_data_hr_hr.start_time.hours    = time_stamp.hours;
+            temp_data_hr_hr.start_time.minutes  = time_stamp.minutes;
+            temp_data_hr_hr.start_time.seconds  = time_stamp.seconds;
 
+            /*
             if (Count_index_data_hr_hr > Num_of_data_hr_hr - 1)
             {
                 Read_index_data_hr_hr = Write_index_data_hr_hr + 1;
@@ -1073,26 +1074,30 @@ static void meas_data_record_timeout_handler(void * p_context)
                     Read_index_data_hr_hr = Read_index_data_hr_hr - Num_of_data_hr_hr;
                 }
             }
+            */
         }
 
-        data_hr_hr[Write_index_data_hr_hr].body_temperature_array[Meas10sec - 1] = Body_temperature;
+        temp_data_hr_hr.body_temperature_array[Meas10sec] = Body_temperature;
         NRF_LOG_INFO("R10sec %d:" NRF_LOG_FLOAT_MARKER "", Meas10sec, NRF_LOG_FLOAT(Body_temperature));
         
-        if (Meas10sec == 6)
+        if (Meas10sec == 5)
         {
             //data_hr_hr[Write_index_data_hr_hr].heart_rate = BPM;
-            data_hr_hr[Write_index_data_hr_hr].heart_rate = 0;
+            temp_data_hr_hr.heart_rate = 0;
+
+            data_hr_hr[Write_index_data_hr_hr] = temp_data_hr_hr;
 
             Write_index_data_hr_hr++;
             if (Write_index_data_hr_hr > Num_of_data_hr_hr - 1)
             {
-                Write_index_data_hr_hr = Write_index_data_hr_hr - Num_of_data_hr_hr;
+                //Write_index_data_hr_hr = Write_index_data_hr_hr - Num_of_data_hr_hr;
+                Write_index_data_hr_hr = 0;
             }
 
             Count_index_data_hr_hr++;
             if (Count_index_data_hr_hr > Num_of_data_hr_hr - 1)
             {
-                Count_index_data_hr_hr = Num_of_data_hr_hr;
+                //Count_index_data_hr_hr = Num_of_data_hr_hr;       // case of Count_index_data_hr_hr > Num_of_data_hr_hr
                 Read_index_data_hr_hr = Write_index_data_hr_hr;
                 //Read_index_data_hr_hr = Write_index_data_hr_hr + 1;
                 //if (Read_index_data_hr_hr > Num_of_data_hr_hr - 1)
@@ -1108,6 +1113,7 @@ static void meas_data_record_timeout_handler(void * p_context)
         }
     }
 
+    Meas10sec++;
     //if (Meas10sec > 59)   // 10 minutes
     if (Meas10sec > 9)   // 100 seconds
     {
@@ -1120,22 +1126,22 @@ static void meas_data_output_timeout_handler(void * p_context)
     UNUSED_PARAMETER(p_context);
     
     uint32_t err_code;
-    static char com_buf[128] = "";
-    uint16_t j;
-    int ind;
+    //static char com_buf[128] = "";
+    //uint16_t j;
+    //unsigned int ind;
 
-    char restime[] =    "2018-12-25T12:20:15";
-    char resdatanum[] = "100";
-    char respulse[] =   "100";
-    char restemp[] =    "36.00,36.01,36.02,36.03,36.04,36.05";
-    char resdata[128] = "";
+    static char restime[19] =   "";
+    static char resdatanum[3] = "";
+    static char respulse[3] =   "";
+    static char restemp[35] =   "";
+    static char resdata[128] =  "";
     uint16_t reslength;
 
-    NRF_LOG_INFO("it will measurement data output");
+    //NRF_LOG_INFO("it will measurement data output");
 
     //for (j = 0; j < Count_index_data_hr_hr; j++)
     //{
-    ind = Read_index_data_hr_hr;
+    //ind = Read_index_data_hr_hr;
     //ind = Read_index_data_hr_hr + 1;
     //if (ind > Num_of_data_hr_hr - 1)
     //{
@@ -1145,15 +1151,17 @@ static void meas_data_output_timeout_handler(void * p_context)
     //data_hr_hr[Write_index_data_hr_hr].body_temperature_array[Meas10sec - 1] = Body_temperature;
     //data_hr_hr[Write_index_data_hr_hr].heart_rate = BPM;
     sprintf(restime, "%04d-%02d-%02dT%02d:%02d:%02d", 
-    data_hr_hr[ind].start_time.year, 
-    data_hr_hr[ind].start_time.month, 
-    data_hr_hr[ind].start_time.day, 
-    data_hr_hr[ind].start_time.hours, 
-    data_hr_hr[ind].start_time.minutes, 
-    data_hr_hr[ind].start_time.seconds);
+    data_hr_hr[Read_index_data_hr_hr].start_time.year, 
+    data_hr_hr[Read_index_data_hr_hr].start_time.month, 
+    data_hr_hr[Read_index_data_hr_hr].start_time.day, 
+    data_hr_hr[Read_index_data_hr_hr].start_time.hours, 
+    data_hr_hr[Read_index_data_hr_hr].start_time.minutes, 
+    data_hr_hr[Read_index_data_hr_hr].start_time.seconds);
     //sprintf(resdatanum, "%03d", Count_index_data_hr_hr - j);
     sprintf(resdatanum, "%03d", Count_index_data_hr_hr);
-    sprintf(respulse,"%03d", data_hr_hr[ind].heart_rate);
+    sprintf(respulse,"%03d", data_hr_hr[Read_index_data_hr_hr].heart_rate);
+    NRF_LOG_INFO("%03d", data_hr_hr[Read_index_data_hr_hr].heart_rate);
+    //sprintf(respulse,"%03d", 0);
 
     //sprintf(restemp, "%05.2f,%05.2f,%05.2f,%05.2f,%05.2f,%05.2f", 
     //    data_hr_hr[ind].body_temperature_array[0],
@@ -1166,13 +1174,12 @@ static void meas_data_output_timeout_handler(void * p_context)
     //NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
     sprintf(restemp, 
         "" NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "", 
-        NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[0]),
-        NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[1]),
-        NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[2]),
-        NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[3]),
-        NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[4]),
-        NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[5]));
-    reslength = strlen(restime) + 1 + strlen(resdatanum) + 1 + strlen(respulse) + 1 + strlen(restemp);
+        NRF_LOG_FLOAT(data_hr_hr[Read_index_data_hr_hr].body_temperature_array[0]),
+        NRF_LOG_FLOAT(data_hr_hr[Read_index_data_hr_hr].body_temperature_array[1]),
+        NRF_LOG_FLOAT(data_hr_hr[Read_index_data_hr_hr].body_temperature_array[2]),
+        NRF_LOG_FLOAT(data_hr_hr[Read_index_data_hr_hr].body_temperature_array[3]),
+        NRF_LOG_FLOAT(data_hr_hr[Read_index_data_hr_hr].body_temperature_array[4]),
+        NRF_LOG_FLOAT(data_hr_hr[Read_index_data_hr_hr].body_temperature_array[5]));
     strcpy(resdata, restime);
     strcat(resdata, ",");
     strcat(resdata, resdatanum);
@@ -1180,7 +1187,9 @@ static void meas_data_output_timeout_handler(void * p_context)
     strcat(resdata, respulse);
     strcat(resdata, ",");
     strcat(resdata, restemp);
-    NRF_LOG_INFO("res: %s", resdata);
+    reslength = strlen(resdata);
+    //reslength = strlen(restime) + 1 + strlen(resdatanum) + 1 + strlen(respulse) + 1 + strlen(restemp);
+    //NRF_LOG_INFO("res: %s", resdata);
     err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
     //}
 
@@ -1188,12 +1197,13 @@ static void meas_data_output_timeout_handler(void * p_context)
     //Read_index_data_hr_hr = Read_index_data_hr_hr + Count_index_data_hr_hr;
     if (Read_index_data_hr_hr > Num_of_data_hr_hr - 1)
     {
-        Read_index_data_hr_hr = Read_index_data_hr_hr - Num_of_data_hr_hr;
+        //Read_index_data_hr_hr = Read_index_data_hr_hr - Num_of_data_hr_hr;
+        Read_index_data_hr_hr = 0;
     }
 
     //Count_index_data_hr_hr = 0;
     Count_index_data_hr_hr--;
-    NRF_LOG_INFO("data decrement:%03d", Count_index_data_hr_hr);
+    NRF_LOG_INFO("data decrement:%03d, %03d", Count_index_data_hr_hr, Read_index_data_hr_hr - 1);
 
     if (Count_index_data_hr_hr < 1)
     {
@@ -1651,11 +1661,11 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         uint16_t buf_ind;
         int ind;
 
-        char restime[] =    "2018-12-25T12:20:15";
-        char resdatanum[] = "100";
-        char respulse[] =   "100";
-        char restemp[] =    "36.00,36.01,36.02,36.03,36.04,36.05";
-        char resdata[128] = "";
+        char restime[19] =   ""; //"2018-12-25T12:20:15";
+        char resdatanum[3] = "";
+        //char respulse[3] =   "";
+        char restemp[35] =   ""; //"36.00,36.01,36.02,36.03,36.04,36.05";
+        char resdata[128] =  "";
 
         for (i = 0; i < p_evt->params.rx_data.length; i++)
         {
@@ -2694,7 +2704,7 @@ static volatile int Wait_sleep_count = 0;
 void wait_for_flash_ready(nrf_fstorage_t const * p_fstorage);
 
 const uint8_t write_count = 4;
-static volatile uint32_t write_index = 0x50000;
+static volatile uint32_t write_index = 0x61000;
 
 static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
 {
@@ -3172,12 +3182,34 @@ int main(void)
      * store data. */
     (void) nrf5_flash_end_addr_get();
 
+    /* Let's write to flash. */
+    uint32_t test_write_address = 0x60000;
+    NRF_LOG_INFO("Writing \"%x\" to flash.", m_data);
+    rc = nrf_fstorage_write(&fstorage, test_write_address, &m_data, sizeof(m_data), NULL);
+    APP_ERROR_CHECK(rc);
+
+    wait_for_flash_ready(&fstorage);
+    NRF_LOG_INFO("Done.");
+
+    uint8_t    data[256] = {0};
+
+    rc = nrf_fstorage_read(&fstorage, test_write_address, data, 8);
+    if (rc != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
+    }
+
+    for (uint32_t i = 0; i < 8; i++)
+    {
+        NRF_LOG_INFO("0x%x ", data[i]);
+    }
+
     uint32_t i = 0;
-    uint32_t read_address = 0x50000;
-    uint8_t read_data[sizeof(data_hr_hr[0])];
+    uint32_t read_address = 0x61000;
     
     for (i = 0; i <  Num_of_data_hr_hr; i++)
     {
+        uint8_t read_data[sizeof(data_hr_hr[i])];
         rc = nrf_fstorage_read(&fstorage, read_address, read_data, sizeof(read_data));
         if (rc != NRF_SUCCESS)
         {
@@ -3294,7 +3326,7 @@ int main(void)
     NRF_LOG_INFO("==============================");
 
     //flash erase
-    uint32_t erase_address = 0x50000;
+    uint32_t erase_address = 0x61000;
     uint32_t pages_cnt = 3;
     rc = nrf_fstorage_erase(&fstorage, erase_address, pages_cnt, NULL);
     if (rc != NRF_SUCCESS)
