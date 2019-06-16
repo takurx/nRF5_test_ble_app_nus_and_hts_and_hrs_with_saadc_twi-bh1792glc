@@ -2872,6 +2872,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 //Current time, time_stamp
                 uint8_t write_time_stamp[sizeof(time_stamp)];
                 *(ble_date_time_t *) write_time_stamp = time_stamp;
+                NRF_LOG_INFO("%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
                 rc = nrf_fstorage_write(&fstorage, write_index, &write_time_stamp, sizeof(write_time_stamp), NULL);
                 APP_ERROR_CHECK(rc);
                 write_index = write_index + sizeof(write_time_stamp);
@@ -3159,6 +3160,64 @@ int main(void)
         NRF_LOG_INFO("Read done, %d, 0x%x", i, read_address);
         NRF_LOG_FLUSH();
         read_address = read_address + sizeof(read_data);
+    }
+
+    //Current time, time_stamp
+    uint8_t read_time_stamp[sizeof(time_stamp)];
+    rc = nrf_fstorage_read(&fstorage, read_address, read_time_stamp, sizeof(read_time_stamp));
+    if (rc != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
+    }
+    time_stamp = *(ble_date_time_t *)(read_time_stamp);
+    NRF_LOG_INFO("%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
+    NRF_LOG_INFO("Read done, 0x%x", read_address);
+    NRF_LOG_FLUSH();
+    read_address = read_address + sizeof(read_time_stamp);
+
+    //Write index, Write_index_data_hr_hr
+    uint8_t read_write_index[sizeof(Write_index_data_hr_hr)];
+    rc = nrf_fstorage_read(&fstorage, read_address, read_write_index, sizeof(read_write_index));
+    if (rc != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
+    }
+    Write_index_data_hr_hr = *(int *)(read_write_index);
+    NRF_LOG_INFO("Read done, 0x%x", read_address);
+    NRF_LOG_FLUSH();
+    read_address = read_address + sizeof(read_write_index);
+
+    //Read index, Read_index_data_hr_hr
+    uint8_t read_read_index[sizeof(Read_index_data_hr_hr)];
+    rc = nrf_fstorage_read(&fstorage, read_address, read_read_index, sizeof(read_read_index));
+    if (rc != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
+    }
+    Read_index_data_hr_hr = *(int *)(read_read_index);
+    NRF_LOG_INFO("Read done, 0x%x", read_address);
+    NRF_LOG_FLUSH();
+    read_address = read_address + sizeof(read_read_index);
+
+    //Count index, Count_index_data_hr_hr
+    uint8_t read_count_index[sizeof(Count_index_data_hr_hr)];
+    rc = nrf_fstorage_read(&fstorage, read_address, read_count_index, sizeof(read_count_index));
+    if (rc != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
+    }
+    Count_index_data_hr_hr = *(int *)(read_count_index);
+    NRF_LOG_INFO("Read done, 0x%x", read_address);
+    NRF_LOG_FLUSH();
+    read_address = read_address + sizeof(read_count_index);
+
+    //flash erase
+    uint32_t erase_address = 0x50000;
+    uint32_t pages_cnt = 3;
+    rc = nrf_fstorage_erase(&fstorage, erase_address, pages_cnt, NULL);
+    if (rc != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("nrf_fstorage_erase() returned: %s\n", nrf_strerror_get(rc));
     }
 
 /*
