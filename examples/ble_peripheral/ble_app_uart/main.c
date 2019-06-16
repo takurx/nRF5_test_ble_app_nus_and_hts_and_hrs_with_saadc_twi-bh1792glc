@@ -2864,30 +2864,45 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 }
                 NRF_LOG_INFO("Done, %d", Wait_sleep_count);
                 NRF_LOG_FLUSH();
-
-                Wait_sleep_count++;
             }
             else if (Wait_sleep_count == 64)
             {
                 //Current time, time_stamp
                 uint8_t write_time_stamp[sizeof(time_stamp)];
                 *(ble_date_time_t *) write_time_stamp = time_stamp;
-                NRF_LOG_INFO("%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
                 rc = nrf_fstorage_write(&fstorage, write_index, &write_time_stamp, sizeof(write_time_stamp), NULL);
                 APP_ERROR_CHECK(rc);
                 write_index = write_index + sizeof(write_time_stamp);
+
+                NRF_LOG_INFO("Done, %d", Wait_sleep_count);
+                NRF_LOG_FLUSH();
+            }
+            else if (Wait_sleep_count == 65)
+            {
                 //Write index, Write_index_data_hr_hr
                 uint8_t write_write_index[sizeof(Write_index_data_hr_hr)];
                 *(int *) write_write_index = Write_index_data_hr_hr;
                 rc = nrf_fstorage_write(&fstorage, write_index, &write_write_index, sizeof(Write_index_data_hr_hr), NULL);
                 APP_ERROR_CHECK(rc);
                 write_index = write_index + sizeof(write_write_index);
+
+                NRF_LOG_INFO("Done, %d", Wait_sleep_count);
+                NRF_LOG_FLUSH();
+            }
+            else if (Wait_sleep_count == 66)
+            {
                 //Read index, Read_index_data_hr_hr
                 uint8_t write_read_index[sizeof(Read_index_data_hr_hr)];
                 *(int *) write_read_index = Read_index_data_hr_hr;
                 rc = nrf_fstorage_write(&fstorage, write_index, &write_read_index, sizeof(Read_index_data_hr_hr), NULL);
                 APP_ERROR_CHECK(rc);
                 write_index = write_index + sizeof(write_read_index);
+
+                NRF_LOG_INFO("Done, %d", Wait_sleep_count);
+                NRF_LOG_FLUSH();
+            }
+            else if (Wait_sleep_count == 67)
+            {
                 //Count index, Count_index_data_hr_hr
                 uint8_t write_count_index[sizeof(Count_index_data_hr_hr)];
                 *(int *) write_count_index = Count_index_data_hr_hr;
@@ -2897,18 +2912,18 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
 
                 NRF_LOG_INFO("Done, %d", Wait_sleep_count);
                 NRF_LOG_FLUSH();
-
-                Wait_sleep_count++;
             }
-            else
+            else if (Wait_sleep_count > 69)
             {
                 // Go to system-off mode (this function will not return; wakeup will cause a reset).
                 NRF_LOG_INFO("system-off and sleep");
                 NRF_LOG_FLUSH();
                 sd_power_system_off();
-                //err_code = sd_power_system_off();
-                //APP_ERROR_CHECK(err_code);
+                //rc = sd_power_system_off();
+                //APP_ERROR_CHECK(rc);
             }
+
+            Wait_sleep_count++;
         }
 
         Tick_count++;
