@@ -3136,31 +3136,7 @@ int main(void)
      * store data. */
     (void) nrf5_flash_end_addr_get();
 
-    /* Let's write to flash. */
-    /*
-    NRF_LOG_INFO("Writing \"%x\" to flash.", m_data);
-    rc = nrf_fstorage_write(&fstorage, 0x50000, &m_data, sizeof(m_data), NULL);
-    APP_ERROR_CHECK(rc);
-
-    wait_for_flash_ready(&fstorage);
-    NRF_LOG_INFO("Done.");
-    */
-    //uint8_t    data[256] = {0};
     uint32_t i = 0;
-    
-    /*
-    rc = nrf_fstorage_read(&fstorage, 0x50000, data, 4);
-    if (rc != NRF_SUCCESS)
-    {
-        NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
-    }
-
-    for (i = 0; i < 4; i++)
-    {
-        NRF_LOG_INFO("0x%x ", data[i]);
-    }
-    */
-
     uint32_t read_address = 0x50000;
     uint8_t read_data[sizeof(data_hr_hr[0])];
     
@@ -3235,34 +3211,6 @@ int main(void)
         NRF_LOG_INFO("nrf_fstorage_erase() returned: %s\n", nrf_strerror_get(rc));
     }
 
-/*
-    *(ble_data_ht_hr_t *) write_data = data_hr_hr[0];
-    rc = nrf_fstorage_write(&fstorage, write_index, &write_data, sizeof(write_data), NULL);
-    APP_ERROR_CHECK(rc);
-    write_index = write_index + sizeof(write_data);
-*/
-
-/*
-    m_data = 0xDEADBEEF;
-
-    NRF_LOG_INFO("Writing \"%x\" to flash.", m_data);
-    rc = nrf_fstorage_write(&fstorage, 0x3f100, &m_data, sizeof(m_data), NULL);
-    APP_ERROR_CHECK(rc);
-
-    wait_for_flash_ready(&fstorage);
-    NRF_LOG_INFO("Done.");
-
-    rc = nrf_fstorage_read(&fstorage, 0x3f100, data, 4);
-    if (rc != NRF_SUCCESS)
-    {
-        NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
-    }
-
-    for (i = 0; i < 4; i++)
-    {
-        NRF_LOG_INFO("0x%x ", data[i]);
-    }
-*/
     // Start execution.
     printf("\r\nUART started.\r\n");
     NRF_LOG_INFO("Debug logging for UART over RTT started.");
