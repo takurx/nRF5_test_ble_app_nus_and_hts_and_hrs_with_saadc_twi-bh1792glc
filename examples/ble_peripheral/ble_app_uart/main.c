@@ -1028,10 +1028,10 @@ void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
  */
 #define Num_of_data_hr_hr   256
 //#define Num_of_data_hr_hr   4
-static volatile int Meas10sec = 0;
-static volatile int Write_index_data_hr_hr = 0;
-static volatile int Read_index_data_hr_hr = 0;
-static volatile int Count_index_data_hr_hr = 0;
+static volatile unsigned int Meas10sec = 0;
+static volatile unsigned int Write_index_data_hr_hr = 0;
+static volatile unsigned int Read_index_data_hr_hr = 0;
+static volatile unsigned int Count_index_data_hr_hr = 0;
 /**@brief record every 10 mintutes, 
  * temprature: 6 points between 10 seconds
  * heart_rate: 60 second average
@@ -2891,7 +2891,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
             {
                 //Write index, Write_index_data_hr_hr
                 uint8_t write_write_index[sizeof(Write_index_data_hr_hr)];
-                *(int *) write_write_index = Write_index_data_hr_hr;
+                *(unsigned int *) write_write_index = Write_index_data_hr_hr;
                 rc = nrf_fstorage_write(&fstorage, write_index, &write_write_index, sizeof(Write_index_data_hr_hr), NULL);
                 APP_ERROR_CHECK(rc);
                 write_index = write_index + sizeof(write_write_index);
@@ -2903,7 +2903,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
             {
                 //Read index, Read_index_data_hr_hr
                 uint8_t write_read_index[sizeof(Read_index_data_hr_hr)];
-                *(int *) write_read_index = Read_index_data_hr_hr;
+                *(unsigned int *) write_read_index = Read_index_data_hr_hr;
                 rc = nrf_fstorage_write(&fstorage, write_index, &write_read_index, sizeof(Read_index_data_hr_hr), NULL);
                 APP_ERROR_CHECK(rc);
                 write_index = write_index + sizeof(write_read_index);
@@ -2915,7 +2915,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
             {
                 //Count index, Count_index_data_hr_hr
                 uint8_t write_count_index[sizeof(Count_index_data_hr_hr)];
-                *(int *) write_count_index = Count_index_data_hr_hr;
+                *(unsigned int *) write_count_index = Count_index_data_hr_hr;
                 rc = nrf_fstorage_write(&fstorage, write_index, &write_count_index, sizeof(Count_index_data_hr_hr), NULL);
                 APP_ERROR_CHECK(rc);
                 write_index = write_index + sizeof(write_count_index);
@@ -3207,7 +3207,15 @@ int main(void)
     {
         NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
     }
-    Write_index_data_hr_hr = *(int *)(read_write_index);
+    unsigned int temp_Write_index_data_hr_hr = *(unsigned int *)(read_write_index);
+    if (temp_Write_index_data_hr_hr < Num_of_data_hr_hr)
+    {
+        Write_index_data_hr_hr = temp_Write_index_data_hr_hr;
+    }
+    else
+    {
+        Write_index_data_hr_hr = 0;
+    }
     NRF_LOG_INFO("Read done, 0x%x", read_address);
     NRF_LOG_FLUSH();
     read_address = read_address + sizeof(read_write_index);
@@ -3219,7 +3227,15 @@ int main(void)
     {
         NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
     }
-    Read_index_data_hr_hr = *(int *)(read_read_index);
+    unsigned int temp_Read_index_data_hr_hr = *(unsigned int *)(read_read_index);
+    if (temp_Read_index_data_hr_hr < Num_of_data_hr_hr)
+    {
+        Read_index_data_hr_hr = temp_Read_index_data_hr_hr;
+    }
+    else
+    {
+        Read_index_data_hr_hr = 0;
+    }
     NRF_LOG_INFO("Read done, 0x%x", read_address);
     NRF_LOG_FLUSH();
     read_address = read_address + sizeof(read_read_index);
@@ -3231,10 +3247,24 @@ int main(void)
     {
         NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
     }
-    Count_index_data_hr_hr = *(int *)(read_count_index);
+    unsigned int temp_Count_index_data_hr_hr = *(unsigned int *)(read_count_index);
+    if (temp_Count_index_data_hr_hr < Num_of_data_hr_hr)
+    {
+        Count_index_data_hr_hr = temp_Count_index_data_hr_hr;
+    }
+    else
+    {
+        Count_index_data_hr_hr = 0;
+    }
     NRF_LOG_INFO("Read done, 0x%x", read_address);
     NRF_LOG_FLUSH();
     read_address = read_address + sizeof(read_count_index);
+
+    NRF_LOG_INFO("==============================");
+    NRF_LOG_INFO("Write index: %d", Write_index_data_hr_hr);
+    NRF_LOG_INFO("Read index : %d", Read_index_data_hr_hr);
+    NRF_LOG_INFO("Count index: %d", Count_index_data_hr_hr);
+    NRF_LOG_INFO("==============================");
 
     //flash erase
     uint32_t erase_address = 0x50000;
