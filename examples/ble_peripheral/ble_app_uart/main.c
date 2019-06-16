@@ -1097,7 +1097,7 @@ static void meas_data_record_timeout_handler(void * p_context)
             Count_index_data_hr_hr++;
             if (Count_index_data_hr_hr > Num_of_data_hr_hr - 1)
             {
-                //Count_index_data_hr_hr = Num_of_data_hr_hr;       // case of Count_index_data_hr_hr > Num_of_data_hr_hr
+                Count_index_data_hr_hr = Num_of_data_hr_hr;       // case of Count_index_data_hr_hr > Num_of_data_hr_hr
                 Read_index_data_hr_hr = Write_index_data_hr_hr;
                 //Read_index_data_hr_hr = Write_index_data_hr_hr + 1;
                 //if (Read_index_data_hr_hr > Num_of_data_hr_hr - 1)
@@ -3315,6 +3315,7 @@ int main(void)
     {
         Count_index_data_hr_hr = 0;
     }
+    NRF_LOG_INFO("temp Count index : 0x%x", temp_Count_index_data_hr_hr);
     NRF_LOG_INFO("Read done, 0x%x", read_address);
     NRF_LOG_FLUSH();
     read_address = read_address + sizeof(read_count_index);
