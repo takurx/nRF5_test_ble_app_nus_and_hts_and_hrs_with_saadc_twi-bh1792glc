@@ -179,8 +179,8 @@
 
 #define SENSOR_CONTACT_DETECTED_INTERVAL    APP_TIMER_TICKS(5000)                   /**< Sensor Contact Detected toggle interval (ticks). */
 
-#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(10000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
-//#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(1000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+//#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(10000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(1000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
 #define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(25)                     /**< nus(nordic uart service) data output interval (ticks). */
 
 #define TEMP_TYPE_AS_CHARACTERISTIC     0                                           /**< Determines if temperature type is given as characteristic (1) or as a field of measurement (0). */
@@ -1106,8 +1106,8 @@ static void meas_data_record_timeout_handler(void * p_context)
         }
     }
 
-    if (Meas10sec > 59)   // 10 minutes
-    //if (Meas10sec > 9)   // 100 seconds
+    //if (Meas10sec > 59)   // 10 minutes
+    if (Meas10sec > 9)   // 100 seconds
     {
         Meas10sec = 0;
     }
@@ -2870,8 +2870,20 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                     rc = nrf_fstorage_write(&fstorage, write_index, &write_data, sizeof(write_data), NULL);
                     APP_ERROR_CHECK(rc);
                     write_index = write_index + sizeof(write_data);
-                    //wait_for_flash_ready(&fstorage);
+                    wait_for_flash_ready(&fstorage);
                 }
+                
+/*
+                uint32_t data_size = sizeof(data_hr_hr[0]); 
+                uint8_t write_data[data_size * 4];
+                *(ble_data_ht_hr_t *) write_data[data_size * 0] = data_hr_hr[Wait_sleep_count * 4 + 0];
+                *(ble_data_ht_hr_t *) write_data[data_size * 1] = data_hr_hr[Wait_sleep_count * 4 + 1];
+                *(ble_data_ht_hr_t *) write_data[data_size * 2] = data_hr_hr[Wait_sleep_count * 4 + 2];
+                *(ble_data_ht_hr_t *) write_data[data_size * 3] = data_hr_hr[Wait_sleep_count * 4 + 3];
+                rc = nrf_fstorage_write(&fstorage, write_index, &write_data, sizeof(write_data), NULL);
+                APP_ERROR_CHECK(rc);
+                write_index = write_index + sizeof(write_data);
+*/
                 NRF_LOG_INFO("Done, %d", Wait_sleep_count);
                 NRF_LOG_FLUSH();
             }
@@ -2892,7 +2904,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 //Write index, Write_index_data_hr_hr
                 uint8_t write_write_index[sizeof(Write_index_data_hr_hr)];
                 *(unsigned int *) write_write_index = Write_index_data_hr_hr;
-                rc = nrf_fstorage_write(&fstorage, write_index, &write_write_index, sizeof(Write_index_data_hr_hr), NULL);
+                rc = nrf_fstorage_write(&fstorage, write_index, &write_write_index, sizeof(write_write_index), NULL);
                 APP_ERROR_CHECK(rc);
                 write_index = write_index + sizeof(write_write_index);
 
@@ -2904,7 +2916,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 //Read index, Read_index_data_hr_hr
                 uint8_t write_read_index[sizeof(Read_index_data_hr_hr)];
                 *(unsigned int *) write_read_index = Read_index_data_hr_hr;
-                rc = nrf_fstorage_write(&fstorage, write_index, &write_read_index, sizeof(Read_index_data_hr_hr), NULL);
+                rc = nrf_fstorage_write(&fstorage, write_index, &write_read_index, sizeof(write_read_index), NULL);
                 APP_ERROR_CHECK(rc);
                 write_index = write_index + sizeof(write_read_index);
 
@@ -2916,7 +2928,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 //Count index, Count_index_data_hr_hr
                 uint8_t write_count_index[sizeof(Count_index_data_hr_hr)];
                 *(unsigned int *) write_count_index = Count_index_data_hr_hr;
-                rc = nrf_fstorage_write(&fstorage, write_index, &write_count_index, sizeof(Count_index_data_hr_hr), NULL);
+                rc = nrf_fstorage_write(&fstorage, write_index, &write_count_index, sizeof(write_count_index), NULL);
                 APP_ERROR_CHECK(rc);
                 write_index = write_index + sizeof(write_count_index);
 
@@ -3248,7 +3260,7 @@ int main(void)
         NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
     }
     unsigned int temp_Count_index_data_hr_hr = *(unsigned int *)(read_count_index);
-    if (temp_Count_index_data_hr_hr < Num_of_data_hr_hr)
+    if (temp_Count_index_data_hr_hr <= Num_of_data_hr_hr)
     {
         Count_index_data_hr_hr = temp_Count_index_data_hr_hr;
     }
