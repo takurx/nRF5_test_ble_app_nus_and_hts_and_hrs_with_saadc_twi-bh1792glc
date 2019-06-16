@@ -2843,6 +2843,16 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
 
                 //3s long push and sleep mode enter
                 NRF_LOG_INFO("sleep mode enter");
+
+                ret_code_t err_code = app_timer_stop(m_data_record_timer_id);
+                APP_ERROR_CHECK(err_code);
+                NRF_LOG_INFO("10 second measure and 10 minutes record stop");
+                if (State_keeper == STATE_MEASURING)
+                {
+                    State_keeper = STATE_PAIRING;
+                    NRF_LOG_INFO("State_keeper: %d", State_keeper);
+                }
+
                 NRF_LOG_FLUSH();
                 sleep_mode_enter();
             }
