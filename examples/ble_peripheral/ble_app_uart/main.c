@@ -180,9 +180,9 @@
 #define SENSOR_CONTACT_DETECTED_INTERVAL    APP_TIMER_TICKS(5000)                   /**< Sensor Contact Detected toggle interval (ticks). */
 
 //#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(10000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
-#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(1000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
-//#define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(25)                     /**< nus(nordic uart service) data output interval (ticks). */
-#define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(40)                     /**< nus(nordic uart service) data output interval (ticks). */
+#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(100)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+#define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(25)                     /**< nus(nordic uart service) data output interval (ticks). */
+//#define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(40)                     /**< nus(nordic uart service) data output interval (ticks). */
 
 #define TEMP_TYPE_AS_CHARACTERISTIC     0                                           /**< Determines if temperature type is given as characteristic (1) or as a field of measurement (0). */
 
@@ -2945,7 +2945,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 int index_data_hr_hr = Wait_sleep_count;
                 //for(uint8_t i = 0; i < write_count; i++)
                 //{
-                uint8_t write_data[sizeof(data_hr_hr[index_data_hr_hr])];
+                static uint8_t write_data[sizeof(data_hr_hr[index_data_hr_hr])];
                 *(ble_data_ht_hr_t *) write_data = data_hr_hr[index_data_hr_hr];
                 rc = nrf_fstorage_write(&fstorage, write_index, &write_data, sizeof(write_data), NULL);
                 APP_ERROR_CHECK(rc);
