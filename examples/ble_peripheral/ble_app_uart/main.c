@@ -136,6 +136,9 @@
 
 #include "nrf_drv_clock.h"
 
+#include "nrf_fstorage.h"
+#include "nrf_fstorage_sd.h"
+
 #define FIRMWARE_VERSION                "1p0"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'*/
 #define DEVICE_NAME                     "Herbio"                               /**< Name of device. Will be included in the advertising data. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
@@ -176,9 +179,10 @@
 
 #define SENSOR_CONTACT_DETECTED_INTERVAL    APP_TIMER_TICKS(5000)                   /**< Sensor Contact Detected toggle interval (ticks). */
 
-#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(10000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
-//#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(1000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+//#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(10000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(100)                   /**< Body Temp. and Heart rate data record interval (ticks). */
 #define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(25)                     /**< nus(nordic uart service) data output interval (ticks). */
+//#define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(40)                     /**< nus(nordic uart service) data output interval (ticks). */
 
 #define TEMP_TYPE_AS_CHARACTERISTIC     0                                           /**< Determines if temperature type is given as characteristic (1) or as a field of measurement (0). */
 
@@ -328,7 +332,66 @@ uint8_t twi_tx_buffer[BH1792_TWI_BUFFER_SIZE];
 static void advertising_start(bool erase_bonds);
 static void temperature_measurement_send(void);
 
+static void fstorage_evt_handler(nrf_fstorage_evt_t * p_evt);
 
+NRF_FSTORAGE_DEF(nrf_fstorage_t fstorage) =
+{
+    /* Set a handler for fstorage events. */
+    .evt_handler = fstorage_evt_handler,
+
+    /* These below are the boundaries of the flash space assigned to this instance of fstorage.
+     * You must set these manually, even at runtime, before nrf_fstorage_init() is called.
+     * The function nrf5_flash_end_addr_get() can be used to retrieve the last address on the
+     * last page of flash available to write data. */
+    .start_addr = 0x60000,
+    .end_addr   = 0x6ffff,
+};
+
+/* Dummy data to write to flash. */
+static uint32_t m_data          = 0xBADC0FFE;
+static char     m_hello_world[] = "hello world";
+
+
+
+/**@brief   Helper function to obtain the last address on the last page of the on-chip flash that
+ *          can be used to write user data.
+ */
+static uint32_t nrf5_flash_end_addr_get()
+{
+    uint32_t const bootloader_addr = NRF_UICR->NRFFW[0];
+    uint32_t const page_sz         = NRF_FICR->CODEPAGESIZE;
+    uint32_t const code_sz         = NRF_FICR->CODESIZE;
+
+    return (bootloader_addr != 0xFFFFFFFF ?
+            bootloader_addr : (code_sz * page_sz));
+}
+
+static void fstorage_evt_handler(nrf_fstorage_evt_t * p_evt)
+{
+    if (p_evt->result != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("--> Event received: ERROR while executing an fstorage operation.");
+        return;
+    }
+
+    switch (p_evt->id)
+    {
+        case NRF_FSTORAGE_EVT_WRITE_RESULT:
+        {
+            NRF_LOG_INFO("--> Event received: wrote %d bytes at address 0x%x.",
+                         p_evt->len, p_evt->addr);
+        } break;
+
+        case NRF_FSTORAGE_EVT_ERASE_RESULT:
+        {
+            NRF_LOG_INFO("--> Event received: erased %d page from address 0x%x.",
+                         p_evt->len, p_evt->addr);
+        } break;
+
+        default:
+            break;
+    }
+}
 
 /**@brief Function for initializing the nrf log module.
  */
@@ -662,7 +725,7 @@ volatile bool Debug_output_battery_voltage = false;
 volatile bool Debug_output_current_time = true;
 
 // Volatile Variables, used in the interrupt service routine!
-volatile int BPM;                   // int that holds raw Analog in 0. updated every 2mS
+volatile uint16_t BPM;                   // int that holds raw Analog in 0. updated every 2mS
 volatile int Signal;                // holds the incoming raw data
 volatile int IBI = 600;             // int that holds the time interval between beats! Must be seeded!
 volatile bool Pulse = false;     // "True" when User's live heartbeat is detected. "False" when not a "live beat".
@@ -735,7 +798,7 @@ static void rr_interval_timeout_handler(void * p_context)
 volatile float Body_temperature = 0.0;
 volatile float Battery_temperature = 0.0;
 
-static ble_date_time_t time_stamp = { 2019, 5, 19, 23, 59, 50 };
+static ble_date_time_t time_stamp = { 2019, 6, 16, 15, 8, 50 };
 static const int month_days[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
 static void hts_measurement(ble_hts_meas_t * p_meas)
@@ -965,11 +1028,11 @@ void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
  * @brief Measurement data record events handler.
  */
 #define Num_of_data_hr_hr   256
-//#define Num_of_data_hr_hr   4
-static volatile int Meas10sec = 0;
-static volatile int Write_index_data_hr_hr = 0;
-static volatile int Read_index_data_hr_hr = 0;
-static volatile int Count_index_data_hr_hr = 0;
+//#define Num_of_data_hr_hr   16
+static volatile unsigned int Meas10sec = 0;
+static volatile unsigned int Write_index_data_hr_hr = 0;
+static volatile unsigned int Read_index_data_hr_hr = 0;
+static volatile unsigned int Count_index_data_hr_hr = 0;
 /**@brief record every 10 mintutes, 
  * temprature: 6 points between 10 seconds
  * heart_rate: 60 second average
@@ -978,9 +1041,10 @@ typedef struct
 {
     ble_date_time_t start_time; 
     float body_temperature_array[6];
-    int heart_rate;
+    uint16_t heart_rate;
 } ble_data_ht_hr_t;
 static volatile ble_data_ht_hr_t data_hr_hr[Num_of_data_hr_hr] = {};
+static volatile ble_data_ht_hr_t temp_data_hr_hr = {};
 //static ble_date_time_t time_stamp = { 2019, 2, 28, 23, 59, 50 };
 
 static void meas_data_record_timeout_handler(void * p_context)
@@ -988,21 +1052,21 @@ static void meas_data_record_timeout_handler(void * p_context)
     UNUSED_PARAMETER(p_context);
 
     //NRF_LOG_INFO("10 second interval, it will measurement dara record");
-    Meas10sec++;
 
     //  measure 10 seconds, record 10 minutes
-    if (Meas10sec < 7)
+    if (Meas10sec < 6)
     {
         //NRF_LOG_INFO("10 second measure, 6 times");
-        if (Meas10sec == 1)
+        if (Meas10sec == 0)
         {
-            data_hr_hr[Write_index_data_hr_hr].start_time.year     = time_stamp.year;
-            data_hr_hr[Write_index_data_hr_hr].start_time.month    = time_stamp.month;
-            data_hr_hr[Write_index_data_hr_hr].start_time.day      = time_stamp.day;
-            data_hr_hr[Write_index_data_hr_hr].start_time.hours    = time_stamp.hours;
-            data_hr_hr[Write_index_data_hr_hr].start_time.minutes  = time_stamp.minutes;
-            data_hr_hr[Write_index_data_hr_hr].start_time.seconds  = time_stamp.seconds;
+            temp_data_hr_hr.start_time.year     = time_stamp.year;
+            temp_data_hr_hr.start_time.month    = time_stamp.month;
+            temp_data_hr_hr.start_time.day      = time_stamp.day;
+            temp_data_hr_hr.start_time.hours    = time_stamp.hours;
+            temp_data_hr_hr.start_time.minutes  = time_stamp.minutes;
+            temp_data_hr_hr.start_time.seconds  = time_stamp.seconds;
 
+            /*
             if (Count_index_data_hr_hr > Num_of_data_hr_hr - 1)
             {
                 Read_index_data_hr_hr = Write_index_data_hr_hr + 1;
@@ -1011,24 +1075,30 @@ static void meas_data_record_timeout_handler(void * p_context)
                     Read_index_data_hr_hr = Read_index_data_hr_hr - Num_of_data_hr_hr;
                 }
             }
+            */
         }
 
-        data_hr_hr[Write_index_data_hr_hr].body_temperature_array[Meas10sec - 1] = Body_temperature;
+        temp_data_hr_hr.body_temperature_array[Meas10sec] = Body_temperature;
         NRF_LOG_INFO("R10sec %d:" NRF_LOG_FLOAT_MARKER "", Meas10sec, NRF_LOG_FLOAT(Body_temperature));
         
-        if (Meas10sec == 6)
+        if (Meas10sec == 5)
         {
             //data_hr_hr[Write_index_data_hr_hr].heart_rate = BPM;
+            temp_data_hr_hr.heart_rate = 0;
+
+            data_hr_hr[Write_index_data_hr_hr] = temp_data_hr_hr;
+
             Write_index_data_hr_hr++;
             if (Write_index_data_hr_hr > Num_of_data_hr_hr - 1)
             {
-                Write_index_data_hr_hr = Write_index_data_hr_hr - Num_of_data_hr_hr;
+                //Write_index_data_hr_hr = Write_index_data_hr_hr - Num_of_data_hr_hr;
+                Write_index_data_hr_hr = 0;
             }
 
             Count_index_data_hr_hr++;
             if (Count_index_data_hr_hr > Num_of_data_hr_hr - 1)
             {
-                Count_index_data_hr_hr = Num_of_data_hr_hr;
+                Count_index_data_hr_hr = Num_of_data_hr_hr;       // case of Count_index_data_hr_hr > Num_of_data_hr_hr
                 Read_index_data_hr_hr = Write_index_data_hr_hr;
                 //Read_index_data_hr_hr = Write_index_data_hr_hr + 1;
                 //if (Read_index_data_hr_hr > Num_of_data_hr_hr - 1)
@@ -1044,8 +1114,9 @@ static void meas_data_record_timeout_handler(void * p_context)
         }
     }
 
-    if (Meas10sec > 59)   // 10 minutes
-    //if (Meas10sec > 9)   // 100 seconds
+    Meas10sec++;
+    //if (Meas10sec > 59)   // 10 minutes
+    if (Meas10sec > 9)   // 100 seconds
     {
         Meas10sec = 0;
     }
@@ -1056,22 +1127,22 @@ static void meas_data_output_timeout_handler(void * p_context)
     UNUSED_PARAMETER(p_context);
     
     uint32_t err_code;
-    static char com_buf[128] = "";
-    uint16_t j;
-    int ind;
+    //static char com_buf[128] = "";
+    //uint16_t j;
+    //unsigned int ind;
 
-    char restime[] =    "2018-12-25T12:20:15";
-    char resdatanum[] = "100";
-    char respulse[] =   "100";
-    char restemp[] =    "36.00,36.01,36.02,36.03,36.04,36.05";
-    char resdata[128] = "";
+    static char restime[19] =   "";
+    static char resdatanum[3] = "";
+    static char respulse[3] =   "";
+    static char restemp[35] =   "";
+    static char resdata[128] =  "";
     uint16_t reslength;
 
-    NRF_LOG_INFO("it will measurement data output");
+    //NRF_LOG_INFO("it will measurement data output");
 
     //for (j = 0; j < Count_index_data_hr_hr; j++)
     //{
-    ind = Read_index_data_hr_hr;
+    //ind = Read_index_data_hr_hr;
     //ind = Read_index_data_hr_hr + 1;
     //if (ind > Num_of_data_hr_hr - 1)
     //{
@@ -1081,15 +1152,17 @@ static void meas_data_output_timeout_handler(void * p_context)
     //data_hr_hr[Write_index_data_hr_hr].body_temperature_array[Meas10sec - 1] = Body_temperature;
     //data_hr_hr[Write_index_data_hr_hr].heart_rate = BPM;
     sprintf(restime, "%04d-%02d-%02dT%02d:%02d:%02d", 
-    data_hr_hr[ind].start_time.year, 
-    data_hr_hr[ind].start_time.month, 
-    data_hr_hr[ind].start_time.day, 
-    data_hr_hr[ind].start_time.hours, 
-    data_hr_hr[ind].start_time.minutes, 
-    data_hr_hr[ind].start_time.seconds);
+    data_hr_hr[Read_index_data_hr_hr].start_time.year, 
+    data_hr_hr[Read_index_data_hr_hr].start_time.month, 
+    data_hr_hr[Read_index_data_hr_hr].start_time.day, 
+    data_hr_hr[Read_index_data_hr_hr].start_time.hours, 
+    data_hr_hr[Read_index_data_hr_hr].start_time.minutes, 
+    data_hr_hr[Read_index_data_hr_hr].start_time.seconds);
     //sprintf(resdatanum, "%03d", Count_index_data_hr_hr - j);
     sprintf(resdatanum, "%03d", Count_index_data_hr_hr);
-    sprintf(respulse,"%03d", data_hr_hr[ind].heart_rate);
+    sprintf(respulse,"%03d", data_hr_hr[Read_index_data_hr_hr].heart_rate);
+    NRF_LOG_INFO("%03d", data_hr_hr[Read_index_data_hr_hr].heart_rate);
+    //sprintf(respulse,"%03d", 0);
 
     //sprintf(restemp, "%05.2f,%05.2f,%05.2f,%05.2f,%05.2f,%05.2f", 
     //    data_hr_hr[ind].body_temperature_array[0],
@@ -1102,13 +1175,12 @@ static void meas_data_output_timeout_handler(void * p_context)
     //NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
     sprintf(restemp, 
         "" NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "", 
-        NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[0]),
-        NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[1]),
-        NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[2]),
-        NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[3]),
-        NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[4]),
-        NRF_LOG_FLOAT(data_hr_hr[ind].body_temperature_array[5]));
-    reslength = strlen(restime) + 1 + strlen(resdatanum) + 1 + strlen(respulse) + 1 + strlen(restemp);
+        NRF_LOG_FLOAT(data_hr_hr[Read_index_data_hr_hr].body_temperature_array[0]),
+        NRF_LOG_FLOAT(data_hr_hr[Read_index_data_hr_hr].body_temperature_array[1]),
+        NRF_LOG_FLOAT(data_hr_hr[Read_index_data_hr_hr].body_temperature_array[2]),
+        NRF_LOG_FLOAT(data_hr_hr[Read_index_data_hr_hr].body_temperature_array[3]),
+        NRF_LOG_FLOAT(data_hr_hr[Read_index_data_hr_hr].body_temperature_array[4]),
+        NRF_LOG_FLOAT(data_hr_hr[Read_index_data_hr_hr].body_temperature_array[5]));
     strcpy(resdata, restime);
     strcat(resdata, ",");
     strcat(resdata, resdatanum);
@@ -1116,7 +1188,9 @@ static void meas_data_output_timeout_handler(void * p_context)
     strcat(resdata, respulse);
     strcat(resdata, ",");
     strcat(resdata, restemp);
-    NRF_LOG_INFO("res: %s", resdata);
+    reslength = strlen(resdata);
+    //reslength = strlen(restime) + 1 + strlen(resdatanum) + 1 + strlen(respulse) + 1 + strlen(restemp);
+    //NRF_LOG_INFO("res: %s", resdata);
     err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
     //}
 
@@ -1124,12 +1198,13 @@ static void meas_data_output_timeout_handler(void * p_context)
     //Read_index_data_hr_hr = Read_index_data_hr_hr + Count_index_data_hr_hr;
     if (Read_index_data_hr_hr > Num_of_data_hr_hr - 1)
     {
-        Read_index_data_hr_hr = Read_index_data_hr_hr - Num_of_data_hr_hr;
+        //Read_index_data_hr_hr = Read_index_data_hr_hr - Num_of_data_hr_hr;
+        Read_index_data_hr_hr = 0;
     }
 
     //Count_index_data_hr_hr = 0;
     Count_index_data_hr_hr--;
-    NRF_LOG_INFO("data decrement:%03d", Count_index_data_hr_hr);
+    NRF_LOG_INFO("data decrement:%03d, %03d", Count_index_data_hr_hr, Read_index_data_hr_hr - 1);
 
     if (Count_index_data_hr_hr < 1)
     {
@@ -1587,11 +1662,11 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         uint16_t buf_ind;
         int ind;
 
-        char restime[] =    "2018-12-25T12:20:15";
-        char resdatanum[] = "100";
-        char respulse[] =   "100";
-        char restemp[] =    "36.00,36.01,36.02,36.03,36.04,36.05";
-        char resdata[128] = "";
+        char restime[19] =   ""; //"2018-12-25T12:20:15";
+        char resdatanum[3] = "";
+        //char respulse[3] =   "";
+        char restemp[35] =   ""; //"36.00,36.01,36.02,36.03,36.04,36.05";
+        char resdata[128] =  "";
 
         for (i = 0; i < p_evt->params.rx_data.length; i++)
         {
@@ -2627,6 +2702,12 @@ static volatile int Enter_sleep_count = 0;
 static volatile int Boot_count = 0;
 static volatile int Wait_sleep_count = 0;
 
+void wait_for_flash_ready(nrf_fstorage_t const * p_fstorage);
+
+const uint8_t write_count = 4;
+static volatile uint32_t write_index = 0x61000;
+static uint8_t flash_ff_padding[4096] = {0xFF};
+
 static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
 {
     if (int_type == NRF_DRV_RTC_INT_TICK)
@@ -2654,6 +2735,32 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
                 nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
                 nrf_drv_gpiote_out_clear(LED_3_COLOR_BLUE_PIN);
+
+                if(Boot_count == 4)
+                {
+                    memset(&flash_ff_padding[0], 0xFF, sizeof(flash_ff_padding));
+                    NRF_LOG_INFO("ff[0000]: 0x%x", flash_ff_padding[0]);
+                    NRF_LOG_INFO("ff[2016]: 0x%x ", flash_ff_padding[2016]);
+                    NRF_LOG_INFO("ff[4095]: 0x%x ", flash_ff_padding[4095]);
+                }
+                else if (Boot_count == 5)
+                {
+                    ret_code_t rc;
+                    rc = nrf_fstorage_write(&fstorage, write_index, &flash_ff_padding[0], sizeof(flash_ff_padding), NULL);
+                    APP_ERROR_CHECK(rc);
+                }
+                else if (Boot_count == 6)
+                {
+                    ret_code_t rc;
+                    rc = nrf_fstorage_write(&fstorage, write_index + 0x1000, &flash_ff_padding[0], sizeof(flash_ff_padding), NULL);
+                    APP_ERROR_CHECK(rc);
+                }
+                else if (Boot_count == 7)
+                {
+                    ret_code_t rc;
+                    rc = nrf_fstorage_write(&fstorage, write_index + 0x2000, &flash_ff_padding[0], sizeof(flash_ff_padding), NULL);
+                    APP_ERROR_CHECK(rc);
+                }
                 Boot_count++;
             }
             else
@@ -2776,6 +2883,16 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
 
                 //3s long push and sleep mode enter
                 NRF_LOG_INFO("sleep mode enter");
+
+                ret_code_t err_code = app_timer_stop(m_data_record_timer_id);
+                APP_ERROR_CHECK(err_code);
+                NRF_LOG_INFO("10 second measure and 10 minutes record stop");
+                if (State_keeper == STATE_MEASURING)
+                {
+                    State_keeper = STATE_PAIRING;
+                    NRF_LOG_INFO("State_keeper: %d", State_keeper);
+                }
+
                 NRF_LOG_FLUSH();
                 sleep_mode_enter();
             }
@@ -2783,19 +2900,132 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
 
         if (State_keeper == STATE_SLEEPING)
         {
-            if (Wait_sleep_count < 16)
+            ret_code_t rc;
+            if (Wait_sleep_count < Num_of_data_hr_hr)
             {
-                Wait_sleep_count++;
+            /*
+                int index_data_hr_hr = Wait_sleep_count * 4;
+                for(uint8_t i = 0; i < write_count; i++)
+                {
+                    uint8_t write_data[sizeof(data_hr_hr[0])];
+                    *(ble_data_ht_hr_t *) write_data = data_hr_hr[index_data_hr_hr + i];
+                    rc = nrf_fstorage_write(&fstorage, write_index, &write_data, sizeof(write_data), NULL);
+                    APP_ERROR_CHECK(rc);
+                    write_index = write_index + sizeof(write_data);
+                    //wait_for_flash_ready(&fstorage);
+                }
+            */  if (Wait_sleep_count > 0)
+                {
+                    int check_index = Wait_sleep_count - 1;
+                    uint8_t check_read_data[sizeof(data_hr_hr[check_index])];
+                    int check_read_address = write_index - sizeof(data_hr_hr[check_index]);
+                    rc = nrf_fstorage_read(&fstorage, check_read_address, check_read_data, sizeof(check_read_data));
+                    if (rc != NRF_SUCCESS)
+                    {
+                        NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
+                    }
+                    ble_data_ht_hr_t check_data_hr_hr = *(ble_data_ht_hr_t *)(check_read_data);
+                    if (check_data_hr_hr.start_time.year != data_hr_hr[check_index].start_time.year) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.start_time.month != data_hr_hr[check_index].start_time.month) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.start_time.day != data_hr_hr[check_index].start_time.day) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.start_time.hours != data_hr_hr[check_index].start_time.hours) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.start_time.minutes != data_hr_hr[check_index].start_time.minutes) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.start_time.seconds != data_hr_hr[check_index].start_time.seconds) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.heart_rate != data_hr_hr[check_index].heart_rate) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.body_temperature_array[0] != data_hr_hr[check_index].body_temperature_array[0]) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.body_temperature_array[1] != data_hr_hr[check_index].body_temperature_array[1]) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.body_temperature_array[2] != data_hr_hr[check_index].body_temperature_array[2]) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.body_temperature_array[3] != data_hr_hr[check_index].body_temperature_array[3]) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.body_temperature_array[4] != data_hr_hr[check_index].body_temperature_array[4]) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.body_temperature_array[5] != data_hr_hr[check_index].body_temperature_array[5]) { NRF_LOG_INFO("Error write failed"); }
+                    NRF_LOG_INFO("Check read done, 0x%x", check_read_address);
+                    NRF_LOG_FLUSH();
+                }
+
+                int index_data_hr_hr = Wait_sleep_count;
+                //for(uint8_t i = 0; i < write_count; i++)
+                //{
+                static uint8_t write_data[sizeof(data_hr_hr[index_data_hr_hr])];
+                *(ble_data_ht_hr_t *) write_data = data_hr_hr[index_data_hr_hr];
+                rc = nrf_fstorage_write(&fstorage, write_index, &write_data, sizeof(write_data), NULL);
+                APP_ERROR_CHECK(rc);
+                write_index = write_index + sizeof(write_data);
+                //wait_for_flash_ready(&fstorage);
+                //}
+                
+/*
+                uint32_t data_size = sizeof(data_hr_hr[0]); 
+                uint8_t write_data[data_size * 4];
+                *(ble_data_ht_hr_t *) write_data[data_size * 0] = data_hr_hr[Wait_sleep_count * 4 + 0];
+                *(ble_data_ht_hr_t *) write_data[data_size * 1] = data_hr_hr[Wait_sleep_count * 4 + 1];
+                *(ble_data_ht_hr_t *) write_data[data_size * 2] = data_hr_hr[Wait_sleep_count * 4 + 2];
+                *(ble_data_ht_hr_t *) write_data[data_size * 3] = data_hr_hr[Wait_sleep_count * 4 + 3];
+                rc = nrf_fstorage_write(&fstorage, write_index, &write_data, sizeof(write_data), NULL);
+                APP_ERROR_CHECK(rc);
+                write_index = write_index + sizeof(write_data);
+*/
+                NRF_LOG_INFO("Done, %d", Wait_sleep_count);
+                NRF_LOG_FLUSH();
             }
-            else
+            else if (Wait_sleep_count == Num_of_data_hr_hr)
+            {
+                //Current time, time_stamp
+                uint8_t write_time_stamp[sizeof(time_stamp)];
+                *(ble_date_time_t *) write_time_stamp = time_stamp;
+                rc = nrf_fstorage_write(&fstorage, write_index, &write_time_stamp, sizeof(write_time_stamp), NULL);
+                APP_ERROR_CHECK(rc);
+                write_index = write_index + sizeof(write_time_stamp);
+
+                NRF_LOG_INFO("Done, %d", Wait_sleep_count);
+                NRF_LOG_FLUSH();
+            }
+            else if (Wait_sleep_count == Num_of_data_hr_hr + 1)
+            {
+                //Write index, Write_index_data_hr_hr
+                uint8_t write_write_index[sizeof(Write_index_data_hr_hr)];
+                *(unsigned int *) write_write_index = Write_index_data_hr_hr;
+                rc = nrf_fstorage_write(&fstorage, write_index, &write_write_index, sizeof(write_write_index), NULL);
+                APP_ERROR_CHECK(rc);
+                write_index = write_index + sizeof(write_write_index);
+
+                NRF_LOG_INFO("Done, %d", Wait_sleep_count);
+                NRF_LOG_FLUSH();
+            }
+            else if (Wait_sleep_count == Num_of_data_hr_hr + 2)
+            {
+                //Read index, Read_index_data_hr_hr
+                uint8_t write_read_index[sizeof(Read_index_data_hr_hr)];
+                *(unsigned int *) write_read_index = Read_index_data_hr_hr;
+                rc = nrf_fstorage_write(&fstorage, write_index, &write_read_index, sizeof(write_read_index), NULL);
+                APP_ERROR_CHECK(rc);
+                write_index = write_index + sizeof(write_read_index);
+
+                NRF_LOG_INFO("Done, %d", Wait_sleep_count);
+                NRF_LOG_FLUSH();
+            }
+            else if (Wait_sleep_count == Num_of_data_hr_hr + 3)
+            {
+                //Count index, Count_index_data_hr_hr
+                uint8_t write_count_index[sizeof(Count_index_data_hr_hr)];
+                *(unsigned int *) write_count_index = Count_index_data_hr_hr;
+                rc = nrf_fstorage_write(&fstorage, write_index, &write_count_index, sizeof(write_count_index), NULL);
+                APP_ERROR_CHECK(rc);
+                write_index = write_index + sizeof(write_count_index);
+
+                NRF_LOG_INFO("Done, %d", Wait_sleep_count);
+                NRF_LOG_FLUSH();
+            }
+            else if (Wait_sleep_count > Num_of_data_hr_hr + 3)
             {
                 // Go to system-off mode (this function will not return; wakeup will cause a reset).
                 NRF_LOG_INFO("system-off and sleep");
                 NRF_LOG_FLUSH();
                 sd_power_system_off();
-                //err_code = sd_power_system_off();
-                //APP_ERROR_CHECK(err_code);
+                //rc = sd_power_system_off();
+                //APP_ERROR_CHECK(rc);
             }
+
+            Wait_sleep_count++;
         }
 
         Tick_count++;
@@ -2915,6 +3145,27 @@ static void idle_state_handle(void)
 
 
 
+static void print_flash_info(nrf_fstorage_t * p_fstorage)
+{
+    NRF_LOG_INFO("========| flash info |========");
+    NRF_LOG_INFO("erase unit: \t%d bytes",      p_fstorage->p_flash_info->erase_unit);
+    NRF_LOG_INFO("program unit: \t%d bytes",    p_fstorage->p_flash_info->program_unit);
+    NRF_LOG_INFO("==============================");
+}
+
+void wait_for_flash_ready(nrf_fstorage_t const * p_fstorage)
+{
+    /* While fstorage is busy, sleep and wait for an event. */
+    while (nrf_fstorage_is_busy(p_fstorage))
+    {
+        //power_manage();
+        //sd_app_evt_wait();
+        nrf_pwr_mgmt_run();
+    }
+}
+
+
+
 
 
 
@@ -2923,7 +3174,6 @@ static void idle_state_handle(void)
 int main(void)
   {
     bool erase_bonds;
-    
 
     // Initialize.
     State_keeper = STATE_BOOTING;
@@ -2968,6 +3218,177 @@ int main(void)
     //NRF_LOG_INFO("finished twi init.");
     rtc_config();
     NRF_LOG_INFO("finished rtc config.")
+
+    ret_code_t rc;
+    NRF_LOG_INFO("fstorage example started.");
+    nrf_fstorage_api_t * p_fs_api;
+    NRF_LOG_INFO("SoftDevice is present.");
+    NRF_LOG_INFO("Initializing nrf_fstorage_sd implementation...");
+    /* Initialize an fstorage instance using the nrf_fstorage_sd backend.
+     * nrf_fstorage_sd uses the SoftDevice to write to flash. This implementation can safely be
+     * used whenever there is a SoftDevice, regardless of its status (enabled/disabled). */
+    p_fs_api = &nrf_fstorage_sd;
+    rc = nrf_fstorage_init(&fstorage, p_fs_api, NULL);
+    APP_ERROR_CHECK(rc);
+    print_flash_info(&fstorage);
+    /* It is possible to set the start and end addresses of an fstorage instance at runtime.
+     * They can be set multiple times, should it be needed. The helper function below can
+     * be used to determine the last address on the last page of flash memory available to
+     * store data. */
+    (void) nrf5_flash_end_addr_get();
+
+    /* Let's write to flash. */
+    uint32_t test_write_address = 0x60000;
+    NRF_LOG_INFO("Writing \"%x\" to flash.", m_data);
+    rc = nrf_fstorage_write(&fstorage, test_write_address, &m_data, sizeof(m_data), NULL);
+    APP_ERROR_CHECK(rc);
+
+    wait_for_flash_ready(&fstorage);
+    NRF_LOG_INFO("Done.");
+
+    uint8_t    data[256] = {0};
+
+    rc = nrf_fstorage_read(&fstorage, test_write_address, data, 8);
+    if (rc != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
+    }
+
+    for (uint32_t i = 0; i < 8; i++)
+    {
+        NRF_LOG_INFO("0x%x ", data[i]);
+    }
+
+    uint32_t i = 0;
+    uint32_t read_address = 0x61000;
+    
+    for (i = 0; i <  Num_of_data_hr_hr; i++)
+    {
+        uint8_t read_data[sizeof(data_hr_hr[i])];
+        rc = nrf_fstorage_read(&fstorage, read_address, read_data, sizeof(read_data));
+        if (rc != NRF_SUCCESS)
+        {
+            NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
+        }
+        data_hr_hr[i] = *(ble_data_ht_hr_t *)(read_data);
+        NRF_LOG_INFO("Read done, %d, 0x%x", i, read_address);
+        NRF_LOG_FLUSH();
+        read_address = read_address + sizeof(read_data);
+    }
+
+    //Current time, time_stamp
+    uint8_t read_time_stamp[sizeof(time_stamp)];
+    rc = nrf_fstorage_read(&fstorage, read_address, read_time_stamp, sizeof(read_time_stamp));
+    if (rc != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
+    }
+    //time_stamp = *(ble_date_time_t *)(read_time_stamp);
+    ble_date_time_t temp_stamp = *(ble_date_time_t *)(read_time_stamp);
+    if (temp_stamp.year < 1900 && temp_stamp.year > 2200)
+    {
+        time_stamp.year = temp_stamp.year;
+    }
+    if (temp_stamp.month > 0 && temp_stamp.month < 13)
+    {
+        time_stamp.month = temp_stamp.month;
+    }
+    if (temp_stamp.day > 0 && temp_stamp.day < 32)
+    {
+        time_stamp.day = temp_stamp.day;
+    }
+    if (temp_stamp.hours < 24)
+    {
+        time_stamp.hours = temp_stamp.hours;
+    }
+    if (temp_stamp.minutes < 60)
+    {
+        time_stamp.minutes = temp_stamp.minutes;
+    }
+    if (temp_stamp.seconds < 60)
+    {
+        time_stamp.seconds = temp_stamp.seconds;
+    }
+    NRF_LOG_INFO("%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
+    NRF_LOG_INFO("Read done, 0x%x", read_address);
+    NRF_LOG_FLUSH();
+    read_address = read_address + sizeof(read_time_stamp);
+
+    //Write index, Write_index_data_hr_hr
+    uint8_t read_write_index[sizeof(Write_index_data_hr_hr)];
+    rc = nrf_fstorage_read(&fstorage, read_address, read_write_index, sizeof(read_write_index));
+    if (rc != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
+    }
+    unsigned int temp_Write_index_data_hr_hr = *(unsigned int *)(read_write_index);
+    if (temp_Write_index_data_hr_hr < Num_of_data_hr_hr)
+    {
+        Write_index_data_hr_hr = temp_Write_index_data_hr_hr;
+    }
+    else
+    {
+        Write_index_data_hr_hr = 0;
+    }
+    NRF_LOG_INFO("Read done, 0x%x", read_address);
+    NRF_LOG_FLUSH();
+    read_address = read_address + sizeof(read_write_index);
+
+    //Read index, Read_index_data_hr_hr
+    uint8_t read_read_index[sizeof(Read_index_data_hr_hr)];
+    rc = nrf_fstorage_read(&fstorage, read_address, read_read_index, sizeof(read_read_index));
+    if (rc != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
+    }
+    unsigned int temp_Read_index_data_hr_hr = *(unsigned int *)(read_read_index);
+    if (temp_Read_index_data_hr_hr < Num_of_data_hr_hr)
+    {
+        Read_index_data_hr_hr = temp_Read_index_data_hr_hr;
+    }
+    else
+    {
+        Read_index_data_hr_hr = 0;
+    }
+    NRF_LOG_INFO("Read done, 0x%x", read_address);
+    NRF_LOG_FLUSH();
+    read_address = read_address + sizeof(read_read_index);
+
+    //Count index, Count_index_data_hr_hr
+    uint8_t read_count_index[sizeof(Count_index_data_hr_hr)];
+    rc = nrf_fstorage_read(&fstorage, read_address, read_count_index, sizeof(read_count_index));
+    if (rc != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
+    }
+    unsigned int temp_Count_index_data_hr_hr = *(unsigned int *)(read_count_index);
+    if (temp_Count_index_data_hr_hr <= Num_of_data_hr_hr)
+    {
+        Count_index_data_hr_hr = temp_Count_index_data_hr_hr;
+    }
+    else
+    {
+        Count_index_data_hr_hr = 0;
+    }
+    NRF_LOG_INFO("temp Count index : 0x%x", temp_Count_index_data_hr_hr);
+    NRF_LOG_INFO("Read done, 0x%x", read_address);
+    NRF_LOG_FLUSH();
+    read_address = read_address + sizeof(read_count_index);
+
+    NRF_LOG_INFO("==============================");
+    NRF_LOG_INFO("Write index: %d", Write_index_data_hr_hr);
+    NRF_LOG_INFO("Read index : %d", Read_index_data_hr_hr);
+    NRF_LOG_INFO("Count index: %d", Count_index_data_hr_hr);
+    NRF_LOG_INFO("==============================");
+
+    //flash erase
+    uint32_t erase_address = 0x61000;
+    uint32_t pages_cnt = 3;
+    rc = nrf_fstorage_erase(&fstorage, erase_address, pages_cnt, NULL);
+    if (rc != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("nrf_fstorage_erase() returned: %s\n", nrf_strerror_get(rc));
+    }
 
     // Start execution.
     printf("\r\nUART started.\r\n");
