@@ -2914,7 +2914,34 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                     write_index = write_index + sizeof(write_data);
                     //wait_for_flash_ready(&fstorage);
                 }
-            */
+            */  if (Wait_sleep_count > 0)
+                {
+                    int check_index = Wait_sleep_count - 1;
+                    uint8_t check_read_data[sizeof(data_hr_hr[check_index])];
+                    int check_read_address = write_index - sizeof(data_hr_hr[check_index]);
+                    rc = nrf_fstorage_read(&fstorage, check_read_address, check_read_data, sizeof(check_read_data));
+                    if (rc != NRF_SUCCESS)
+                    {
+                        NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
+                    }
+                    ble_data_ht_hr_t check_data_hr_hr = *(ble_data_ht_hr_t *)(check_read_data);
+                    if (check_data_hr_hr.start_time.year != data_hr_hr[check_index].start_time.year) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.start_time.month != data_hr_hr[check_index].start_time.month) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.start_time.day != data_hr_hr[check_index].start_time.day) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.start_time.hours != data_hr_hr[check_index].start_time.hours) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.start_time.minutes != data_hr_hr[check_index].start_time.minutes) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.start_time.seconds != data_hr_hr[check_index].start_time.seconds) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.heart_rate != data_hr_hr[check_index].heart_rate) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.body_temperature_array[0] != data_hr_hr[check_index].body_temperature_array[0]) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.body_temperature_array[1] != data_hr_hr[check_index].body_temperature_array[1]) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.body_temperature_array[2] != data_hr_hr[check_index].body_temperature_array[2]) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.body_temperature_array[3] != data_hr_hr[check_index].body_temperature_array[3]) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.body_temperature_array[4] != data_hr_hr[check_index].body_temperature_array[4]) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.body_temperature_array[5] != data_hr_hr[check_index].body_temperature_array[5]) { NRF_LOG_INFO("Error write failed"); }
+                    NRF_LOG_INFO("Check read done, 0x%x", check_read_address);
+                    NRF_LOG_FLUSH();
+                }
+
                 int index_data_hr_hr = Wait_sleep_count;
                 //for(uint8_t i = 0; i < write_count; i++)
                 //{
