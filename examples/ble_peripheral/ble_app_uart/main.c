@@ -181,7 +181,8 @@
 
 //#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(10000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
 #define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(1000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
-#define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(25)                     /**< nus(nordic uart service) data output interval (ticks). */
+//#define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(25)                     /**< nus(nordic uart service) data output interval (ticks). */
+#define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(40)                     /**< nus(nordic uart service) data output interval (ticks). */
 
 #define TEMP_TYPE_AS_CHARACTERISTIC     0                                           /**< Determines if temperature type is given as characteristic (1) or as a field of measurement (0). */
 
@@ -1027,7 +1028,7 @@ void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
  * @brief Measurement data record events handler.
  */
 #define Num_of_data_hr_hr   256
-//#define Num_of_data_hr_hr   4
+//#define Num_of_data_hr_hr   16
 static volatile unsigned int Meas10sec = 0;
 static volatile unsigned int Write_index_data_hr_hr = 0;
 static volatile unsigned int Read_index_data_hr_hr = 0;
@@ -2705,6 +2706,7 @@ void wait_for_flash_ready(nrf_fstorage_t const * p_fstorage);
 
 const uint8_t write_count = 4;
 static volatile uint32_t write_index = 0x61000;
+static uint8_t flash_ff_padding[4096] = {0xFF};
 
 static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
 {
@@ -2733,6 +2735,32 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
                 nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
                 nrf_drv_gpiote_out_clear(LED_3_COLOR_BLUE_PIN);
+
+                if(Boot_count == 4)
+                {
+                    memset(&flash_ff_padding[0], 0xFF, sizeof(flash_ff_padding));
+                    NRF_LOG_INFO("ff[0000]: 0x%x", flash_ff_padding[0]);
+                    NRF_LOG_INFO("ff[2016]: 0x%x ", flash_ff_padding[2016]);
+                    NRF_LOG_INFO("ff[4095]: 0x%x ", flash_ff_padding[4095]);
+                }
+                else if (Boot_count == 5)
+                {
+                    ret_code_t rc;
+                    rc = nrf_fstorage_write(&fstorage, write_index, &flash_ff_padding[0], sizeof(flash_ff_padding), NULL);
+                    APP_ERROR_CHECK(rc);
+                }
+                else if (Boot_count == 6)
+                {
+                    ret_code_t rc;
+                    rc = nrf_fstorage_write(&fstorage, write_index + 0x1000, &flash_ff_padding[0], sizeof(flash_ff_padding), NULL);
+                    APP_ERROR_CHECK(rc);
+                }
+                else if (Boot_count == 7)
+                {
+                    ret_code_t rc;
+                    rc = nrf_fstorage_write(&fstorage, write_index + 0x2000, &flash_ff_padding[0], sizeof(flash_ff_padding), NULL);
+                    APP_ERROR_CHECK(rc);
+                }
                 Boot_count++;
             }
             else
