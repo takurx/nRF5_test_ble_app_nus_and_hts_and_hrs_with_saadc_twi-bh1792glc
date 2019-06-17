@@ -179,8 +179,8 @@
 
 #define SENSOR_CONTACT_DETECTED_INTERVAL    APP_TIMER_TICKS(5000)                   /**< Sensor Contact Detected toggle interval (ticks). */
 
-//#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(10000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
-#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(100)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(10000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+//#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(100)                   /**< Body Temp. and Heart rate data record interval (ticks). */
 #define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(25)                     /**< nus(nordic uart service) data output interval (ticks). */
 //#define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(40)                     /**< nus(nordic uart service) data output interval (ticks). */
 
@@ -1115,8 +1115,8 @@ static void meas_data_record_timeout_handler(void * p_context)
     }
 
     Meas10sec++;
-    //if (Meas10sec > 59)   // 10 minutes
-    if (Meas10sec > 9)   // 100 seconds
+    if (Meas10sec > 59)   // 10 minutes
+    //if (Meas10sec > 9)   // 100 seconds
     {
         Meas10sec = 0;
     }
@@ -2705,11 +2705,13 @@ static volatile int Wait_sleep_count = 0;
 void wait_for_flash_ready(nrf_fstorage_t const * p_fstorage);
 
 const uint8_t write_count = 4;
-static volatile uint32_t write_index = 0x61000;
+const uint32_t Flash_start_address = 0x60000;
+static volatile uint32_t write_index = Flash_start_address;
 static uint8_t flash_ff_padding[4096] = {0xFF};
 
 static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
 {
+    ret_code_t rc;
     if (int_type == NRF_DRV_RTC_INT_TICK)
     {
         if (Tick_count == 4 || Tick_count == 8)
@@ -2745,19 +2747,16 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 }
                 else if (Boot_count == 5)
                 {
-                    ret_code_t rc;
                     rc = nrf_fstorage_write(&fstorage, write_index, &flash_ff_padding[0], sizeof(flash_ff_padding), NULL);
                     APP_ERROR_CHECK(rc);
                 }
                 else if (Boot_count == 6)
                 {
-                    ret_code_t rc;
                     rc = nrf_fstorage_write(&fstorage, write_index + 0x1000, &flash_ff_padding[0], sizeof(flash_ff_padding), NULL);
                     APP_ERROR_CHECK(rc);
                 }
                 else if (Boot_count == 7)
                 {
-                    ret_code_t rc;
                     rc = nrf_fstorage_write(&fstorage, write_index + 0x2000, &flash_ff_padding[0], sizeof(flash_ff_padding), NULL);
                     APP_ERROR_CHECK(rc);
                 }
@@ -2884,8 +2883,8 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 //3s long push and sleep mode enter
                 NRF_LOG_INFO("sleep mode enter");
 
-                ret_code_t err_code = app_timer_stop(m_data_record_timer_id);
-                APP_ERROR_CHECK(err_code);
+                rc = app_timer_stop(m_data_record_timer_id);
+                APP_ERROR_CHECK(rc);
                 NRF_LOG_INFO("10 second measure and 10 minutes record stop");
                 if (State_keeper == STATE_MEASURING)
                 {
@@ -2900,10 +2899,9 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
 
         if (State_keeper == STATE_SLEEPING)
         {
-            ret_code_t rc;
             if (Wait_sleep_count < Num_of_data_hr_hr)
             {
-            /*
+                /*
                 int index_data_hr_hr = Wait_sleep_count * 4;
                 for(uint8_t i = 0; i < write_count; i++)
                 {
@@ -2914,7 +2912,11 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                     write_index = write_index + sizeof(write_data);
                     //wait_for_flash_ready(&fstorage);
                 }
-            */  if (Wait_sleep_count > 0)
+                */
+
+                /*
+                // for debug begin
+                if (Wait_sleep_count > 0)
                 {
                     int check_index = Wait_sleep_count - 1;
                     uint8_t check_read_data[sizeof(data_hr_hr[check_index])];
@@ -2941,6 +2943,8 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                     NRF_LOG_INFO("Check read done, 0x%x", check_read_address);
                     NRF_LOG_FLUSH();
                 }
+                // for debug end
+                */
 
                 int index_data_hr_hr = Wait_sleep_count;
                 //for(uint8_t i = 0; i < write_count; i++)
@@ -3238,6 +3242,7 @@ int main(void)
     (void) nrf5_flash_end_addr_get();
 
     /* Let's write to flash. */
+    /*
     uint32_t test_write_address = 0x60000;
     NRF_LOG_INFO("Writing \"%x\" to flash.", m_data);
     rc = nrf_fstorage_write(&fstorage, test_write_address, &m_data, sizeof(m_data), NULL);
@@ -3258,9 +3263,10 @@ int main(void)
     {
         NRF_LOG_INFO("0x%x ", data[i]);
     }
+    */
 
     uint32_t i = 0;
-    uint32_t read_address = 0x61000;
+    uint32_t read_address = Flash_start_address;
     
     for (i = 0; i <  Num_of_data_hr_hr; i++)
     {
@@ -3382,7 +3388,7 @@ int main(void)
     NRF_LOG_INFO("==============================");
 
     //flash erase
-    uint32_t erase_address = 0x61000;
+    uint32_t erase_address = Flash_start_address;
     uint32_t pages_cnt = 3;
     rc = nrf_fstorage_erase(&fstorage, erase_address, pages_cnt, NULL);
     if (rc != NRF_SUCCESS)
