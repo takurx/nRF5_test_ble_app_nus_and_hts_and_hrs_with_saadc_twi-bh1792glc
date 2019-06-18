@@ -279,6 +279,7 @@ static const int     STATE_SLEEPING    = 6;   // Blink BLUE: go to sleep, 6
 
 //static volatile int State_keeper = 0;
 static volatile int State_keeper = STATE_ADVERTISING;
+static volatile bool State_emergency_lock = false;
 //} state_body_temperature_t;
 //static state_body_temperature_t state_body_temperature;
 
@@ -2268,6 +2269,8 @@ static uint8_t  m_adc_channel_enabled;
 static nrf_saadc_channel_config_t  channel_0_config = NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN0);    //NRF_SAADC_INPUT_AIN0: P0.02, body temprature
 static nrf_saadc_channel_config_t  channel_1_config = NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN1);    //NRF_SAADC_INPUT_AIN1: P0.03, battery temprature
 static nrf_saadc_channel_config_t  channel_5_config = NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN5);    //NRF_SAADC_INPUT_AIN5: P0.29, battery voltage
+const float Over_battery_temperature  = 45.00;
+const float Under_battery_temperature =  0.00;
 
 void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
 {
@@ -2350,6 +2353,16 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
                 NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
             }
             Battery_temperature = temperature;
+
+            if (Battery_temperature > Over_battery_temperature || Battery_temperature < Under_battery_temperature)
+            {
+                State_keeper = STATE_EMERGENCY;
+                State_emergency_lock = true;
+            }
+            else
+            {
+                State_emergency_lock = false; 
+            }
 
             m_adc_channel_enabled = 5;
         }
@@ -2771,6 +2784,23 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                     APP_ERROR_CHECK(rc);
                 }
                 Boot_count++;
+            }
+            else if (State_emergency_lock == true)
+            {
+                // State_keeper == STATE_EMERGENCY
+                // Blink GREEN and RED: Emergency, 3
+                if (Tick_count % 2 == 0)
+                {
+                    nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                    nrf_drv_gpiote_out_clear(LED_3_COLOR_GREEN_PIN);
+                    nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                }
+                else
+                {
+                    nrf_drv_gpiote_out_clear(LED_3_COLOR_RED_PIN);
+                    nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                    nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                }
             }
             else
             {
