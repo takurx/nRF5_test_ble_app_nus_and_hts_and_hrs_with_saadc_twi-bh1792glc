@@ -179,8 +179,8 @@
 
 #define SENSOR_CONTACT_DETECTED_INTERVAL    APP_TIMER_TICKS(5000)                   /**< Sensor Contact Detected toggle interval (ticks). */
 
-#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(10000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
-//#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(100)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+//#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(10000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(100)                   /**< Body Temp. and Heart rate data record interval (ticks). */
 #define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(25)                     /**< nus(nordic uart service) data output interval (ticks). */
 //#define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(40)                     /**< nus(nordic uart service) data output interval (ticks). */
 
@@ -1027,8 +1027,8 @@ void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
 /**
  * @brief Measurement data record events handler.
  */
-#define Num_of_data_hr_hr   256
-//#define Num_of_data_hr_hr   16
+//#define Num_of_data_hr_hr   256
+#define Num_of_data_hr_hr   8
 static volatile unsigned int Meas10sec = 0;
 static volatile unsigned int Write_index_data_hr_hr = 0;
 static volatile unsigned int Read_index_data_hr_hr = 0;
@@ -1098,25 +1098,30 @@ static void meas_data_record_timeout_handler(void * p_context)
             Count_index_data_hr_hr++;
             if (Count_index_data_hr_hr > Num_of_data_hr_hr - 1)
             {
-                Count_index_data_hr_hr = Num_of_data_hr_hr;       // case of Count_index_data_hr_hr > Num_of_data_hr_hr
-                Read_index_data_hr_hr = Write_index_data_hr_hr;
+                Count_index_data_hr_hr = Num_of_data_hr_hr - 1;
+                Read_index_data_hr_hr = Write_index_data_hr_hr + 1;
                 //Read_index_data_hr_hr = Write_index_data_hr_hr + 1;
-                //if (Read_index_data_hr_hr > Num_of_data_hr_hr - 1)
-                //{
+                if (Read_index_data_hr_hr > Num_of_data_hr_hr - 1)
+                {
                 //    Read_index_data_hr_hr = Read_index_data_hr_hr - Num_of_data_hr_hr;
-                //}
+                    Read_index_data_hr_hr = 0;
+                }
                 NRF_LOG_INFO("data full:%03d", Count_index_data_hr_hr);
             }
             else
             {
                 NRF_LOG_INFO("data increment:%03d", Count_index_data_hr_hr);
             }
+            NRF_LOG_INFO("Write: %d", Write_index_data_hr_hr);
+            NRF_LOG_INFO("Read: %d", Read_index_data_hr_hr);
+            NRF_LOG_INFO("Count: %d", Count_index_data_hr_hr);
+            NRF_LOG_FLUSH();
         }
     }
 
     Meas10sec++;
-    if (Meas10sec > 59)   // 10 minutes
-    //if (Meas10sec > 9)   // 100 seconds
+    //if (Meas10sec > 59)   // 10 minutes
+    if (Meas10sec > 9)   // 100 seconds
     {
         Meas10sec = 0;
     }
@@ -1208,9 +1213,14 @@ static void meas_data_output_timeout_handler(void * p_context)
 
     if (Count_index_data_hr_hr < 1)
     {
+        Count_index_data_hr_hr = 0;
         err_code = app_timer_stop(m_data_output_timer_id);
         APP_ERROR_CHECK(err_code);
     }
+    NRF_LOG_INFO("Write: %d", Write_index_data_hr_hr);
+    NRF_LOG_INFO("Read: %d", Read_index_data_hr_hr);
+    NRF_LOG_INFO("Count: %d", Count_index_data_hr_hr);
+    NRF_LOG_FLUSH();
 }
 
 

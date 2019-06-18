@@ -79,12 +79,15 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include "nordic_common.h"
+#include <math.h>
 #include "nrf.h"
 #include "nrf_drv_saadc.h"
 #include "nrf_drv_ppi.h"
 #include "nrf_drv_timer.h"
+#include "nrf_gpio.h"
 #include "nrf_drv_gpiote.h"
+#include "nrf_drv_rtc.h"
+#include "nrf_drv_clock.h"
 #include "boards.h"
 #include "nrf_delay.h"
 #include "app_error.h"
@@ -131,10 +134,15 @@
 #include "nrf_log_ctrl.h"
 #include "nrf_log_default_backends.h"
 
+#include "nrf_drv_clock.h"
 
-#define DEVICE_NAME                     "Simulator"                               /**< Name of device. Will be included in the advertising data. */
+#include "nrf_fstorage.h"
+#include "nrf_fstorage_sd.h"
+
+#define FIRMWARE_VERSION                "1p0"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'*/
+#define DEVICE_NAME                     "Herbio"                               /**< Name of device. Will be included in the advertising data. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
-#define MANUFACTURER_NAME               "NordicSemiconductor"                       /**< Manufacturer. Will be passed to Device Information Service. */
+#define MANUFACTURER_NAME               "Herbio Co., Ltd."                       /**< Manufacturer. Will be passed to Device Information Service. */
 //#define MODEL_NUM                       "EXAMPLE"                            /**< Model number. Will be passed to Device Information Service. */
 #define MANUFACTURER_ID                 0x1122334455                                /**< Manufacturer ID, part of System ID. Will be passed to Device Information Service. */
 #define ORG_UNIQUE_ID                   0x667788                                    /**< Organizational Unique ID, part of System ID. Will be passed to Device Information Service. */
@@ -171,6 +179,11 @@
 
 #define SENSOR_CONTACT_DETECTED_INTERVAL    APP_TIMER_TICKS(5000)                   /**< Sensor Contact Detected toggle interval (ticks). */
 
+//#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(10000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(100)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+#define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(25)                     /**< nus(nordic uart service) data output interval (ticks). */
+//#define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(40)                     /**< nus(nordic uart service) data output interval (ticks). */
+
 #define TEMP_TYPE_AS_CHARACTERISTIC     0                                           /**< Determines if temperature type is given as characteristic (1) or as a field of measurement (0). */
 
 #define MIN_CELCIUS_DEGREES             3688                                        /**< Minimum temperature in celcius for use in the simulated measurement function (multiplied by 100 to avoid floating point arithmetic). */
@@ -197,7 +210,6 @@
 #define UART_TX_BUF_SIZE                256                                         /**< UART TX buffer size. */
 #define UART_RX_BUF_SIZE                256                                         /**< UART RX buffer size. */
 
-
 BLE_NUS_DEF(m_nus, NRF_SDH_BLE_TOTAL_LINK_COUNT);                                   /**< BLE NUS service instance. */
 
 BLE_HRS_DEF(m_hrs);                                                 /**< Heart rate service instance. */
@@ -215,6 +227,9 @@ APP_TIMER_DEF(m_rr_interval_timer_id);                              /**< RR inte
 APP_TIMER_DEF(m_sensor_contact_timer_id);                           /**< Sensor contact detected timer. */
 
 APP_TIMER_DEF(m_temperature_timer_id);                               /**< Temperature measurement timer. */
+
+APP_TIMER_DEF(m_data_record_timer_id);                               /**< Measurement data record timer. */
+APP_TIMER_DEF(m_data_output_timer_id);                               /**< Measurement data output timer. */
 
 static uint16_t   m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3;            /**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
 static bool     m_rr_interval_enabled = true;                       /**< Flag for enabling and disabling the registration of new RR interval measurements (the purpose of disabling this is just to test sending HRM without RR interval data. */
@@ -235,7 +250,6 @@ static ble_uuid_t m_sr_uuids[]          =                                       
     {BLE_UUID_NUS_SERVICE, NUS_SERVICE_UUID_TYPE}
 };
 
-
 static ble_uuid_t m_adv_uuids[]          =                                          /**< Universally unique service identifier. */
 {
     {BLE_UUID_HEART_RATE_SERVICE,           BLE_UUID_TYPE_BLE},
@@ -244,277 +258,367 @@ static ble_uuid_t m_adv_uuids[]          =                                      
     {BLE_UUID_DEVICE_INFORMATION_SERVICE,   BLE_UUID_TYPE_BLE}
 };
 
-#define SAMPLES_IN_BUFFER 5
-volatile uint8_t state = 1;
+#define SAMPLES_IN_BUFFER 1
+//volatile uint8_t state = 1;
 
 //static const nrf_drv_timer_t m_timer = NRF_DRV_TIMER_INSTANCE(0);
 static const nrf_drv_timer_t m_timer = NRF_DRV_TIMER_INSTANCE(1);
 static nrf_saadc_value_t     m_buffer_pool[2][SAMPLES_IN_BUFFER];
 static nrf_ppi_channel_t     m_ppi_channel;
-static uint32_t              m_adc_evt_counter;
+//static uint32_t              m_adc_evt_counter;
+
+//typedef enum
+//{
+static const int     STATE_ADVERTISING = 0;   // Blink GREEN: Advertising that Before Pairing, 0
+static const int     STATE_PAIRING     = 1;   // GREEN: Pairing and Idle state, 1
+static const int     STATE_MEASURING   = 2;   // RED: Measring state and Pairing, 2
+static const int     STATE_EMERGENCY   = 3;   // Blink GREEN and RED: Emergency, 3
+static const int     STATE_MEASURINGADVERTISING  = 4;   // Blink RED: Measuring and Adverting, 4
+static const int     STATE_BOOTING     = 5;   // BLUE: boot, reboot from sleep, 5
+static const int     STATE_SLEEPING    = 6;   // Blink BLUE: go to sleep, 6
+
+//static volatile int State_keeper = 0;
+static volatile int State_keeper = STATE_ADVERTISING;
+//} state_body_temperature_t;
+//static state_body_temperature_t state_body_temperature;
+
+/* TWI instance ID. */
+#define TWI_INSTANCE_ID     0
+
+//#ifdef BSP_BUTTON_0
+//    #define PIN_IN BSP_BUTTON_0
+#ifdef BSP_BUTTON_3
+    #define PIN_IN BSP_BUTTON_3
+#endif
+#ifndef PIN_IN
+    #error "Please indicate input pin"
+#endif
+
+//#ifdef BSP_LED_0
+//    #define PIN_OUT BSP_LED_0
+#ifdef BSP_LED_3
+    #define PIN_OUT BSP_LED_3
+#endif
+#ifndef PIN_OUT
+    #error "Please indicate output pin"
+#endif
+
+APP_TIMER_DEF(m_bh1792glc_timer_id);
+//#define BH1792GLC_MEAS_INTERVAL         APP_TIMER_TICKS(1000)   //1 Hz Timer
+//#define BH1792GLC_MEAS_INTERVAL         APP_TIMER_TICKS(25)       //40 Hz Timer
+#define BH1792GLC_MEAS_INTERVAL         APP_TIMER_TICKS(10)       //100 Hz Timer
+//#define BH1792GLC_MEAS_INTERVAL         APP_TIMER_TICKS(2)       //500 Hz Timer
+
+/* Indicates if operation on TWI has ended (when received). */
+static volatile bool m_xfer_done = false;
+
+/* TWI instance. */
+static const nrf_drv_twi_t m_twi = NRF_DRV_TWI_INSTANCE(TWI_INSTANCE_ID);
+
+volatile static bool twi_tx_done = false;
+volatile static bool twi_rx_done = false;
+
+bh1792_t      m_bh1792;
+bh1792_data_t m_bh1792_dat;
+
+int32_t i2c_write(uint8_t slv_adr, uint8_t reg_adr, uint8_t *reg, uint8_t reg_size);
+int32_t i2c_read(uint8_t slv_adr, uint8_t reg_adr, uint8_t *reg, uint8_t reg_size);
+
+#define BH1792_TWI_TIMEOUT 			10000 
+#define BH1792_TWI_BUFFER_SIZE     	8 // 8byte = tx max(7) + addr(1)
+
+uint8_t twi_tx_buffer[BH1792_TWI_BUFFER_SIZE];
 
 static void advertising_start(bool erase_bonds);
 static void temperature_measurement_send(void);
 
-/**@brief Function for assert macro callback.
- *
- * @details This function will be called in case of an assert in the SoftDevice.
- *
- * @warning This handler is an example only and does not fit a final product. You need to analyse
- *          how your product is supposed to react in case of Assert.
- * @warning On assert from the SoftDevice, the system can only recover on reset.
- *
- * @param[in] line_num    Line number of the failing ASSERT call.
- * @param[in] p_file_name File name of the failing ASSERT call.
- */
-void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
+static void fstorage_evt_handler(nrf_fstorage_evt_t * p_evt);
+
+NRF_FSTORAGE_DEF(nrf_fstorage_t fstorage) =
 {
-    app_error_handler(DEAD_BEEF, line_num, p_file_name);
+    /* Set a handler for fstorage events. */
+    .evt_handler = fstorage_evt_handler,
+
+    /* These below are the boundaries of the flash space assigned to this instance of fstorage.
+     * You must set these manually, even at runtime, before nrf_fstorage_init() is called.
+     * The function nrf5_flash_end_addr_get() can be used to retrieve the last address on the
+     * last page of flash available to write data. */
+    .start_addr = 0x60000,
+    .end_addr   = 0x6ffff,
+};
+
+/* Dummy data to write to flash. */
+static uint32_t m_data          = 0xBADC0FFE;
+static char     m_hello_world[] = "hello world";
+
+
+
+/**@brief   Helper function to obtain the last address on the last page of the on-chip flash that
+ *          can be used to write user data.
+ */
+static uint32_t nrf5_flash_end_addr_get()
+{
+    uint32_t const bootloader_addr = NRF_UICR->NRFFW[0];
+    uint32_t const page_sz         = NRF_FICR->CODEPAGESIZE;
+    uint32_t const code_sz         = NRF_FICR->CODESIZE;
+
+    return (bootloader_addr != 0xFFFFFFFF ?
+            bootloader_addr : (code_sz * page_sz));
 }
 
-/**@brief Function for handling Peer Manager events.
- *
- * @param[in] p_evt  Peer Manager event.
- */
-static void pm_evt_handler(pm_evt_t const * p_evt)
+static void fstorage_evt_handler(nrf_fstorage_evt_t * p_evt)
 {
-    // ret_code_t err_code;
-    // bool       is_indication_enabled;
-
-    pm_handler_on_pm_evt(p_evt);
-    pm_handler_flash_clean(p_evt);
-
-    switch (p_evt->evt_id)
+    if (p_evt->result != NRF_SUCCESS)
     {
-    /*
-        case PM_EVT_CONN_SEC_SUCCEEDED:
-            // Send a single temperature measurement if indication is enabled.
-            // NOTE: For this to work, make sure ble_hts_on_ble_evt() is called before
-            // pm_evt_handler() in ble_evt_dispatch().
-            err_code = ble_hts_is_indication_enabled(&m_hts, &is_indication_enabled);
-            APP_ERROR_CHECK(err_code);
-            if (is_indication_enabled)
-            {
-                temperature_measurement_send();
-            }
-            break;
-    */
-        case PM_EVT_PEERS_DELETE_SUCCEEDED:
-            advertising_start(false);
-            break;
+        NRF_LOG_INFO("--> Event received: ERROR while executing an fstorage operation.");
+        return;
+    }
+
+    switch (p_evt->id)
+    {
+        case NRF_FSTORAGE_EVT_WRITE_RESULT:
+        {
+            NRF_LOG_INFO("--> Event received: wrote %d bytes at address 0x%x.",
+                         p_evt->len, p_evt->addr);
+        } break;
+
+        case NRF_FSTORAGE_EVT_ERASE_RESULT:
+        {
+            NRF_LOG_INFO("--> Event received: erased %d page from address 0x%x.",
+                         p_evt->len, p_evt->addr);
+        } break;
 
         default:
             break;
     }
 }
 
-
-/**@brief Function for performing a battery measurement, and update the Battery Level characteristic in the Battery Service.
+/**@brief Function for initializing the nrf log module.
  */
-static void battery_level_update(void)
+static void log_init(void)
+{
+    ret_code_t err_code = NRF_LOG_INIT(NULL);
+    APP_ERROR_CHECK(err_code);
+
+    NRF_LOG_DEFAULT_BACKENDS_INIT();
+}
+
+
+
+/**@brief   Function for handling app_uart events.
+ *
+ * @details This function will receive a single character from the app_uart module and append it to
+ *          a string. The string will be be sent over BLE when the last character received was a
+ *          'new line' '\n' (hex 0x0A) or if the string has reached the maximum data length.
+ */
+/**@snippet [Handling the data received over UART] */
+void uart_event_handle(app_uart_evt_t * p_event)
+{
+    static uint8_t data_array[BLE_NUS_MAX_DATA_LEN];
+    static uint8_t index = 0;
+    uint32_t       err_code;
+
+    switch (p_event->evt_type)
+    {
+        case APP_UART_DATA_READY:
+            UNUSED_VARIABLE(app_uart_get(&data_array[index]));
+            index++;
+
+            if ((data_array[index - 1] == '\n') ||
+                (data_array[index - 1] == '\r') ||
+                (index >= m_ble_nus_max_data_len))
+            {
+                if (index > 1)
+                {
+                    NRF_LOG_DEBUG("Ready to send data over BLE NUS");
+                    NRF_LOG_HEXDUMP_DEBUG(data_array, index);
+
+                    do
+                    {
+                        uint16_t length = (uint16_t)index;
+                        err_code = ble_nus_data_send(&m_nus, data_array, &length, m_conn_handle);
+                        if ((err_code != NRF_ERROR_INVALID_STATE) &&
+                            (err_code != NRF_ERROR_RESOURCES) &&
+                            (err_code != NRF_ERROR_NOT_FOUND))
+                        {
+                            APP_ERROR_CHECK(err_code);
+                        }
+                    } while (err_code == NRF_ERROR_RESOURCES);
+                }
+
+                index = 0;
+            }
+            break;
+
+        case APP_UART_COMMUNICATION_ERROR:
+            APP_ERROR_HANDLER(p_event->data.error_communication);
+            break;
+
+        case APP_UART_FIFO_ERROR:
+            APP_ERROR_HANDLER(p_event->data.error_code);
+            break;
+
+        default:
+            break;
+    }
+}
+/**@snippet [Handling the data received over UART] */
+
+#define EBSHCNZWZ_RX_PIN_NUMBER   24
+#define EBSHCNZWZ_TX_PIN_NUMBER   25
+#define EBSHCNZWZ_RTS_PIN_NUMBER  26
+#define EBSHCNZWZ_CTS_PIN_NUMBER  27
+
+/**@brief  Function for initializing the UART module.
+ */
+/**@snippet [UART Initialization] */
+static void uart_init(void)
+{
+    uint32_t                     err_code;
+    app_uart_comm_params_t const comm_params =
+    {
+        .rx_pin_no    = EBSHCNZWZ_RX_PIN_NUMBER,
+        .tx_pin_no    = EBSHCNZWZ_TX_PIN_NUMBER,
+        .rts_pin_no   = EBSHCNZWZ_RTS_PIN_NUMBER,
+        .cts_pin_no   = EBSHCNZWZ_CTS_PIN_NUMBER,
+        .flow_control = APP_UART_FLOW_CONTROL_DISABLED,
+        .use_parity   = false,
+#if defined (UART_PRESENT)
+        .baud_rate    = NRF_UART_BAUDRATE_115200
+#else
+        .baud_rate    = NRF_UARTE_BAUDRATE_115200
+#endif
+    };
+
+    APP_UART_FIFO_INIT(&comm_params,
+                       UART_RX_BUF_SIZE,
+                       UART_TX_BUF_SIZE,
+                       uart_event_handle,
+                       APP_IRQ_PRIORITY_LOWEST,
+                       err_code);
+    APP_ERROR_CHECK(err_code);
+}
+/**@snippet [UART Initialization] */
+
+
+
+/**@brief Function starting the internal LFCLK oscillator.
+ *
+ * @details This is needed by RTC1 which is used by the Application Timer
+ *          (When SoftDevice is enabled the LFCLK is always running and this is not needed).
+ */
+static void lfclk_request(void)
+{
+    ret_code_t err_code = nrf_drv_clock_init();
+    APP_ERROR_CHECK(err_code);
+    nrf_drv_clock_lfclk_request(NULL);
+}
+
+
+
+/**
+ * @brief Function for configuring: PIN_IN pin for input, PIN_OUT pin for output,
+ * and configures GPIOTE to give an interrupt on pin change.
+ */
+#define LED_3_COLOR_BLUE_PIN    20
+#define LED_3_COLOR_GREEN_PIN   18
+#define LED_3_COLOR_RED_PIN     4
+#define SWITCH1_PIN             8
+//#define CHARGE_FINISH_PIN       28
+
+#define BH1792GLC_SCL_PIN 7
+#define BH1792GLC_SDA_PIN 6
+#define BH1792GLC_INT_PIN 5
+
+void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action);
+
+static volatile bool LED_output_state = true;
+void in_pin_handler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
+{
+    LED_output_state = !LED_output_state;
+}
+
+static void gpio_init(void)
 {
     ret_code_t err_code;
-    uint8_t  battery_level;
 
-    battery_level = (uint8_t)sensorsim_measure(&m_battery_sim_state, &m_battery_sim_cfg);
-
-    err_code = ble_bas_battery_level_update(&m_bas, battery_level, BLE_CONN_HANDLE_ALL);
-    if ((err_code != NRF_SUCCESS) &&
-        (err_code != NRF_ERROR_INVALID_STATE) &&
-        (err_code != NRF_ERROR_RESOURCES) &&
-        (err_code != NRF_ERROR_BUSY) &&
-        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING) &&
-        (err_code != NRF_ERROR_FORBIDDEN)
-       )
-    {
-        APP_ERROR_HANDLER(err_code);
-    }
-}
-
-
-/**@brief Function for handling the Battery measurement timer timeout.
- *
- * @details This function will be called each time the battery level measurement timer expires.
- *
- * @param[in] p_context   Pointer used for passing some arbitrary information (context) from the
- *                        app_start_timer() call to the timeout handler.
- */
-static void battery_level_meas_timeout_handler(void * p_context)
-{
-    UNUSED_PARAMETER(p_context);
-    battery_level_update();
-}
-
-/**@brief Function for populating simulated health thermometer measurement.
- */
-static void hts_sim_measurement(ble_hts_meas_t * p_meas)
-{
-    static ble_date_time_t time_stamp = { 2012, 12, 5, 11, 50, 0 };
-
-    uint32_t celciusX100;
-
-    p_meas->temp_in_fahr_units = false;
-    p_meas->time_stamp_present = true;
-    p_meas->temp_type_present  = (TEMP_TYPE_AS_CHARACTERISTIC ? false : true);
-
-    celciusX100 = sensorsim_measure(&m_temp_celcius_sim_state, &m_temp_celcius_sim_cfg);
-
-    p_meas->temp_in_celcius.exponent = -2;
-    p_meas->temp_in_celcius.mantissa = celciusX100;
-    p_meas->temp_in_fahr.exponent    = -2;
-    p_meas->temp_in_fahr.mantissa    = (32 * 100) + ((celciusX100 * 9) / 5);
-    p_meas->time_stamp               = time_stamp;
-    p_meas->temp_type                = BLE_HTS_TEMP_TYPE_FINGER;
-
-    // update simulated time stamp
-    time_stamp.seconds += 27;
-    if (time_stamp.seconds > 59)
-    {
-        time_stamp.seconds -= 60;
-        time_stamp.minutes++;
-        if (time_stamp.minutes > 59)
-        {
-            time_stamp.minutes = 0;
-        }
-    }
-}
-
-/**@brief Function for handling the Temperature measurement timer timeout.
- *
- * @details 
- *
- * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
- *                       app_start_timer() call to the timeout handler.
- */
-static void temperature_meas_timeout_handler(void * p_context)
-{
-    ble_hts_meas_t simulated_meas;
-    ret_code_t     err_code;
-
-    UNUSED_PARAMETER(p_context);
-
-    hts_sim_measurement(&simulated_meas);
-
-    err_code = ble_hts_measurement_send(&m_hts, &simulated_meas);
-
-    switch (err_code)
-    {
-      case NRF_SUCCESS:
-        // Measurement was successfully sent, wait for confirmation.
-        m_hts_meas_ind_conf_pending = true;
-        break;
-      case NRF_ERROR_INVALID_STATE:
-        // Ignore error.
-        break;
-      default:
-        //APP_ERROR_HANDLER(err_code);
-        break;
-    }
+    err_code = nrf_drv_gpiote_init();
+    APP_ERROR_CHECK(err_code);
     
-    if ((err_code != NRF_SUCCESS) &&
-        (err_code != NRF_ERROR_INVALID_STATE) &&
-        (err_code != NRF_ERROR_RESOURCES) &&
-        (err_code != NRF_ERROR_BUSY) &&
-        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING) &&
-        (err_code != NRF_ERROR_FORBIDDEN)
-       )
-    {
-        APP_ERROR_HANDLER(err_code);
-    }
+    /*
+    // LED1
+    nrf_drv_gpiote_out_config_t out_config = GPIOTE_CONFIG_OUT_SIMPLE(false);
+
+    err_code = nrf_drv_gpiote_out_init(PIN_OUT, &out_config);
+    APP_ERROR_CHECK(err_code);
+
+    // Button1
+    nrf_drv_gpiote_in_config_t in_config = GPIOTE_CONFIG_IN_SENSE_TOGGLE(true);
+    in_config.pull = NRF_GPIO_PIN_PULLUP;
+
+    err_code = nrf_drv_gpiote_in_init(PIN_IN, &in_config, in_pin_handler);
+    APP_ERROR_CHECK(err_code);
+
+    nrf_drv_gpiote_in_event_enable(PIN_IN, true);
+    */
+
+    // bh1792glc, arudino_10_pin, 5
+    nrf_drv_gpiote_in_config_t in_config_bh1792 = GPIOTE_CONFIG_IN_SENSE_HITOLO(true); // interrupt when falling edge
+    in_config_bh1792.pull = NRF_GPIO_PIN_PULLUP;
+
+    err_code = nrf_drv_gpiote_in_init(BH1792GLC_INT_PIN, &in_config_bh1792, bh1792_isr);
+    APP_ERROR_CHECK(err_code);
+
+    //nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
+    nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, false);
+
+    // 3-color LED  LED_3_COLOR_BLUE_PIN, 20
+    nrf_drv_gpiote_out_config_t out_config_blue = GPIOTE_CONFIG_OUT_SIMPLE(true);
+    err_code = nrf_drv_gpiote_out_init(LED_3_COLOR_BLUE_PIN, &out_config_blue);
+    APP_ERROR_CHECK(err_code);
+
+    // 3-color LED  LED_3_COLOR_GREEN_PIN, 18
+    nrf_drv_gpiote_out_config_t out_config_green = GPIOTE_CONFIG_OUT_SIMPLE(true);
+    err_code = nrf_drv_gpiote_out_init(LED_3_COLOR_GREEN_PIN, &out_config_green);
+    APP_ERROR_CHECK(err_code);
+    
+    // 3-color LED  LED_3_COLOR_RED_PIN, 4
+    nrf_drv_gpiote_out_config_t out_config_red = GPIOTE_CONFIG_OUT_SIMPLE(true);
+    err_code = nrf_drv_gpiote_out_init(LED_3_COLOR_RED_PIN, &out_config_red);
+    APP_ERROR_CHECK(err_code);
+
+    // SWITCH1, 8
+    nrf_drv_gpiote_in_config_t in_config_switch1 = GPIOTE_CONFIG_IN_SENSE_HITOLO(true);
+    in_config_switch1.pull = NRF_GPIO_PIN_PULLUP;
+
+    err_code = nrf_drv_gpiote_in_init(SWITCH1_PIN, &in_config_switch1, in_pin_handler);
+    APP_ERROR_CHECK(err_code);
+
+    nrf_drv_gpiote_in_event_enable(SWITCH1_PIN, true);
+
+    // CHARGE_FINISH_PIN, 28
+    //nrf_drv_gpiote_in_config_t in_config_charge = GPIOTE_CONFIG_IN_SENSE_TOGGLE(true);
+    //in_config_switch1.pull = NRF_GPIO_PIN_PULLDOWN;
+
+    //err_code = nrf_drv_gpiote_in_init(CHARGE_FINISH_PIN, &in_config_charge, in_pin_handler);
+    //APP_ERROR_CHECK(err_code);
+
+    //nrf_drv_gpiote_in_event_enable(CHARGE_FINISH_PIN, false);
 }
 
 
-/**@brief Function for handling the Heart rate measurement timer timeout.
- *
- * @details This function will be called each time the heart rate measurement timer expires.
- *          It will exclude RR Interval data from every third measurement.
- *
- * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
- *                       app_start_timer() call to the timeout handler.
- */
-static void heart_rate_meas_timeout_handler(void * p_context)
-{
-    static uint32_t cnt = 0;
-    ret_code_t      err_code;
-    uint16_t        heart_rate;
-
-    UNUSED_PARAMETER(p_context);
-
-    heart_rate = (uint16_t)sensorsim_measure(&m_heart_rate_sim_state, &m_heart_rate_sim_cfg);
-
-    cnt++;
-    err_code = ble_hrs_heart_rate_measurement_send(&m_hrs, heart_rate);
-    if ((err_code != NRF_SUCCESS) &&
-        (err_code != NRF_ERROR_INVALID_STATE) &&
-        (err_code != NRF_ERROR_RESOURCES) &&
-        (err_code != NRF_ERROR_BUSY) &&
-        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING) &&
-        (err_code != NRF_ERROR_FORBIDDEN)
-       )
-    {
-        APP_ERROR_HANDLER(err_code);
-    }
-
-    // Disable RR Interval recording every third heart rate measurement.
-    // NOTE: An application will normally not do this. It is done here just for testing generation
-    // of messages without RR Interval measurements.
-    m_rr_interval_enabled = ((cnt % 3) != 0);
-}
 
 
-/**@brief Function for handling the RR interval timer timeout.
- *
- * @details This function will be called each time the RR interval timer expires.
- *
- * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
- *                       app_start_timer() call to the timeout handler.
- */
-static void rr_interval_timeout_handler(void * p_context)
-{
-    UNUSED_PARAMETER(p_context);
-
-    if (m_rr_interval_enabled)
-    {
-        uint16_t rr_interval;
-
-        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
-                                                  &m_rr_interval_sim_cfg);
-        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
-        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
-                                                  &m_rr_interval_sim_cfg);
-        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
-        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
-                                                  &m_rr_interval_sim_cfg);
-        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
-        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
-                                                  &m_rr_interval_sim_cfg);
-        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
-        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
-                                                  &m_rr_interval_sim_cfg);
-        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
-        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
-                                                  &m_rr_interval_sim_cfg);
-        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
-    }
-}
 
 
-/**@brief Function for handling the Sensor Contact Detected timer timeout.
- *
- * @details This function will be called each time the Sensor Contact Detected timer expires.
- *
- * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
- *                       app_start_timer() call to the timeout handler.
- */
-static void sensor_contact_detected_timeout_handler(void * p_context)
-{
-    static bool sensor_contact_detected = false;
-
-    UNUSED_PARAMETER(p_context);
-
-    sensor_contact_detected = !sensor_contact_detected;
-    ble_hrs_sensor_contact_detected_update(&m_hrs, sensor_contact_detected);
-}
+static void battery_level_meas_timeout_handler(void * p_context);
+static void heart_rate_meas_timeout_handler(void * p_context);
+static void rr_interval_timeout_handler(void * p_context);
+static void temperature_meas_timeout_handler(void * p_context);
+static void sensor_contact_detected_timeout_handler(void * p_context);
+static void bh1792glc_meas_timeout_handler(void * p_context);
+static void meas_data_record_timeout_handler(void * p_context);
+static void meas_data_output_timeout_handler(void * p_context);
 
 /**@brief Function for initializing the timer module.
  */
@@ -551,7 +655,793 @@ static void timers_init(void)
                                 APP_TIMER_MODE_REPEATED,
                                 sensor_contact_detected_timeout_handler);
     APP_ERROR_CHECK(err_code);
+                             
+    err_code = app_timer_create(&m_bh1792glc_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                bh1792glc_meas_timeout_handler);        
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_create(&m_data_record_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                meas_data_record_timeout_handler);        
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_create(&m_data_output_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                meas_data_output_timeout_handler);        
+    APP_ERROR_CHECK(err_code);
 }
+
+/**@brief Function for performing a battery measurement, and update the Battery Level characteristic in the Battery Service.
+ */
+volatile float Battery_percent = 0.0;
+
+static void battery_level_update(void)
+{
+    ret_code_t err_code;
+    uint8_t  battery_level;
+
+    //battery_level = (uint8_t)sensorsim_measure(&m_battery_sim_state, &m_battery_sim_cfg);
+    battery_level = (uint8_t)(Battery_percent);
+
+    err_code = ble_bas_battery_level_update(&m_bas, battery_level, BLE_CONN_HANDLE_ALL);
+    if ((err_code != NRF_SUCCESS) &&
+        (err_code != NRF_ERROR_INVALID_STATE) &&
+        (err_code != NRF_ERROR_RESOURCES) &&
+        (err_code != NRF_ERROR_BUSY) &&
+        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING) &&
+        (err_code != NRF_ERROR_FORBIDDEN)
+       )
+    {
+        APP_ERROR_HANDLER(err_code);
+    }
+}
+
+/**@brief Function for handling the Battery measurement timer timeout.
+ *
+ * @details This function will be called each time the battery level measurement timer expires.
+ *
+ * @param[in] p_context   Pointer used for passing some arbitrary information (context) from the
+ *                        app_start_timer() call to the timeout handler.
+ */
+static void battery_level_meas_timeout_handler(void * p_context)
+{
+    UNUSED_PARAMETER(p_context);
+    battery_level_update();
+}
+
+/**@brief Function for handling the Heart rate measurement timer timeout.
+ *
+ * @details This function will be called each time the heart rate measurement timer expires.
+ *          It will exclude RR Interval data from every third measurement.
+ *
+ * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
+ *                       app_start_timer() call to the timeout handler.
+ */
+volatile bool Debug_output_heart_rate = false;
+volatile bool Debug_output_body_temperature = false;
+volatile bool Debug_output_battery_temperature = false;
+volatile bool Debug_output_battery_voltage = false;
+volatile bool Debug_output_current_time = true;
+
+// Volatile Variables, used in the interrupt service routine!
+volatile uint16_t BPM;                   // int that holds raw Analog in 0. updated every 2mS
+volatile int Signal;                // holds the incoming raw data
+volatile int IBI = 600;             // int that holds the time interval between beats! Must be seeded!
+volatile bool Pulse = false;     // "True" when User's live heartbeat is detected. "False" when not a "live beat".
+volatile bool QS = false;        // becomes true when Arduoino finds a beat.
+
+volatile int rate[10];                    // array to hold last ten IBI values
+volatile unsigned long sampleCounter = 0;          // used to determine pulse timing
+volatile unsigned long lastBeatTime = 0;           // used to find IBI
+volatile int P = 32768; //512;                      // used to find peak in pulse wave, seeded
+volatile int T = 32768; //512;                     // used to find trough in pulse wave, seeded
+volatile int thresh = 33920; //530;                // used to find instant moment of heart beat, seeded
+volatile int amp = 0;                   // used to hold amplitude of pulse waveform, seeded
+volatile bool firstBeat = true;        // used to seed rate array so we startup with reasonable BPM
+volatile bool secondBeat = false;      // used to seed rate array so we startup with reasonable BPM
+//volatile int put_timing = 0;
+
+static void heart_rate_meas_timeout_handler(void * p_context)
+{
+    static uint32_t cnt = 0;
+    ret_code_t      err_code;
+    uint16_t        heart_rate;
+
+    UNUSED_PARAMETER(p_context);
+
+    //heart_rate = (uint16_t)sensorsim_measure(&m_heart_rate_sim_state, &m_heart_rate_sim_cfg);
+    heart_rate = BPM;
+
+    cnt++;
+    err_code = ble_hrs_heart_rate_measurement_send(&m_hrs, heart_rate);
+    if ((err_code != NRF_SUCCESS) &&
+        (err_code != NRF_ERROR_INVALID_STATE) &&
+        (err_code != NRF_ERROR_RESOURCES) &&
+        (err_code != NRF_ERROR_BUSY) &&
+        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING) &&
+        (err_code != NRF_ERROR_FORBIDDEN)
+       )
+    {
+        APP_ERROR_HANDLER(err_code);
+    }
+
+    // Disable RR Interval recording every third heart rate measurement.
+    // NOTE: An application will normally not do this. It is done here just for testing generation
+    // of messages without RR Interval measurements.
+    m_rr_interval_enabled = ((cnt % 3) != 0);
+}
+
+/**@brief Function for handling the RR interval timer timeout.
+ *
+ * @details This function will be called each time the RR interval timer expires.
+ *
+ * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
+ *                       app_start_timer() call to the timeout handler.
+ */
+static void rr_interval_timeout_handler(void * p_context)
+{
+    UNUSED_PARAMETER(p_context);
+
+    if (m_rr_interval_enabled)
+    {
+        uint16_t rr_interval;
+
+        rr_interval = (uint16_t)sensorsim_measure(&m_rr_interval_sim_state,
+                                                  &m_rr_interval_sim_cfg);
+        ble_hrs_rr_interval_add(&m_hrs, rr_interval);
+    }
+}
+
+/**@brief Function for populating simulated health thermometer measurement.
+ */
+volatile float Body_temperature = 0.0;
+volatile float Battery_temperature = 0.0;
+
+static ble_date_time_t time_stamp = { 2019, 6, 16, 15, 8, 50 };
+static const int month_days[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+
+static void hts_measurement(ble_hts_meas_t * p_meas)
+{    
+    uint32_t celciusX100;
+
+    p_meas->temp_in_fahr_units = false;
+    p_meas->time_stamp_present = true;
+    p_meas->temp_type_present  = (TEMP_TYPE_AS_CHARACTERISTIC ? false : true);
+
+    //celciusX100 = sensorsim_measure(&m_temp_celcius_sim_state, &m_temp_celcius_sim_cfg);
+    celciusX100 = (uint32_t)(Body_temperature * 100);
+
+    p_meas->temp_in_celcius.exponent = -2;
+    p_meas->temp_in_celcius.mantissa = celciusX100;
+    p_meas->temp_in_fahr.exponent    = -2;
+    p_meas->temp_in_fahr.mantissa    = (32 * 100) + ((celciusX100 * 9) / 5);
+    p_meas->time_stamp               = time_stamp;
+    //p_meas->temp_type                = BLE_HTS_TEMP_TYPE_FINGER;
+    p_meas->temp_type                = BLE_HTS_TEMP_TYPE_BODY;
+
+    // update simulated time stamp
+    time_stamp.seconds++;
+    if (time_stamp.seconds > 59)
+    {
+        time_stamp.seconds = 0;
+        time_stamp.minutes++;
+        if (time_stamp.minutes > 59)
+        {
+            time_stamp.minutes = 0;
+            time_stamp.hours++;
+            if (time_stamp.hours > 23)
+            {
+                time_stamp.hours = 0;
+                time_stamp.day++;
+                if (time_stamp.day > month_days[time_stamp.month])
+                {
+                    if (time_stamp.month == 2)
+                    {
+                        if ((time_stamp.year % 4 == 0 && time_stamp.year % 100 != 0) || (time_stamp.year % 400 == 0))   // leap year
+                        {
+                            if (time_stamp.day > month_days[time_stamp.month] + 1)
+                            {
+                                time_stamp.day = 1;
+                                time_stamp.month++;
+                            }
+                        }
+                        else    // not leap year
+                        {
+                            time_stamp.day = 1;
+                            time_stamp.month++;
+                        }
+                    }
+                    else
+                    {
+                        time_stamp.day = 1;
+                        time_stamp.month++;
+                        if (time_stamp.month > 12)
+                        {
+                            time_stamp.month = 1;
+                            time_stamp.year++;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    if (Debug_output_current_time == true)
+    {
+        NRF_LOG_INFO("%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
+    }
+}
+
+/**@brief Function for handling the Temperature measurement timer timeout.
+ *
+ * @details 
+ *
+ * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
+ *                       app_start_timer() call to the timeout handler.
+ */
+static void temperature_meas_timeout_handler(void * p_context)
+{
+    ble_hts_meas_t simulated_meas;
+    ret_code_t     err_code;
+
+    UNUSED_PARAMETER(p_context);
+
+    hts_measurement(&simulated_meas);
+
+    err_code = ble_hts_measurement_send(&m_hts, &simulated_meas);
+
+    switch (err_code)
+    {
+      case NRF_SUCCESS:
+        // Measurement was successfully sent, wait for confirmation.
+        m_hts_meas_ind_conf_pending = true;
+        break;
+      case NRF_ERROR_INVALID_STATE:
+        // Ignore error.
+        break;
+      default:
+        //APP_ERROR_HANDLER(err_code);
+        break;
+    }
+    
+    if ((err_code != NRF_SUCCESS) &&
+        (err_code != NRF_ERROR_INVALID_STATE) &&
+        (err_code != NRF_ERROR_RESOURCES) &&
+        (err_code != NRF_ERROR_BUSY) &&
+        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING) &&
+        (err_code != NRF_ERROR_FORBIDDEN)
+       )
+    {
+        APP_ERROR_HANDLER(err_code);
+    }
+}
+
+/**@brief Function for handling the Sensor Contact Detected timer timeout.
+ *
+ * @details This function will be called each time the Sensor Contact Detected timer expires.
+ *
+ * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
+ *                       app_start_timer() call to the timeout handler.
+ */
+static void sensor_contact_detected_timeout_handler(void * p_context)
+{
+    static bool sensor_contact_detected = false;
+
+    UNUSED_PARAMETER(p_context);
+
+    sensor_contact_detected = !sensor_contact_detected;
+    ble_hrs_sensor_contact_detected_update(&m_hrs, sensor_contact_detected);
+}
+
+static void timer_isr(void * p_context)
+{
+    //UNUSED_PARAMETER(p_context);
+    //NRF_LOG_INFO("timer_isr.");
+    
+    int32_t ret = 0;
+
+    nrf_drv_gpiote_in_event_disable(BH1792GLC_INT_PIN);
+
+    // became else root, m_bh1792.prm.msr = BH1792_PRM_MSR_SINGLE
+    /*
+    if (m_bh1792.prm.msr <= BH1792_PRM_MSR_1024HZ) {
+      ret = bh1792_SetSync();
+      //error_check(ret, "bh1792_SetSync");
+
+      if (m_bh1792.sync_seq < 3) {
+        if (m_bh1792.sync_seq == 1) {
+          //tmp_eimsk = 0;
+        } else {
+          ret = bh1792_ClearFifoData();
+          //error_check(ret, "bh1792_ClearFifoData");
+
+          //tmp_eimsk = bit(INT0);
+        }
+      }
+    } else {
+    */
+      ret = bh1792_StartMeasure();
+      //error_check(ret, "bh1792_StartMeasure");
+    /*
+    }
+    */
+
+    nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
+}
+
+/**@brief Function for handling the BH1792GLC measurement timer timeout.
+ *
+ * @details This function will be called each time BH1792GLC measurement timer expires.
+ *
+ * @param[in] p_context   Pointer used for passing some arbitrary information (context) from the
+ *                        app_start_timer() call to the timeout handler.
+ */
+static void bh1792glc_meas_timeout_handler(void * p_context)
+{
+    //NRF_LOG_INFO("bh1792glc measure timer interrupt.");
+    timer_isr(p_context);    
+}
+
+
+
+/**
+ * @brief TWI events handler.
+ */
+void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
+{
+    switch(p_event->type)
+    {
+        case NRF_DRV_TWI_EVT_DONE:
+            switch(p_event->xfer_desc.type)
+            {
+                case NRF_DRV_TWI_XFER_TX:
+                    twi_tx_done = true;
+                    break;
+                case NRF_DRV_TWI_XFER_TXTX:
+                    twi_tx_done = true;
+                    break;
+                case NRF_DRV_TWI_XFER_RX:
+                    twi_rx_done = true;
+                    //m_xfer_done = true;
+                    break;
+                case NRF_DRV_TWI_XFER_TXRX:
+                    twi_rx_done = true;
+                    //m_xfer_done = true;
+                    break;
+                default:
+                    break;
+            }
+            break;
+        case NRF_DRV_TWI_EVT_ADDRESS_NACK:
+            break;
+        case NRF_DRV_TWI_EVT_DATA_NACK:
+            break;
+        default:
+            break;
+    }
+}
+
+
+
+/**
+ * @brief Measurement data record events handler.
+ */
+#define Num_of_data_hr_hr   256
+//#define Num_of_data_hr_hr   16
+static volatile unsigned int Meas10sec = 0;
+static volatile unsigned int Write_index_data_hr_hr = 0;
+static volatile unsigned int Read_index_data_hr_hr = 0;
+static volatile unsigned int Count_index_data_hr_hr = 0;
+/**@brief record every 10 mintutes, 
+ * temprature: 6 points between 10 seconds
+ * heart_rate: 60 second average
+ */
+typedef struct
+{
+    ble_date_time_t start_time; 
+    float body_temperature_array[6];
+    uint16_t heart_rate;
+} ble_data_ht_hr_t;
+static volatile ble_data_ht_hr_t data_hr_hr[Num_of_data_hr_hr] = {};
+static volatile ble_data_ht_hr_t temp_data_hr_hr = {};
+//static ble_date_time_t time_stamp = { 2019, 2, 28, 23, 59, 50 };
+
+static void meas_data_record_timeout_handler(void * p_context)
+{
+    UNUSED_PARAMETER(p_context);
+
+    //NRF_LOG_INFO("10 second interval, it will measurement dara record");
+
+    //  measure 10 seconds, record 10 minutes
+    if (Meas10sec < 6)
+    {
+        //NRF_LOG_INFO("10 second measure, 6 times");
+        if (Meas10sec == 0)
+        {
+            temp_data_hr_hr.start_time.year     = time_stamp.year;
+            temp_data_hr_hr.start_time.month    = time_stamp.month;
+            temp_data_hr_hr.start_time.day      = time_stamp.day;
+            temp_data_hr_hr.start_time.hours    = time_stamp.hours;
+            temp_data_hr_hr.start_time.minutes  = time_stamp.minutes;
+            temp_data_hr_hr.start_time.seconds  = time_stamp.seconds;
+
+            /*
+            if (Count_index_data_hr_hr > Num_of_data_hr_hr - 1)
+            {
+                Read_index_data_hr_hr = Write_index_data_hr_hr + 1;
+                if (Read_index_data_hr_hr > Num_of_data_hr_hr - 1)
+                {
+                    Read_index_data_hr_hr = Read_index_data_hr_hr - Num_of_data_hr_hr;
+                }
+            }
+            */
+        }
+
+        temp_data_hr_hr.body_temperature_array[Meas10sec] = Body_temperature;
+        NRF_LOG_INFO("R10sec %d:" NRF_LOG_FLOAT_MARKER "", Meas10sec, NRF_LOG_FLOAT(Body_temperature));
+        
+        if (Meas10sec == 5)
+        {
+            //data_hr_hr[Write_index_data_hr_hr].heart_rate = BPM;
+            temp_data_hr_hr.heart_rate = 0;
+
+            data_hr_hr[Write_index_data_hr_hr] = temp_data_hr_hr;
+
+            Write_index_data_hr_hr++;
+            if (Write_index_data_hr_hr > Num_of_data_hr_hr - 1)
+            {
+                //Write_index_data_hr_hr = Write_index_data_hr_hr - Num_of_data_hr_hr;
+                Write_index_data_hr_hr = 0;
+            }
+
+            Count_index_data_hr_hr++;
+            if (Count_index_data_hr_hr > Num_of_data_hr_hr - 1)
+            {
+                Count_index_data_hr_hr = Num_of_data_hr_hr - 1;
+                Read_index_data_hr_hr = Write_index_data_hr_hr + 1;
+                //Read_index_data_hr_hr = Write_index_data_hr_hr + 1;
+                if (Read_index_data_hr_hr > Num_of_data_hr_hr - 1)
+                {
+                //    Read_index_data_hr_hr = Read_index_data_hr_hr - Num_of_data_hr_hr;
+                    Read_index_data_hr_hr = 0;
+                }
+                NRF_LOG_INFO("data full:%03d", Count_index_data_hr_hr);
+            }
+            else
+            {
+                NRF_LOG_INFO("data increment:%03d", Count_index_data_hr_hr);
+            }
+            NRF_LOG_INFO("Write: %d", Write_index_data_hr_hr);
+            NRF_LOG_INFO("Read: %d", Read_index_data_hr_hr);
+            NRF_LOG_INFO("Count: %d", Count_index_data_hr_hr);
+            NRF_LOG_FLUSH();
+        }
+    }
+
+    Meas10sec++;
+    //if (Meas10sec > 59)   // 10 minutes
+    if (Meas10sec > 9)   // 100 seconds
+    {
+        Meas10sec = 0;
+    }
+}
+
+static void meas_data_output_timeout_handler(void * p_context)
+{
+    UNUSED_PARAMETER(p_context);
+    
+    uint32_t err_code;
+    //static char com_buf[128] = "";
+    //uint16_t j;
+    //unsigned int ind;
+
+    static char restime[19] =   "";
+    static char resdatanum[3] = "";
+    static char respulse[3] =   "";
+    static char restemp[35] =   "";
+    static char resdata[128] =  "";
+    uint16_t reslength;
+
+    //NRF_LOG_INFO("it will measurement data output");
+
+    //for (j = 0; j < Count_index_data_hr_hr; j++)
+    //{
+    //ind = Read_index_data_hr_hr;
+    //ind = Read_index_data_hr_hr + 1;
+    //if (ind > Num_of_data_hr_hr - 1)
+    //{
+    //    ind = ind - Num_of_data_hr_hr;
+    //}
+
+    //data_hr_hr[Write_index_data_hr_hr].body_temperature_array[Meas10sec - 1] = Body_temperature;
+    //data_hr_hr[Write_index_data_hr_hr].heart_rate = BPM;
+    sprintf(restime, "%04d-%02d-%02dT%02d:%02d:%02d", 
+    data_hr_hr[Read_index_data_hr_hr].start_time.year, 
+    data_hr_hr[Read_index_data_hr_hr].start_time.month, 
+    data_hr_hr[Read_index_data_hr_hr].start_time.day, 
+    data_hr_hr[Read_index_data_hr_hr].start_time.hours, 
+    data_hr_hr[Read_index_data_hr_hr].start_time.minutes, 
+    data_hr_hr[Read_index_data_hr_hr].start_time.seconds);
+    //sprintf(resdatanum, "%03d", Count_index_data_hr_hr - j);
+    sprintf(resdatanum, "%03d", Count_index_data_hr_hr);
+    sprintf(respulse,"%03d", data_hr_hr[Read_index_data_hr_hr].heart_rate);
+    NRF_LOG_INFO("%03d", data_hr_hr[Read_index_data_hr_hr].heart_rate);
+    //sprintf(respulse,"%03d", 0);
+
+    //sprintf(restemp, "%05.2f,%05.2f,%05.2f,%05.2f,%05.2f,%05.2f", 
+    //    data_hr_hr[ind].body_temperature_array[0],
+    //    data_hr_hr[ind].body_temperature_array[1],
+    //    data_hr_hr[ind].body_temperature_array[2],
+    //    data_hr_hr[ind].body_temperature_array[3],
+    //    data_hr_hr[ind].body_temperature_array[4],
+    //    data_hr_hr[ind].body_temperature_array[5]);
+
+    //NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
+    sprintf(restemp, 
+        "" NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "," NRF_LOG_FLOAT_MARKER "", 
+        NRF_LOG_FLOAT(data_hr_hr[Read_index_data_hr_hr].body_temperature_array[0]),
+        NRF_LOG_FLOAT(data_hr_hr[Read_index_data_hr_hr].body_temperature_array[1]),
+        NRF_LOG_FLOAT(data_hr_hr[Read_index_data_hr_hr].body_temperature_array[2]),
+        NRF_LOG_FLOAT(data_hr_hr[Read_index_data_hr_hr].body_temperature_array[3]),
+        NRF_LOG_FLOAT(data_hr_hr[Read_index_data_hr_hr].body_temperature_array[4]),
+        NRF_LOG_FLOAT(data_hr_hr[Read_index_data_hr_hr].body_temperature_array[5]));
+    strcpy(resdata, restime);
+    strcat(resdata, ",");
+    strcat(resdata, resdatanum);
+    strcat(resdata, ",");
+    strcat(resdata, respulse);
+    strcat(resdata, ",");
+    strcat(resdata, restemp);
+    reslength = strlen(resdata);
+    //reslength = strlen(restime) + 1 + strlen(resdatanum) + 1 + strlen(respulse) + 1 + strlen(restemp);
+    //NRF_LOG_INFO("res: %s", resdata);
+    err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
+    //}
+
+    Read_index_data_hr_hr++;
+    //Read_index_data_hr_hr = Read_index_data_hr_hr + Count_index_data_hr_hr;
+    if (Read_index_data_hr_hr > Num_of_data_hr_hr - 1)
+    {
+        //Read_index_data_hr_hr = Read_index_data_hr_hr - Num_of_data_hr_hr;
+        Read_index_data_hr_hr = 0;
+    }
+
+    //Count_index_data_hr_hr = 0;
+    Count_index_data_hr_hr--;
+    NRF_LOG_INFO("data decrement:%03d, %03d", Count_index_data_hr_hr, Read_index_data_hr_hr - 1);
+
+    if (Count_index_data_hr_hr < 1)
+    {
+        Count_index_data_hr_hr = 0;
+        err_code = app_timer_stop(m_data_output_timer_id);
+        APP_ERROR_CHECK(err_code);
+    }
+    NRF_LOG_INFO("Write: %d", Write_index_data_hr_hr);
+    NRF_LOG_INFO("Read: %d", Read_index_data_hr_hr);
+    NRF_LOG_INFO("Count: %d", Count_index_data_hr_hr);
+    NRF_LOG_FLUSH();
+}
+
+
+
+
+
+
+/**@brief Function for handling events from the BSP module.
+ *
+ * @param[in]   event   Event generated by button press.
+ */
+/*
+void bsp_event_handler(bsp_event_t event)
+{
+    uint32_t err_code;
+    switch (event)
+    {
+        case BSP_EVENT_SLEEP:
+            sleep_mode_enter();
+            break;
+
+        case BSP_EVENT_DISCONNECT:
+            err_code = sd_ble_gap_disconnect(m_conn_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
+            if (err_code != NRF_ERROR_INVALID_STATE)
+            {
+                APP_ERROR_CHECK(err_code);
+            }
+            break;
+
+        case BSP_EVENT_WHITELIST_OFF:
+            if (m_conn_handle == BLE_CONN_HANDLE_INVALID)
+            {
+                err_code = ble_advertising_restart_without_whitelist(&m_advertising);
+                if (err_code != NRF_ERROR_INVALID_STATE)
+                {
+                    APP_ERROR_CHECK(err_code);
+                }
+            }
+            break;
+
+        case BSP_EVENT_KEY_0:
+            if (m_conn_handle != BLE_CONN_HANDLE_INVALID)
+            {
+                temperature_measurement_send();
+            }
+            break;
+
+        default:
+            break;
+    }
+}
+*/
+/**@brief Function for initializing buttons and leds.
+ *
+ * @param[out] p_erase_bonds  Will be true if the clear bonding button was pressed to wake the application up.
+ */
+static void buttons_leds_init(bool * p_erase_bonds)
+{
+    bsp_event_t startup_event;
+/*
+    uint32_t err_code = bsp_init(BSP_INIT_LEDS | BSP_INIT_BUTTONS, bsp_event_handler);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = bsp_btn_ble_init(NULL, &startup_event);
+    APP_ERROR_CHECK(err_code);
+*/
+    *p_erase_bonds = (startup_event == BSP_EVENT_CLEAR_BONDING_DATA);
+}
+
+
+
+/**@brief Function for initializing power management.
+ */
+static void power_management_init(void)
+{
+    ret_code_t err_code;
+    err_code = nrf_pwr_mgmt_init();
+    APP_ERROR_CHECK(err_code);
+}
+
+
+
+
+
+
+/**@brief Function for handling BLE events.
+ *
+ * @param[in]   p_ble_evt   Bluetooth stack event.
+ * @param[in]   p_context   Unused.
+ */
+static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
+{
+    uint32_t err_code;
+
+    switch (p_ble_evt->header.evt_id)
+    {
+        case BLE_GAP_EVT_CONNECTED:
+            NRF_LOG_INFO("Connected");
+            err_code = bsp_indication_set(BSP_INDICATE_CONNECTED);
+            APP_ERROR_CHECK(err_code);
+            m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
+            err_code = nrf_ble_qwr_conn_handle_assign(&m_qwr, m_conn_handle);
+            APP_ERROR_CHECK(err_code);
+            if (State_keeper == STATE_MEASURINGADVERTISING)
+            {
+                State_keeper = STATE_MEASURING;
+            }
+            else
+            {
+                // not state_measuring
+                State_keeper = STATE_PAIRING;
+            }
+            NRF_LOG_INFO("State_keeper: %d", State_keeper);
+            break;
+
+        case BLE_GAP_EVT_DISCONNECTED:
+            NRF_LOG_INFO("Disconnected, reason %d.",
+                          p_ble_evt->evt.gap_evt.params.disconnected.reason);
+            // LED indication will be changed when advertising starts.
+            m_conn_handle = BLE_CONN_HANDLE_INVALID;
+            m_hts_meas_ind_conf_pending = false;
+            if (State_keeper == STATE_MEASURING)
+            {
+                State_keeper = STATE_MEASURINGADVERTISING;
+            }
+            else
+            {
+                // not state_measuring
+                State_keeper = STATE_ADVERTISING;
+            }
+            NRF_LOG_INFO("State_keeper: %d", State_keeper);
+            break;
+
+        case BLE_GAP_EVT_PHY_UPDATE_REQUEST:
+        {
+            NRF_LOG_DEBUG("PHY update request.");
+            ble_gap_phys_t const phys =
+            {
+                .rx_phys = BLE_GAP_PHY_AUTO,
+                .tx_phys = BLE_GAP_PHY_AUTO,
+            };
+            err_code = sd_ble_gap_phy_update(p_ble_evt->evt.gap_evt.conn_handle, &phys);
+            APP_ERROR_CHECK(err_code);
+        } break;
+
+        case BLE_GAP_EVT_SEC_PARAMS_REQUEST:
+            // Pairing not supported
+            //err_code = sd_ble_gap_sec_params_reply(m_conn_handle, BLE_GAP_SEC_STATUS_PAIRING_NOT_SUPP, NULL, NULL);
+            //APP_ERROR_CHECK(err_code);
+            break;
+
+        case BLE_GATTS_EVT_SYS_ATTR_MISSING:
+            // No system attributes have been stored.
+            //err_code = sd_ble_gatts_sys_attr_set(m_conn_handle, NULL, 0, 0);
+            //APP_ERROR_CHECK(err_code);
+            break;
+
+        case BLE_GATTC_EVT_TIMEOUT:
+            // Disconnect on GATT Client timeout event.
+            NRF_LOG_DEBUG("GATT Client Timeout.");
+            err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gattc_evt.conn_handle,
+                                             BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
+            APP_ERROR_CHECK(err_code);
+            break;
+
+        case BLE_GATTS_EVT_TIMEOUT:
+            // Disconnect on GATT Server timeout event.
+            NRF_LOG_DEBUG("GATT Server Timeout.");
+            err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gatts_evt.conn_handle,
+                                             BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
+            APP_ERROR_CHECK(err_code);
+            break;
+        
+        case BLE_GAP_EVT_AUTH_KEY_REQUEST:
+            NRF_LOG_INFO("BLE_GAP_EVT_AUTH_KEY_REQUEST");
+            break;
+
+        case BLE_GAP_EVT_LESC_DHKEY_REQUEST:
+            NRF_LOG_INFO("BLE_GAP_EVT_LESC_DHKEY_REQUEST");
+            break;
+
+         case BLE_GAP_EVT_AUTH_STATUS:
+             NRF_LOG_INFO("BLE_GAP_EVT_AUTH_STATUS: status=0x%x bond=0x%x lv4: %d kdist_own:0x%x kdist_peer:0x%x",
+                          p_ble_evt->evt.gap_evt.params.auth_status.auth_status,
+                          p_ble_evt->evt.gap_evt.params.auth_status.bonded,
+                          p_ble_evt->evt.gap_evt.params.auth_status.sm1_levels.lv4,
+                          *((uint8_t *)&p_ble_evt->evt.gap_evt.params.auth_status.kdist_own),
+                          *((uint8_t *)&p_ble_evt->evt.gap_evt.params.auth_status.kdist_peer));
+            break;
+
+        default:
+            // No implementation needed.
+            break;
+    }
+}
+
+/**@brief Function for the SoftDevice initialization.
+ *
+ * @details This function initializes the SoftDevice and the BLE event interrupt.
+ */
+static void ble_stack_init(void)
+{
+    ret_code_t err_code;
+
+    err_code = nrf_sdh_enable_request();
+    APP_ERROR_CHECK(err_code);
+
+    // Configure the BLE stack using the default settings.
+    // Fetch the start address of the application RAM.
+    uint32_t ram_start = 0;
+    err_code = nrf_sdh_ble_default_cfg_set(APP_BLE_CONN_CFG_TAG, &ram_start);
+    APP_ERROR_CHECK(err_code);
+
+    // Enable BLE stack.
+    err_code = nrf_sdh_ble_enable(&ram_start);
+    APP_ERROR_CHECK(err_code);
+
+    // Register a handler for BLE events.
+    NRF_SDH_BLE_OBSERVER(m_ble_observer, APP_BLE_OBSERVER_PRIO, ble_evt_handler, NULL);
+}
+
 
 
 /**@brief Function for the GAP initialization.
@@ -589,223 +1479,57 @@ static void gap_params_init(void)
     APP_ERROR_CHECK(err_code);
 }
 
-/**@brief Function for simulating and sending one Temperature Measurement.
- */
-static void temperature_measurement_send(void)
+
+
+/**@brief Function for handling events from the GATT library. */
+void gatt_evt_handler(nrf_ble_gatt_t * p_gatt, nrf_ble_gatt_evt_t const * p_evt)
 {
-    ble_hts_meas_t simulated_meas;
-    ret_code_t     err_code;
-
-    if (!m_hts_meas_ind_conf_pending)
+    if ((m_conn_handle == p_evt->conn_handle) && (p_evt->evt_id == NRF_BLE_GATT_EVT_ATT_MTU_UPDATED))
     {
-        hts_sim_measurement(&simulated_meas);
-
-        err_code = ble_hts_measurement_send(&m_hts, &simulated_meas);
-
-        switch (err_code)
-        {
-            case NRF_SUCCESS:
-                // Measurement was successfully sent, wait for confirmation.
-                m_hts_meas_ind_conf_pending = true;
-                break;
-
-            case NRF_ERROR_INVALID_STATE:
-                // Ignore error.
-                break;
-
-            default:
-                APP_ERROR_HANDLER(err_code);
-                break;
-        }
+        m_ble_nus_max_data_len = p_evt->params.att_mtu_effective - OPCODE_LENGTH - HANDLE_LENGTH;
+        NRF_LOG_INFO("Data len is set to 0x%X(%d)", m_ble_nus_max_data_len, m_ble_nus_max_data_len);
     }
-}
-
-
-/**@brief Function for handling the Health Thermometer Service events.
- *
- * @details This function will be called for all Health Thermometer Service events which are passed
- *          to the application.
- *
- * @param[in] p_hts  Health Thermometer Service structure.
- * @param[in] p_evt  Event received from the Health Thermometer Service.
- */
-static void on_hts_evt(ble_hts_t * p_hts, ble_hts_evt_t * p_evt)
-{
-    temperature_measurement_send();
-    /*
-    switch (p_evt->evt_type)
+    NRF_LOG_DEBUG("ATT MTU exchange completed. central 0x%x peripheral 0x%x",
+                  p_gatt->att_mtu_desired_central,
+                  p_gatt->att_mtu_desired_periph);
+    
+    if (p_evt->evt_id == NRF_BLE_GATT_EVT_ATT_MTU_UPDATED)
     {
-        case BLE_HTS_EVT_INDICATION_ENABLED:
-            // Indication has been enabled, send a single temperature measurement
-            temperature_measurement_send();
-            break;
-
-        case BLE_HTS_EVT_INDICATION_CONFIRMED:
-            m_hts_meas_ind_conf_pending = false;
-            break;
-
-        default:
-            // No implementation needed.
-            break;
-    }
-    */
-}
-
-
-/**@brief Function for handling Queued Write Module errors.
- *
- * @details A pointer to this function will be passed to each service which may need to inform the
- *          application about an error.
- *
- * @param[in]   nrf_error   Error code containing information about what went wrong.
- */
-static void nrf_qwr_error_handler(uint32_t nrf_error)
-{
-    APP_ERROR_HANDLER(nrf_error);
-}
-
-uint16_t Number_of_command = 4;
-static const char * NusCommand[] = 
-{
-    "sta",    /* 0: start measurement command */
-    "sto",    /* 1: stop measurement command  */
-    "rqs",    /* 2: request series command    */
-    "rqd",    /* 3: request data command      */
-};
-
-/**@brief Function for handling the data from the Nordic UART Service.
- *
- * @details This function will process the data received from the Nordic UART BLE Service and send
- *          it to the UART module.
- *
- * @param[in] p_evt       Nordic UART Service event.
- */
-/**@snippet [Handling the data received over BLE] */
-static void nus_data_handler(ble_nus_evt_t * p_evt)
-{
-
-    if (p_evt->type == BLE_NUS_EVT_RX_DATA)
-    {
-        uint32_t err_code;
-        char com_buf[256] = {};
-        uint16_t i;
-
-        char restime[] =    "2018-12-25T12:20:15+9";
-        char resdatanum[] = ",10";
-        char respulse[] =   ",100,101,102,103,104,105,106,107,108,109";
-        char restemp[] =    ",36.00,36.01,36.02,36.03,36.04,36.05,36.06,36.07,36.08,36.09";
-        char resdata[256] = {};
-
-        // NRF_LOG_INFO("nus_data_handler");
-
-        NRF_LOG_DEBUG("Received data from BLE NUS. Writing data on UART.");
-        NRF_LOG_HEXDUMP_DEBUG(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length);
-
-        // NRF_LOG_INFO("p_evt->params.rx_data.p_data: %s", p_evt->params.rx_data.p_data);
-        // for (uint32_t i = 0; i < p_evt->params.rx_data.length; i++)
-        for (i = 0; i < p_evt->params.rx_data.length; i++)
-        {
-            do
-            {
-                err_code = app_uart_put(p_evt->params.rx_data.p_data[i]);
-                if ((err_code != NRF_SUCCESS) && (err_code != NRF_ERROR_BUSY))
-                {
-                    NRF_LOG_ERROR("Failed receiving NUS message. Error 0x%x. ", err_code);
-                    APP_ERROR_CHECK(err_code);
-                }
-                //NRF_LOG_INFO("string: %c", p_evt->params.rx_data.p_data[i]);
-                com_buf[i] = p_evt->params.rx_data.p_data[i];
-            } while (err_code == NRF_ERROR_BUSY);
-        }
-        if (p_evt->params.rx_data.p_data[p_evt->params.rx_data.length - 1] == '\r')
-        {
-            while (app_uart_put('\n') == NRF_ERROR_BUSY);
-        }
-        com_buf[i] = '\0';
-        NRF_LOG_INFO("command: %s", com_buf);
-        /*
-        err_code = ble_nus_data_send(&m_nus, com_buf, &i, m_conn_handle);
-        if ((err_code != NRF_ERROR_INVALID_STATE) &&
-            (err_code != NRF_ERROR_RESOURCES) &&
-            (err_code != NRF_ERROR_NOT_FOUND))
-        {
-            APP_ERROR_CHECK(err_code);
-        }
-        */
-        uint16_t reslength;
-
-        for (i = 0; i < Number_of_command; i++)
-        {
-          if((strcmp(com_buf, NusCommand[i])) == 0)
-          {
-              //NRF_LOG_INFO("ack");
-              /*
-              reslength = 3;
-              err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
-              if ((err_code != NRF_ERROR_INVALID_STATE) &&
-                  (err_code != NRF_ERROR_RESOURCES) &&
-                  (err_code != NRF_ERROR_NOT_FOUND))
-              {
-                  APP_ERROR_CHECK(err_code);
-              }
-              */
-              switch (i)
-              {
-                  case 0:   // 0: sta
-                      reslength = 3;
-                      err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
-                      break;
-                  case 1:   // 1: sto
-                      reslength = 3;
-                      err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
-                      break;
-                  case 2:   // 2: rqs
-                      reslength = 3;
-                      err_code = ble_nus_data_send(&m_nus, "100", &reslength, m_conn_handle);
-                      break;
-                  case 3:   // 3: rqd
-                      reslength = strlen(restime) + strlen(resdatanum) + strlen(respulse) + strlen(restemp);
-                      //char resdata[reslength];
-                      strcpy(resdata, restime);
-                      //memcpy(resdata, restime, 0);
-                      strcat(resdata, resdatanum);
-                      strcat(resdata, respulse);
-                      strcat(resdata, restemp);
-                      NRF_LOG_INFO("res: %s", resdata);
-                      err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
-                      break;
-                  default:
-                      break;
-              }
-              if ((err_code != NRF_ERROR_INVALID_STATE) &&
-                  (err_code != NRF_ERROR_RESOURCES) &&
-                  (err_code != NRF_ERROR_NOT_FOUND))
-              {
-                  APP_ERROR_CHECK(err_code);
-              }
-              break;
-          }
-        }
-        if (i == Number_of_command)
-        {
-            //NRF_LOG_INFO("nak");
-            reslength = 3;
-            err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
-            if ((err_code != NRF_ERROR_INVALID_STATE) &&
-                (err_code != NRF_ERROR_RESOURCES) &&
-                (err_code != NRF_ERROR_NOT_FOUND))
-            {
-                APP_ERROR_CHECK(err_code);
-            }
-        }
+        NRF_LOG_INFO("GATT ATT MTU on connection 0x%x changed to %d.",
+                     p_evt->conn_handle,
+                     p_evt->params.att_mtu_effective);
     }
 
+    ble_hrs_on_gatt_evt(&m_hrs, p_evt);
 }
-/**@snippet [Handling the data received over BLE] */
+
+/**@brief Function for initializing the GATT module.
+ */
+static void gatt_init(void)
+{
+    ret_code_t err_code;
+
+    err_code = nrf_ble_gatt_init(&m_gatt, NULL);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = nrf_ble_gatt_init(&m_gatt, gatt_evt_handler);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = nrf_ble_gatt_att_mtu_periph_set(&m_gatt, NRF_SDH_BLE_GATT_MAX_MTU_SIZE);
+    APP_ERROR_CHECK(err_code);
+}
+
+
+
+
 
 
 /**@brief Function for initializing services that will be used by the application.
  */
+static void nrf_qwr_error_handler(uint32_t nrf_error);
+static void nus_data_handler(ble_nus_evt_t * p_evt);
+static void on_hts_evt(ble_hts_t * p_hts, ble_hts_evt_t * p_evt);
+
 static void services_init(void)
 {
     uint32_t           err_code;
@@ -896,6 +1620,435 @@ static void services_init(void)
     APP_ERROR_CHECK(err_code);
 }
 
+/**@brief Function for handling Queued Write Module errors.
+ *
+ * @details A pointer to this function will be passed to each service which may need to inform the
+ *          application about an error.
+ *
+ * @param[in]   nrf_error   Error code containing information about what went wrong.
+ */
+static void nrf_qwr_error_handler(uint32_t nrf_error)
+{
+    APP_ERROR_HANDLER(nrf_error);
+}
+
+uint16_t Number_of_command = 40;
+static const char * NusCommand[] = 
+{
+    "sta",    /* 0: start measurement command */
+    "sto",    /* 1: stop measurement command  */
+    "rqs",    /* 2: request series command    */
+    "rqd",    /* 3: request data command      */
+    "scd",    /* 4: set current days command  Ex. "scd 2018-12-25" */
+    "sct",    /* 5: set current time command  Ex. "sct 12:20:15"   */
+    "", "", "", "",     /* 6-9 */
+    "", "", "", "", "", "", "", "", "", "",     /* 10-19 */
+    "", "", "", "", "", "", "", "", "", "",     /* 20-29 */
+    "dhr",    /* 30: debug output heart rate command     */
+    "dbt",    /* 31: debug output temperature command    */
+    "dsp",    /* 32: debug output stop command           */
+    "dct",    /* 33: debut output current time */
+    "ver",    /* 34: debug output firmware version "/
+    "", "", "", "", "",     /* 35-39 */
+};
+
+/**@brief Function for handling the data from the Nordic UART Service.
+ *
+ * @details This function will process the data received from the Nordic UART BLE Service and send
+ *          it to the UART module.
+ *
+ * @param[in] p_evt       Nordic UART Service event.
+ */
+/**@snippet [Handling the data received over BLE] */
+static void nus_data_handler(ble_nus_evt_t * p_evt)
+{
+
+    if (p_evt->type == BLE_NUS_EVT_RX_DATA)
+    {
+        uint32_t err_code;
+        static char com_buf[128] = "";
+        uint16_t i;
+        uint16_t j;
+        uint16_t buf_ind;
+        int ind;
+
+        char restime[19] =   ""; //"2018-12-25T12:20:15";
+        char resdatanum[3] = "";
+        //char respulse[3] =   "";
+        char restemp[35] =   ""; //"36.00,36.01,36.02,36.03,36.04,36.05";
+        char resdata[128] =  "";
+
+        for (i = 0; i < p_evt->params.rx_data.length; i++)
+        {
+            do
+            {
+                err_code = app_uart_put(p_evt->params.rx_data.p_data[i]);
+                if ((err_code != NRF_SUCCESS) && (err_code != NRF_ERROR_BUSY))
+                {
+                    NRF_LOG_ERROR("Failed receiving NUS message. Error 0x%x. ", err_code);
+                    APP_ERROR_CHECK(err_code);
+                }
+                //NRF_LOG_INFO("string: %c, %d", p_evt->params.rx_data.p_data[i], i);
+                com_buf[i] = p_evt->params.rx_data.p_data[i];
+            } while (err_code == NRF_ERROR_BUSY);
+        }
+        if (p_evt->params.rx_data.p_data[p_evt->params.rx_data.length - 1] == '\r')
+        {
+            while (app_uart_put('\n') == NRF_ERROR_BUSY);
+        }
+
+        com_buf[p_evt->params.rx_data.length] = '\0';
+        //NRF_LOG_INFO("command: %s", (uint8_t)(&com_buf[0]));
+        NRF_LOG_INFO("command: %s", p_evt->params.rx_data.p_data);
+
+        uint16_t reslength;
+        long temp_year;
+        long temp_month;
+        long temp_day;
+        long temp_hours;
+        long temp_minutes;
+        long temp_seconds;
+        long max_temp_days;
+
+        for (i = 0; i < Number_of_command; i++)
+        {
+            if((strncmp(com_buf, NusCommand[i], 3)) == 0)
+            {
+                switch (i)
+                {
+                    case 0:   // 0: sta
+                        if (State_keeper == STATE_PAIRING)
+                        {
+                            err_code = app_timer_start(m_data_record_timer_id, DATA_RECORD_MEAS_INTERVAL, NULL);
+                            APP_ERROR_CHECK(err_code);
+                            NRF_LOG_INFO("10 second measure and 10 minutes record start");
+                            Meas10sec = 0;
+                            Count_index_data_hr_hr = 0;
+                            State_keeper = STATE_MEASURING;
+                            NRF_LOG_INFO("State_keeper: %d", State_keeper);
+                            reslength = 3;
+                            err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        }
+                        else
+                        {
+                            NRF_LOG_INFO("already record started");
+                            reslength = 3;
+                            err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);                            
+                        }
+                        break;
+                    case 1:   // 1: sto
+                        err_code = app_timer_stop(m_data_record_timer_id);
+                        APP_ERROR_CHECK(err_code);
+                        NRF_LOG_INFO("10 second measure and 10 minutes record stop");
+                        if (State_keeper == STATE_MEASURING)
+                        {
+                            State_keeper = STATE_PAIRING;
+                            NRF_LOG_INFO("State_keeper: %d", State_keeper);
+                            reslength = 3;
+                            err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        }
+                        else
+                        {
+                            reslength = 3;
+                            err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
+                        }
+                        break;
+                    case 2:   // 2: rqs
+                        sprintf(resdatanum, "%03d", Count_index_data_hr_hr);
+                        reslength = 3;
+                        err_code = ble_nus_data_send(&m_nus, resdatanum, &reslength, m_conn_handle);
+                        break;
+                    case 3:   // 3: rqd
+                        if (Count_index_data_hr_hr > 0)
+                        {
+                            err_code = app_timer_start(m_data_output_timer_id, DATA_OUTPUT_INTERVAL, NULL);
+                            APP_ERROR_CHECK(err_code);
+                            NRF_LOG_INFO("data output start");
+                            reslength = 3;
+                            err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        }
+                        else
+                        {
+                            NRF_LOG_INFO("data output not start, none data");
+                            reslength = 3;
+                            err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
+                        }
+                        break;
+                    case 4:   // 4: scd
+                        /* Ex. "scd 2018-01-03" */
+                        temp_year =  strtol((const char *)(&com_buf[4]), NULL, 10);
+                        temp_month = strtol((const char *)(&com_buf[9]), NULL, 10);
+                        temp_day =  strtol((const char *)(&com_buf[12]), NULL, 10);
+                        
+                        max_temp_days = month_days[temp_month];
+                        if (temp_month == 2)
+                        {
+                            if ((temp_year % 4 == 0 && temp_year % 100 != 0) || (temp_year % 400 == 0)) //leap year
+                            {
+                                max_temp_days = max_temp_days + 1;
+                            }
+                        }
+
+                        if ((temp_year >= 1900 && temp_year < 2200) &&
+                            (temp_month >= 1 && temp_month < 12) &&
+                            (temp_day >= 1 && temp_day <= max_temp_days))
+                        {
+                          time_stamp.year = temp_year;
+                          time_stamp.month = temp_month;
+                          time_stamp.day = temp_day;
+                          reslength = 3;
+                          err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        }
+                        else
+                        {
+                          reslength = 3;
+                          err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
+                        }
+                        break;
+                    case 5:   // 5: sct
+                        /* Ex. "sct 23:59:55" */
+                        temp_hours =   strtol((const char *)(&com_buf[4]), NULL, 10);
+                        temp_minutes = strtol((const char *)(&com_buf[7]), NULL, 10);
+                        temp_seconds = strtol((const char *)(&com_buf[10]), NULL, 10);
+
+                        if ((temp_hours >= 0 && temp_hours < 24) &&
+                            (temp_minutes >= 0 && temp_minutes < 60) &&
+                            (temp_seconds >= 0 && temp_seconds < 60))
+                        {
+                          time_stamp.hours = temp_hours;
+                          time_stamp.minutes = temp_minutes;
+                          time_stamp.seconds = temp_seconds;
+                          reslength = 3;
+                          err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        }
+                        else
+                        {
+                          reslength = 3;
+                          err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
+                        }
+                        break;
+                    case 30:   // 30: dhr
+                        Debug_output_heart_rate = true;
+                        Debug_output_body_temperature = false;
+                        reslength = 3;
+                        err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        break;
+                    case 31:   // 31: dbt
+                        Debug_output_heart_rate = false;
+                        Debug_output_body_temperature = true;
+                        reslength = 3;
+                        err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        break;
+                    case 32:   // 32: dsp
+                        Debug_output_heart_rate = false;
+                        Debug_output_body_temperature = false;
+                        reslength = 3;
+                        err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        break;
+                    case 33:   // 33: dct
+                        //char restime[] =    "2018-12-25T12:20:15";
+                        NRF_LOG_INFO("%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
+                        sprintf(restime, "%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
+                        reslength = strlen(restime);
+                        err_code = ble_nus_data_send(&m_nus, &restime[0], &reslength, m_conn_handle);
+                        break;
+                    case 34:   // 34: ver
+                        NRF_LOG_INFO("FIRMWARE_VERSION: %s", FIRMWARE_VERSION);
+                        sprintf(resdata, "FIRMWARE_VERSION: %s", FIRMWARE_VERSION);
+                        reslength = strlen(resdata);
+                        err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
+                        break;
+                    default:
+                        break;
+                }
+                if ((err_code != NRF_ERROR_INVALID_STATE) &&
+                    (err_code != NRF_ERROR_RESOURCES) &&
+                    (err_code != NRF_ERROR_NOT_FOUND))
+                {
+                    APP_ERROR_CHECK(err_code);
+                }
+                break;
+            }
+        }
+        if (i == Number_of_command)
+        {
+            //NRF_LOG_INFO("nak");
+            NRF_LOG_INFO("Number_of_command: %d", Number_of_command);
+            reslength = 3;
+            err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
+            if ((err_code != NRF_ERROR_INVALID_STATE) &&
+                (err_code != NRF_ERROR_RESOURCES) &&
+                (err_code != NRF_ERROR_NOT_FOUND))
+            {
+                APP_ERROR_CHECK(err_code);
+            }
+        }
+    }
+
+}
+
+/**@snippet [Handling the data received over BLE] */
+
+/**@brief Function for simulating and sending one Temperature Measurement.
+ */
+static void temperature_measurement_send(void)
+{
+    ble_hts_meas_t simulated_meas;
+    ret_code_t     err_code;
+
+    if (!m_hts_meas_ind_conf_pending)
+    {
+        hts_measurement(&simulated_meas);
+
+        err_code = ble_hts_measurement_send(&m_hts, &simulated_meas);
+
+        switch (err_code)
+        {
+            case NRF_SUCCESS:
+                // Measurement was successfully sent, wait for confirmation.
+                m_hts_meas_ind_conf_pending = true;
+                break;
+
+            case NRF_ERROR_INVALID_STATE:
+                // Ignore error.
+                break;
+
+            default:
+                APP_ERROR_HANDLER(err_code);
+                break;
+        }
+    }
+}
+
+
+/**@brief Function for handling the Health Thermometer Service events.
+ *
+ * @details This function will be called for all Health Thermometer Service events which are passed
+ *          to the application.
+ *
+ * @param[in] p_hts  Health Thermometer Service structure.
+ * @param[in] p_evt  Event received from the Health Thermometer Service.
+ */
+static void on_hts_evt(ble_hts_t * p_hts, ble_hts_evt_t * p_evt)
+{
+    temperature_measurement_send();
+    /*
+    switch (p_evt->evt_type)
+    {
+        case BLE_HTS_EVT_INDICATION_ENABLED:
+            // Indication has been enabled, send a single temperature measurement
+            temperature_measurement_send();
+            break;
+
+        case BLE_HTS_EVT_INDICATION_CONFIRMED:
+            m_hts_meas_ind_conf_pending = false;
+            break;
+
+        default:
+            // No implementation needed.
+            break;
+    }
+    */
+}
+
+
+
+
+
+
+/**@brief Function for putting the chip into sleep mode.
+ *
+ * @note This function will not return.
+ */
+static void sleep_mode_enter(void)
+{
+    uint32_t err_code;
+
+    //err_code = bsp_indication_set(BSP_INDICATE_IDLE);
+    //APP_ERROR_CHECK(err_code);
+
+    // Prepare wakeup buttons.
+    err_code = bsp_btn_ble_sleep_mode_prepare();
+    APP_ERROR_CHECK(err_code);
+    
+    State_keeper = STATE_SLEEPING;
+    /*
+    int i;
+    for(i = 0;i < 100000000;i++)
+    {
+      ;
+    }
+
+    // Go to system-off mode (this function will not return; wakeup will cause a reset).
+    err_code = sd_power_system_off();
+    APP_ERROR_CHECK(err_code);
+    */
+}
+
+
+/**@brief Function for handling advertising events.
+ *
+ * @details This function will be called for advertising events which are passed to the application.
+ *
+ * @param[in] ble_adv_evt  Advertising event.
+ */
+static void on_adv_evt(ble_adv_evt_t ble_adv_evt)
+{
+    uint32_t err_code;
+
+    switch (ble_adv_evt)
+    {
+        case BLE_ADV_EVT_FAST:
+            NRF_LOG_INFO("Fast advertising.");
+            err_code = bsp_indication_set(BSP_INDICATE_ADVERTISING);
+            APP_ERROR_CHECK(err_code);
+            break;
+        case BLE_ADV_EVT_IDLE:
+            //sleep_mode_enter();
+            NRF_LOG_INFO("Reset Idle, Re-advertising.");
+            err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
+            APP_ERROR_CHECK(err_code); 
+            break;
+        default:
+            break;
+    }
+}
+
+/**@brief Function for initializing the Advertising functionality.
+ */
+static void advertising_init(void)
+{
+    uint32_t               err_code;
+    ble_advertising_init_t init;
+
+    memset(&init, 0, sizeof(init));
+    memset(&init, 0, sizeof(init));
+
+    init.advdata.name_type          = BLE_ADVDATA_FULL_NAME;
+    init.advdata.include_appearance = false;
+    init.advdata.flags              = BLE_GAP_ADV_FLAGS_LE_ONLY_LIMITED_DISC_MODE;
+
+    init.advdata.uuids_complete.uuid_cnt = sizeof(m_adv_uuids) / sizeof(m_adv_uuids[0]);
+    init.advdata.uuids_complete.p_uuids  = m_adv_uuids;
+    
+    init.srdata.uuids_complete.uuid_cnt = sizeof(m_sr_uuids) / sizeof(m_sr_uuids[0]);
+    init.srdata.uuids_complete.p_uuids  = m_sr_uuids;
+
+    init.config.ble_adv_fast_enabled  = true;
+    init.config.ble_adv_fast_interval = APP_ADV_INTERVAL;
+    init.config.ble_adv_fast_timeout  = APP_ADV_DURATION;
+    init.evt_handler = on_adv_evt;
+
+    err_code = ble_advertising_init(&m_advertising, &init);
+    APP_ERROR_CHECK(err_code);
+
+    ble_advertising_conn_cfg_tag_set(&m_advertising, APP_BLE_CONN_CFG_TAG);
+}
+
+
+
+
+
 
 /**@brief Function for initializing the sensor simulators.
  */
@@ -932,28 +2085,6 @@ static void sensor_simulator_init(void)
 }
 
 
-/**@brief Function for starting application timers.
- */
-static void application_timers_start(void)
-{
-    ret_code_t err_code;
-
-    // Start application timers.
-    err_code = app_timer_start(m_battery_timer_id, BATTERY_LEVEL_MEAS_INTERVAL, NULL);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = app_timer_start(m_heart_rate_timer_id, HEART_RATE_MEAS_INTERVAL, NULL);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = app_timer_start(m_rr_interval_timer_id, RR_INTERVAL_INTERVAL, NULL);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = app_timer_start(m_temperature_timer_id, TEMPERATURE_MEAS_INTERVAL, NULL);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = app_timer_start(m_sensor_contact_timer_id, SENSOR_CONTACT_DETECTED_INTERVAL, NULL);
-    APP_ERROR_CHECK(err_code);
-}
 
 /**@brief Function for handling an event from the Connection Parameters Module.
  *
@@ -1012,251 +2143,44 @@ static void conn_params_init(void)
 }
 
 
-/**@brief Function for putting the chip into sleep mode.
+
+/**@brief Function for handling Peer Manager events.
  *
- * @note This function will not return.
+ * @param[in] p_evt  Peer Manager event.
  */
-static void sleep_mode_enter(void)
+/*
+static void pm_evt_handler(pm_evt_t const * p_evt)
 {
-    uint32_t err_code = bsp_indication_set(BSP_INDICATE_IDLE);
-    APP_ERROR_CHECK(err_code);
+    // ret_code_t err_code;
+    // bool       is_indication_enabled;
 
-    // Prepare wakeup buttons.
-    err_code = bsp_btn_ble_sleep_mode_prepare();
-    APP_ERROR_CHECK(err_code);
+    pm_handler_on_pm_evt(p_evt);
+    pm_handler_flash_clean(p_evt);
 
-    // Go to system-off mode (this function will not return; wakeup will cause a reset).
-    err_code = sd_power_system_off();
-    APP_ERROR_CHECK(err_code);
-}
-
-
-/**@brief Function for handling advertising events.
- *
- * @details This function will be called for advertising events which are passed to the application.
- *
- * @param[in] ble_adv_evt  Advertising event.
- */
-static void on_adv_evt(ble_adv_evt_t ble_adv_evt)
-{
-    uint32_t err_code;
-
-    switch (ble_adv_evt)
+    switch (p_evt->evt_id)
     {
-        case BLE_ADV_EVT_FAST:
-            NRF_LOG_INFO("Fast advertising.");
-            err_code = bsp_indication_set(BSP_INDICATE_ADVERTISING);
+*/    /*
+        case PM_EVT_CONN_SEC_SUCCEEDED:
+            // Send a single temperature measurement if indication is enabled.
+            // NOTE: For this to work, make sure ble_hts_on_ble_evt() is called before
+            // pm_evt_handler() in ble_evt_dispatch().
+            err_code = ble_hts_is_indication_enabled(&m_hts, &is_indication_enabled);
             APP_ERROR_CHECK(err_code);
-            break;
-        case BLE_ADV_EVT_IDLE:
-            sleep_mode_enter();
-            break;
-        default:
-            break;
-    }
-}
-
-
-/**@brief Function for handling BLE events.
- *
- * @param[in]   p_ble_evt   Bluetooth stack event.
- * @param[in]   p_context   Unused.
- */
-static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
-{
-    uint32_t err_code;
-
-    switch (p_ble_evt->header.evt_id)
-    {
-        case BLE_GAP_EVT_CONNECTED:
-            NRF_LOG_INFO("Connected");
-            err_code = bsp_indication_set(BSP_INDICATE_CONNECTED);
-            APP_ERROR_CHECK(err_code);
-            m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
-            err_code = nrf_ble_qwr_conn_handle_assign(&m_qwr, m_conn_handle);
-            APP_ERROR_CHECK(err_code);
-            break;
-
-        case BLE_GAP_EVT_DISCONNECTED:
-            NRF_LOG_INFO("Disconnected, reason %d.",
-                          p_ble_evt->evt.gap_evt.params.disconnected.reason);
-            // LED indication will be changed when advertising starts.
-            m_conn_handle = BLE_CONN_HANDLE_INVALID;
-            m_hts_meas_ind_conf_pending = false;
-            break;
-
-        case BLE_GAP_EVT_PHY_UPDATE_REQUEST:
-        {
-            NRF_LOG_DEBUG("PHY update request.");
-            ble_gap_phys_t const phys =
-            {
-                .rx_phys = BLE_GAP_PHY_AUTO,
-                .tx_phys = BLE_GAP_PHY_AUTO,
-            };
-            err_code = sd_ble_gap_phy_update(p_ble_evt->evt.gap_evt.conn_handle, &phys);
-            APP_ERROR_CHECK(err_code);
-        } break;
-
-        case BLE_GAP_EVT_SEC_PARAMS_REQUEST:
-            // Pairing not supported
-            //err_code = sd_ble_gap_sec_params_reply(m_conn_handle, BLE_GAP_SEC_STATUS_PAIRING_NOT_SUPP, NULL, NULL);
-            //APP_ERROR_CHECK(err_code);
-            break;
-
-        case BLE_GATTS_EVT_SYS_ATTR_MISSING:
-            // No system attributes have been stored.
-            //err_code = sd_ble_gatts_sys_attr_set(m_conn_handle, NULL, 0, 0);
-            //APP_ERROR_CHECK(err_code);
-            break;
-
-        case BLE_GATTC_EVT_TIMEOUT:
-            // Disconnect on GATT Client timeout event.
-            NRF_LOG_DEBUG("GATT Client Timeout.");
-            err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gattc_evt.conn_handle,
-                                             BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
-            APP_ERROR_CHECK(err_code);
-            break;
-
-        case BLE_GATTS_EVT_TIMEOUT:
-            // Disconnect on GATT Server timeout event.
-            NRF_LOG_DEBUG("GATT Server Timeout.");
-            err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gatts_evt.conn_handle,
-                                             BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
-            APP_ERROR_CHECK(err_code);
-            break;
-        
-        case BLE_GAP_EVT_AUTH_KEY_REQUEST:
-            NRF_LOG_INFO("BLE_GAP_EVT_AUTH_KEY_REQUEST");
-            break;
-
-        case BLE_GAP_EVT_LESC_DHKEY_REQUEST:
-            NRF_LOG_INFO("BLE_GAP_EVT_LESC_DHKEY_REQUEST");
-            break;
-
-         case BLE_GAP_EVT_AUTH_STATUS:
-             NRF_LOG_INFO("BLE_GAP_EVT_AUTH_STATUS: status=0x%x bond=0x%x lv4: %d kdist_own:0x%x kdist_peer:0x%x",
-                          p_ble_evt->evt.gap_evt.params.auth_status.auth_status,
-                          p_ble_evt->evt.gap_evt.params.auth_status.bonded,
-                          p_ble_evt->evt.gap_evt.params.auth_status.sm1_levels.lv4,
-                          *((uint8_t *)&p_ble_evt->evt.gap_evt.params.auth_status.kdist_own),
-                          *((uint8_t *)&p_ble_evt->evt.gap_evt.params.auth_status.kdist_peer));
-            break;
-
-        default:
-            // No implementation needed.
-            break;
-    }
-}
-
-
-/**@brief Function for the SoftDevice initialization.
- *
- * @details This function initializes the SoftDevice and the BLE event interrupt.
- */
-static void ble_stack_init(void)
-{
-    ret_code_t err_code;
-
-    err_code = nrf_sdh_enable_request();
-    APP_ERROR_CHECK(err_code);
-
-    // Configure the BLE stack using the default settings.
-    // Fetch the start address of the application RAM.
-    uint32_t ram_start = 0;
-    err_code = nrf_sdh_ble_default_cfg_set(APP_BLE_CONN_CFG_TAG, &ram_start);
-    APP_ERROR_CHECK(err_code);
-
-    // Enable BLE stack.
-    err_code = nrf_sdh_ble_enable(&ram_start);
-    APP_ERROR_CHECK(err_code);
-
-    // Register a handler for BLE events.
-    NRF_SDH_BLE_OBSERVER(m_ble_observer, APP_BLE_OBSERVER_PRIO, ble_evt_handler, NULL);
-}
-
-
-/**@brief Function for handling events from the GATT library. */
-void gatt_evt_handler(nrf_ble_gatt_t * p_gatt, nrf_ble_gatt_evt_t const * p_evt)
-{
-    if ((m_conn_handle == p_evt->conn_handle) && (p_evt->evt_id == NRF_BLE_GATT_EVT_ATT_MTU_UPDATED))
-    {
-        m_ble_nus_max_data_len = p_evt->params.att_mtu_effective - OPCODE_LENGTH - HANDLE_LENGTH;
-        NRF_LOG_INFO("Data len is set to 0x%X(%d)", m_ble_nus_max_data_len, m_ble_nus_max_data_len);
-    }
-    NRF_LOG_DEBUG("ATT MTU exchange completed. central 0x%x peripheral 0x%x",
-                  p_gatt->att_mtu_desired_central,
-                  p_gatt->att_mtu_desired_periph);
-    
-    if (p_evt->evt_id == NRF_BLE_GATT_EVT_ATT_MTU_UPDATED)
-    {
-        NRF_LOG_INFO("GATT ATT MTU on connection 0x%x changed to %d.",
-                     p_evt->conn_handle,
-                     p_evt->params.att_mtu_effective);
-    }
-
-    ble_hrs_on_gatt_evt(&m_hrs, p_evt);
-}
-
-/**@brief Function for initializing the GATT module.
- */
-static void gatt_init(void)
-{
-    ret_code_t err_code;
-
-    err_code = nrf_ble_gatt_init(&m_gatt, NULL);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = nrf_ble_gatt_init(&m_gatt, gatt_evt_handler);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = nrf_ble_gatt_att_mtu_periph_set(&m_gatt, NRF_SDH_BLE_GATT_MAX_MTU_SIZE);
-    APP_ERROR_CHECK(err_code);
-}
-
-/**@brief Function for handling events from the BSP module.
- *
- * @param[in]   event   Event generated by button press.
- */
-void bsp_event_handler(bsp_event_t event)
-{
-    uint32_t err_code;
-    switch (event)
-    {
-        case BSP_EVENT_SLEEP:
-            sleep_mode_enter();
-            break;
-
-        case BSP_EVENT_DISCONNECT:
-            err_code = sd_ble_gap_disconnect(m_conn_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
-            if (err_code != NRF_ERROR_INVALID_STATE)
-            {
-                APP_ERROR_CHECK(err_code);
-            }
-            break;
-
-        case BSP_EVENT_WHITELIST_OFF:
-            if (m_conn_handle == BLE_CONN_HANDLE_INVALID)
-            {
-                err_code = ble_advertising_restart_without_whitelist(&m_advertising);
-                if (err_code != NRF_ERROR_INVALID_STATE)
-                {
-                    APP_ERROR_CHECK(err_code);
-                }
-            }
-            break;
-
-        case BSP_EVENT_KEY_0:
-            if (m_conn_handle != BLE_CONN_HANDLE_INVALID)
+            if (is_indication_enabled)
             {
                 temperature_measurement_send();
             }
             break;
+    */
+/*        case PM_EVT_PEERS_DELETE_SUCCEEDED:
+            advertising_start(false);
+            break;
 
         default:
             break;
     }
 }
-
+*/
 
 /**@brief Function for the Peer Manager initialization.
  */
@@ -1290,223 +2214,11 @@ static void peer_manager_init(void)
     //err_code = pm_register(pm_evt_handler);
     //APP_ERROR_CHECK(err_code);
 }
-/**@brief   Function for handling app_uart events.
- *
- * @details This function will receive a single character from the app_uart module and append it to
- *          a string. The string will be be sent over BLE when the last character received was a
- *          'new line' '\n' (hex 0x0A) or if the string has reached the maximum data length.
- */
-/**@snippet [Handling the data received over UART] */
-void uart_event_handle(app_uart_evt_t * p_event)
-{
-    static uint8_t data_array[BLE_NUS_MAX_DATA_LEN];
-    static uint8_t index = 0;
-    uint32_t       err_code;
-
-    switch (p_event->evt_type)
-    {
-        case APP_UART_DATA_READY:
-            UNUSED_VARIABLE(app_uart_get(&data_array[index]));
-            index++;
-
-            if ((data_array[index - 1] == '\n') ||
-                (data_array[index - 1] == '\r') ||
-                (index >= m_ble_nus_max_data_len))
-            {
-                if (index > 1)
-                {
-                    NRF_LOG_DEBUG("Ready to send data over BLE NUS");
-                    NRF_LOG_HEXDUMP_DEBUG(data_array, index);
-
-                    do
-                    {
-                        uint16_t length = (uint16_t)index;
-                        err_code = ble_nus_data_send(&m_nus, data_array, &length, m_conn_handle);
-                        if ((err_code != NRF_ERROR_INVALID_STATE) &&
-                            (err_code != NRF_ERROR_RESOURCES) &&
-                            (err_code != NRF_ERROR_NOT_FOUND))
-                        {
-                            APP_ERROR_CHECK(err_code);
-                        }
-                    } while (err_code == NRF_ERROR_RESOURCES);
-                }
-
-                index = 0;
-            }
-            break;
-
-        case APP_UART_COMMUNICATION_ERROR:
-            APP_ERROR_HANDLER(p_event->data.error_communication);
-            break;
-
-        case APP_UART_FIFO_ERROR:
-            APP_ERROR_HANDLER(p_event->data.error_code);
-            break;
-
-        default:
-            break;
-    }
-}
-/**@snippet [Handling the data received over UART] */
-
-/**@brief Clear bond information from persistent storage.
- */
-static void delete_bonds(void)
-{
-    ret_code_t err_code;
-
-    NRF_LOG_INFO("Erase bonds!");
-
-    err_code = pm_peers_delete();
-    APP_ERROR_CHECK(err_code);
-}
-
-/**@brief  Function for initializing the UART module.
- */
-/**@snippet [UART Initialization] */
-static void uart_init(void)
-{
-    uint32_t                     err_code;
-    app_uart_comm_params_t const comm_params =
-    {
-        .rx_pin_no    = RX_PIN_NUMBER,
-        .tx_pin_no    = TX_PIN_NUMBER,
-        .rts_pin_no   = RTS_PIN_NUMBER,
-        .cts_pin_no   = CTS_PIN_NUMBER,
-        .flow_control = APP_UART_FLOW_CONTROL_DISABLED,
-        .use_parity   = false,
-#if defined (UART_PRESENT)
-        .baud_rate    = NRF_UART_BAUDRATE_115200
-#else
-        .baud_rate    = NRF_UARTE_BAUDRATE_115200
-#endif
-    };
-
-    APP_UART_FIFO_INIT(&comm_params,
-                       UART_RX_BUF_SIZE,
-                       UART_TX_BUF_SIZE,
-                       uart_event_handle,
-                       APP_IRQ_PRIORITY_LOWEST,
-                       err_code);
-    APP_ERROR_CHECK(err_code);
-}
-/**@snippet [UART Initialization] */
-
-
-/**@brief Function for initializing the Advertising functionality.
- */
-static void advertising_init(void)
-{
-    uint32_t               err_code;
-    ble_advertising_init_t init;
-
-    memset(&init, 0, sizeof(init));
-    memset(&init, 0, sizeof(init));
-
-    init.advdata.name_type          = BLE_ADVDATA_FULL_NAME;
-    init.advdata.include_appearance = false;
-    init.advdata.flags              = BLE_GAP_ADV_FLAGS_LE_ONLY_LIMITED_DISC_MODE;
-
-    init.advdata.uuids_complete.uuid_cnt = sizeof(m_adv_uuids) / sizeof(m_adv_uuids[0]);
-    init.advdata.uuids_complete.p_uuids  = m_adv_uuids;
-    
-    init.srdata.uuids_complete.uuid_cnt = sizeof(m_sr_uuids) / sizeof(m_sr_uuids[0]);
-    init.srdata.uuids_complete.p_uuids  = m_sr_uuids;
-
-    init.config.ble_adv_fast_enabled  = true;
-    init.config.ble_adv_fast_interval = APP_ADV_INTERVAL;
-    init.config.ble_adv_fast_timeout  = APP_ADV_DURATION;
-    init.evt_handler = on_adv_evt;
-
-    err_code = ble_advertising_init(&m_advertising, &init);
-    APP_ERROR_CHECK(err_code);
-
-    ble_advertising_conn_cfg_tag_set(&m_advertising, APP_BLE_CONN_CFG_TAG);
-}
-
-
-/**@brief Function for initializing buttons and leds.
- *
- * @param[out] p_erase_bonds  Will be true if the clear bonding button was pressed to wake the application up.
- */
-static void buttons_leds_init(bool * p_erase_bonds)
-{
-    bsp_event_t startup_event;
-
-    uint32_t err_code = bsp_init(BSP_INIT_LEDS | BSP_INIT_BUTTONS, bsp_event_handler);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = bsp_btn_ble_init(NULL, &startup_event);
-    APP_ERROR_CHECK(err_code);
-
-    *p_erase_bonds = (startup_event == BSP_EVENT_CLEAR_BONDING_DATA);
-}
-
-
-/**@brief Function for initializing the nrf log module.
- */
-static void log_init(void)
-{
-    ret_code_t err_code = NRF_LOG_INIT(NULL);
-    APP_ERROR_CHECK(err_code);
-
-    NRF_LOG_DEFAULT_BACKENDS_INIT();
-}
-
-
-/**@brief Function for initializing power management.
- */
-static void power_management_init(void)
-{
-    ret_code_t err_code;
-    err_code = nrf_pwr_mgmt_init();
-    APP_ERROR_CHECK(err_code);
-}
 
 
 
-void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
-{
-    //maybe need nrf_log_flush()
-    if (p_event->type == NRF_DRV_SAADC_EVT_DONE)
-    {
-        ret_code_t err_code;
-
-        err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES_IN_BUFFER);
-        APP_ERROR_CHECK(err_code);
-
-        int i;
-        NRF_LOG_INFO("ADC event number: %d", (int)m_adc_evt_counter);
-
-        for (i = 0; i < SAMPLES_IN_BUFFER; i++)
-        {
-            NRF_LOG_INFO("%d", p_event->data.done.p_buffer[i]);
-        }
-        m_adc_evt_counter++;
-    }
-}
 
 
-
-void saadc_init(void)
-{
-    ret_code_t err_code;
-    nrf_saadc_channel_config_t channel_config =
-        NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN0);    //NRF_SAADC_INPUT_AIN0: P0.02 on nRF52DK board
-
-    err_code = nrf_drv_saadc_init(NULL, saadc_callback);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = nrf_drv_saadc_channel_init(0, &channel_config);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = nrf_drv_saadc_buffer_convert(m_buffer_pool[0], SAMPLES_IN_BUFFER);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = nrf_drv_saadc_buffer_convert(m_buffer_pool[1], SAMPLES_IN_BUFFER);
-    APP_ERROR_CHECK(err_code);
-
-}
 
 void saadc_timer_handler(nrf_timer_event_t event_type, void * p_context)
 {
@@ -1525,8 +2237,8 @@ void saadc_sampling_event_init(void)
     err_code = nrf_drv_timer_init(&m_timer, &timer_cfg, saadc_timer_handler);
     APP_ERROR_CHECK(err_code);
 
-    /* setup m_timer for compare event every 400ms */
-    uint32_t ticks = nrf_drv_timer_ms_to_ticks(&m_timer, 400);
+    /* setup m_timer for compare event every 1000ms */
+    uint32_t ticks = nrf_drv_timer_ms_to_ticks(&m_timer, 1000);
     nrf_drv_timer_extended_compare(&m_timer,
                                    NRF_TIMER_CC_CHANNEL0,
                                    //NRF_TIMER_CC_CHANNEL1,
@@ -1550,6 +2262,167 @@ void saadc_sampling_event_init(void)
     APP_ERROR_CHECK(err_code);
 }
 
+
+
+static uint8_t  m_adc_channel_enabled; 
+static nrf_saadc_channel_config_t  channel_0_config = NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN0);    //NRF_SAADC_INPUT_AIN0: P0.02, body temprature
+static nrf_saadc_channel_config_t  channel_1_config = NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN1);    //NRF_SAADC_INPUT_AIN1: P0.03, battery temprature
+static nrf_saadc_channel_config_t  channel_5_config = NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN5);    //NRF_SAADC_INPUT_AIN5: P0.29, battery voltage
+
+void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
+{
+    int ad_val;
+    //float resolution = 1024.0; //1024 = 2^10, please check ad bit setting
+    float resolution = 16384.0; //16384 = 2^14, please check ad bit setting
+    float ad_voltage;
+    float ad_resistance;
+    float ad_resistance1;
+    float vcc = 2.70;   // adc max 2.70v? vcc:3.00v
+    //float resistance0 = 10000;   // R0, termista, 10k ohm (normal, 25deg) 
+    float resistance0 = 6706.7;   // R0, termista, 10k ohm (normal, 36deg)
+    float resistance1 = 6800.0;   // R1, split voltage resitance, 6.8k ohm
+    float e = 2.7182818284; // Napier's constant
+    float b = 3380.0; // B parameter termista value when 25 deg. = 3380
+    //float standard_temp = 298.15;  // 25.0 deg + 273.15 absolute temp. [kelbin]
+    float standard_temp = 309.15;  // 36.0 deg + 273.15 absolute temp. [kelbin]
+    float temperature;
+    float correction_term = 1292;
+    float bat_voltage;
+    float bat_percent;
+
+    //maybe need nrf_log_flush()
+    if (p_event->type == NRF_DRV_SAADC_EVT_DONE)
+    {
+        static ret_code_t err_code;
+
+        if (m_adc_channel_enabled == 0)   //NRF_SAADC_INPUT_AIN0: P0.02, body temprature
+        {
+            err_code = nrf_drv_saadc_channel_uninit(0);
+            APP_ERROR_CHECK(err_code);
+            err_code = nrf_drv_saadc_channel_init(1, &channel_1_config);
+            APP_ERROR_CHECK(err_code);
+
+            err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES_IN_BUFFER);
+            APP_ERROR_CHECK(err_code);
+
+            if(Debug_output_body_temperature == true)
+            {
+                NRF_LOG_INFO("Channel %d value: %d", m_adc_channel_enabled, p_event->data.done.p_buffer[0]);
+            }
+
+            ad_val = (int)p_event->data.done.p_buffer[0];
+            ad_voltage = (float)(ad_val + correction_term) / resolution * vcc;
+            ad_resistance = (resistance1 * ad_voltage) / (vcc - ad_voltage);
+            temperature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15;
+            
+            if(Debug_output_body_temperature == true)
+            {
+                NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER ",", ad_val, NRF_LOG_FLOAT(temperature));
+                NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
+            }
+            Body_temperature = temperature;
+
+            m_adc_channel_enabled = 1;
+        }
+        else if (m_adc_channel_enabled == 1)    //NRF_SAADC_INPUT_AIN1: P0.03, battery temprature
+        {
+            err_code = nrf_drv_saadc_channel_uninit(1);
+            APP_ERROR_CHECK(err_code);
+            err_code = nrf_drv_saadc_channel_init(5, &channel_5_config);
+            APP_ERROR_CHECK(err_code);
+
+            err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES_IN_BUFFER);
+            APP_ERROR_CHECK(err_code);
+            
+            if(Debug_output_battery_temperature == true)
+            {
+                NRF_LOG_INFO("Channel %d value: %d", m_adc_channel_enabled, p_event->data.done.p_buffer[0]);
+            }
+
+            ad_val = (int)p_event->data.done.p_buffer[0];
+            ad_voltage = (float)(ad_val + correction_term) / resolution * vcc;
+            ad_resistance = (resistance1 * ad_voltage) / (vcc - ad_voltage);
+            temperature = b/(logf(ad_resistance/resistance0) + (b/standard_temp)) - 273.15;
+            
+            if(Debug_output_battery_temperature == true)
+            {
+                NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER ",", ad_val, NRF_LOG_FLOAT(temperature));
+                NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
+            }
+            Battery_temperature = temperature;
+
+            m_adc_channel_enabled = 5;
+        }
+        else if (m_adc_channel_enabled == 5)    //NRF_SAADC_INPUT_AIN5: P0.29, battery voltage
+        {
+            err_code = nrf_drv_saadc_channel_uninit(5);
+            APP_ERROR_CHECK(err_code);
+            err_code = nrf_drv_saadc_channel_init(0, &channel_0_config);
+            APP_ERROR_CHECK(err_code);
+
+            err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES_IN_BUFFER);
+            APP_ERROR_CHECK(err_code);
+
+            if(Debug_output_battery_voltage == true)
+            {
+                NRF_LOG_INFO("Channel %d value: %d", m_adc_channel_enabled, p_event->data.done.p_buffer[0]);
+            }
+
+            ad_val = (int)p_event->data.done.p_buffer[0];
+            ad_voltage = (float)(ad_val) / resolution * vcc;
+            bat_voltage = ad_voltage * 2.03;    // 2.03 = 3.98V / 1.96V, measurement, ratio of resistance
+            
+            if (bat_voltage > 4.10)
+            {
+                bat_percent = 100;
+            }
+            else if (bat_voltage < 3.40)
+            {
+                bat_percent = 1;
+            }
+            else
+            {
+                bat_percent = (bat_voltage - 3.40) / 0.70 * 100;    // 0.70 = 4.10 - 3.40, max 4.2 V - min 3.3 V, I found that battery stop 4.05V
+            }
+
+            if(Debug_output_battery_voltage == true)
+            {
+                NRF_LOG_RAW_INFO("%d," NRF_LOG_FLOAT_MARKER ",", ad_val, NRF_LOG_FLOAT(bat_percent));
+                NRF_LOG_RAW_INFO(NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(ad_voltage));
+            }
+            Battery_percent = bat_percent;
+
+            m_adc_channel_enabled = 0;
+        }
+    }
+}
+
+void saadc_init(void)
+{
+    ret_code_t err_code;
+    /*
+    nrf_saadc_channel_config_t channel_config =
+        NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN0);    //NRF_SAADC_INPUT_AIN0: P0.02 on nRF52DK board
+    */
+    //nrf_saadc_channel_config_t channel_config;
+    //channel_config = NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN0); 
+
+    err_code = nrf_drv_saadc_init(NULL, saadc_callback);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = nrf_drv_saadc_channel_init(0, &channel_0_config);
+    APP_ERROR_CHECK(err_code);
+    m_adc_channel_enabled = 0;
+
+    err_code = nrf_drv_saadc_buffer_convert(m_buffer_pool[0], SAMPLES_IN_BUFFER);
+    APP_ERROR_CHECK(err_code);
+
+    //err_code = nrf_drv_saadc_buffer_convert(m_buffer_pool[1], SAMPLES_IN_BUFFER);
+    //APP_ERROR_CHECK(err_code);
+}
+
+
+
 void saadc_sampling_event_enable(void)
 {
     ret_code_t err_code = nrf_drv_ppi_channel_enable(m_ppi_channel);
@@ -1559,21 +2432,688 @@ void saadc_sampling_event_enable(void)
 
 
 
-/**@brief Function for handling the idle state (main loop).
- *
- * @details If there is no pending log operation, then sleep until next the next event occurs.
+/**
+ * @brief TWI initialization.
  */
-static void idle_state_handle(void)
+void twi_init (void)
 {
-    //UNUSED_RETURN_VALUE(NRF_LOG_PROCESS());
-    //nrf_pwr_mgmt_run();
+    ret_code_t err_code;
+    int32_t ret = 0;
 
-    if (NRF_LOG_PROCESS() == false)
+    const nrf_drv_twi_config_t twi_bh1792glc_config = {
+       .scl                = BH1792GLC_SCL_PIN,
+       .sda                = BH1792GLC_SDA_PIN,
+       .frequency          = NRF_DRV_TWI_FREQ_400K,
+       .interrupt_priority = APP_IRQ_PRIORITY_HIGH,
+       .clear_bus_init     = false
+    };
+
+    NRF_LOG_INFO("before nrf_drv_twi_init.");
+    err_code = nrf_drv_twi_init(&m_twi, &twi_bh1792glc_config, twi_handler, NULL);
+    NRF_LOG_INFO("finished nrf_drv_twi_init.");
+    APP_ERROR_CHECK(err_code);
+
+    nrf_drv_twi_enable(&m_twi);
+
+    // BH1792
+    m_bh1792.fnWrite      = i2c_write;
+    m_bh1792.fnRead       = i2c_read;
+    ret = bh1792_Init(&m_bh1792);
+    NRF_LOG_INFO("finished bh1792_Init.");
+    //error_check(ret, "bh1792_Init");
+
+    m_bh1792.prm.sel_adc  = BH1792_PRM_SEL_ADC_GREEN;
+    m_bh1792.prm.msr      = BH1792_PRM_MSR_SINGLE;//BH1792_PRM_MSR_1024HZ;
+    m_bh1792.prm.led_en   = (BH1792_PRM_LED_EN1_0 << 1) | BH1792_PRM_LED_EN2_0;
+    m_bh1792.prm.led_cur1 = BH1792_PRM_LED_CUR1_MA(0);
+    m_bh1792.prm.led_cur2 = BH1792_PRM_LED_CUR2_MA(0);
+    m_bh1792.prm.ir_th    = 0xFFFC;
+    m_bh1792.prm.int_sel  = BH1792_PRM_INT_SEL_SGL;//BH1792_PRM_INT_SEL_WTM;
+    NRF_LOG_INFO("before bh1792_SetParams.");
+    ret = bh1792_SetParams();
+    //error_check(ret, "bh1792_SetParams");
+    NRF_LOG_INFO("finished bh1792_SetParams.");
+
+    //NRF_LOG_INFO("GDATA(@LED_ON),GDATA(@LED_OFF)\n");
+
+    ret = bh1792_StartMeasure();
+    //error_check(ret, "bh1792_StartMeasure");
+    NRF_LOG_INFO("finished bh1792_StartMeasure.");
+
+    /*
+    ret = bh1792_StopMeasure();
+    //error_check(ret, "bh1792_StopMeasure");
+    NRF_LOG_INFO("finished bh1792_StopMeasure.");
+    */
+}
+
+void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
+{
+    int32_t ret = 0;
+    //uint8_t i   = 0;
+
+    nrf_drv_gpiote_in_event_disable(BH1792GLC_INT_PIN);
+
+    ret = bh1792_GetMeasData(&m_bh1792_dat);
+    //error_check(ret, "bh1792_GetMeasData");
+
+    // became else root, m_bh1792.prm.msr = BH1792_PRM_MSR_SINGLE
+    /*
+    if(m_bh1792.prm.msr <= BH1792_PRM_MSR_1024HZ) {
+      for (i = 0; i < m_bh1792_dat.fifo_lev; i++) {
+        NRF_LOG_INFO("%d", m_bh1792_dat.fifo[i].on);
+        NRF_LOG_INFO(",");
+        NRF_LOG_INFO("%d\n", m_bh1792_dat.fifo[i].off);
+      }
+    } else {
+      if(m_bh1792.prm.sel_adc == BH1792_PRM_SEL_ADC_GREEN) {
+        */
+        //NRF_LOG_RAW_INFO("%d,%d,%d,%d\n", m_bh1792_dat.green.on, m_bh1792_dat.green.off, m_bh1792_dat.ir.on, m_bh1792_dat.ir.off)
+                
+    //NRF_LOG_RAW_INFO("%d,%d\n", m_bh1792_dat.green.on, m_bh1792_dat.green.off)
+    //printf("%d,%d\r\n", m_bh1792_dat.green.on, m_bh1792_dat.green.off);
+
+    /*
+    put_timing++;
+    if(put_timing == 40){
+      NRF_LOG_RAW_INFO("%d,%d\n", m_bh1792_dat.green.on, m_bh1792_dat.green.off)
+      //printf("%d,%d\r\n", m_bh1792_dat.green.on, m_bh1792_dat.green.off);
+      put_timing = 0;
+    }
+    */
+
+    //delay(20);    //20ms
+    //Serial.print(BPM);
+    //Serial.print(",");
+    //Serial.print(IBI);
+    //Serial.print(",");
+    //Serial.println(Signal);
+    //NRF_LOG_RAW_INFO("%d,%d,%d\n", BPM, IBI, Signal);
+    
+    if(Debug_output_heart_rate == true){
+      NRF_LOG_RAW_INFO("%d,%d,%d,%d,%d\n", BPM, IBI, Signal, m_bh1792_dat.green.on, m_bh1792_dat.green.off);
+    }
+
+    //Signal = analogRead(pulsePin);              // read the Pulse Sensor
+    Signal = m_bh1792_dat.green.on;              // read the Pulse Sensor
+    sampleCounter += 10;                         // keep track of the time in mS with this variable
+    int N = sampleCounter - lastBeatTime;       // monitor the time since the last beat to avoid noise
+
+    //  find the peak and trough of the pulse wave
+    if(Signal < thresh && N > (IBI/5)*3){       // avoid dichrotic noise by waiting 3/5 of last IBI
+      if (Signal < T){                        // T is the trough
+        T = Signal;                         // keep track of lowest point in pulse wave
+      }
+    }
+
+    if(Signal > thresh && Signal > P){          // thresh condition helps avoid noise
+      P = Signal;                             // P is the peak
+    }                                        // keep track of highest point in pulse wave
+
+      //  NOW IT'S TIME TO LOOK FOR THE HEART BEAT
+      // signal surges up in value every time there is a pulse
+    if (N > 250){                                   // avoid high frequency noise
+      if ( (Signal > thresh) && (Pulse == false) && (N > (IBI/5)*3) ){
+        Pulse = true;                               // set the Pulse flag when we think there is a pulse
+        //digitalWrite(blinkPin,HIGH);                // turn on pin 13 LED
+        IBI = sampleCounter - lastBeatTime;         // measure time between beats in mS
+        lastBeatTime = sampleCounter;               // keep track of time for next pulse
+
+        if(secondBeat){                        // if this is the second beat, if secondBeat == TRUE
+          secondBeat = false;                  // clear secondBeat flag
+          for(int i=0; i<=9; i++){             // seed the running total to get a realisitic BPM at startup
+            rate[i] = IBI;
+          }
+        }
+
+        if(firstBeat){                         // if it's the first time we found a beat, if firstBeat == TRUE
+          firstBeat = false;                   // clear firstBeat flag
+          secondBeat = true;                   // set the second beat flag
+          //sei();                               // enable interrupts again
+          nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
+          return;                              // IBI value is unreliable so discard it
+        }
+
+
+        // keep a running total of the last 10 IBI values
+        //word runningTotal = 0;                  // clear the runningTotal variable
+        int runningTotal = 0;                  // clear the runningTotal variable
+
+        for(int i=0; i<=8; i++){                // shift data in the rate array
+          rate[i] = rate[i+1];                  // and drop the oldest IBI value
+          runningTotal += rate[i];              // add up the 9 oldest IBI values
+        }
+
+        rate[9] = IBI;                          // add the latest IBI to the rate array
+        runningTotal += rate[9];                // add the latest IBI to runningTotal
+        runningTotal /= 10;                     // average the last 10 IBI values
+        BPM = 60000/runningTotal;               // how many beats can fit into a minute? that's BPM!
+        QS = true;                              // set Quantified Self flag
+        // QS FLAG IS NOT CLEARED INSIDE THIS ISR
+      }
+    }
+
+    if (Signal < thresh && Pulse == true){   // when the values are going down, the beat is over
+      //digitalWrite(blinkPin,LOW);            // turn off pin 13 LED
+      Pulse = false;                         // reset the Pulse flag so we can do it again
+      amp = P - T;                           // get amplitude of the pulse wave
+      thresh = amp/2 + T;                    // set thresh at 50% of the amplitude
+      P = thresh;                            // reset these for next time
+      T = thresh;
+    }
+
+    if (N > 2500){                           // if 2.5 seconds go by without a beat
+      thresh = 33920; //530;                          // set thresh default
+      P = 32768; //512;                               // set P default
+      T = 32768; //512;                               // set T default
+      lastBeatTime = sampleCounter;          // bring the lastBeatTime up to date
+      firstBeat = true;                      // set these to avoid noise
+      secondBeat = false;                    // when we get the heartbeat back
+    }
+        /*
+      } else {
+        NRF_LOG_RAW_INFO("%d,%d\n", m_bh1792_dat.ir.on, m_bh1792_dat.ir.off)
+      }
+    }
+    */
+    nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
+}
+
+// Note:  I2C access should be completed within 0.5ms
+int32_t i2c_write(uint8_t slv_adr, uint8_t reg_adr, uint8_t *reg, uint8_t reg_size)
+{
+    ret_code_t err_code;
+
+    /*
+    // m_bh1792.prm.msr      = BH1792_PRM_MSR_SINGLE, none
+    if (m_bh1792.prm.msr <= BH1792_PRM_MSR_1024HZ) {
+      if((slv_adr != BH1792_SLAVE_ADDR) || (reg_adr != BH1792_ADDR_MEAS_SYNC)) {
+        while(FlexiTimer2::count == 1999);
+      }
+    }
+    */
+
+    uint32_t timeout = BH1792_TWI_TIMEOUT;
+
+    twi_tx_buffer[0] = reg_adr;
+    memcpy(&twi_tx_buffer[1], &reg[0], reg_size);
+    
+    err_code = nrf_drv_twi_tx(&m_twi, slv_adr, &twi_tx_buffer[0], reg_size + 1, false);
+    if(err_code != NRF_SUCCESS) return err_code;
+    while((!twi_tx_done) && --timeout) ;
+    if(!timeout) return NRF_ERROR_TIMEOUT;
+    twi_tx_done = false;
+
+    //return rc;   //rc is return value that arduino, Wire endTransmission, rc:0 is normal
+    return 0;
+}
+
+// Note:  I2C access should be completed within 0.5ms
+int32_t i2c_read(uint8_t slv_adr, uint8_t reg_adr, uint8_t *reg, uint8_t reg_size)
+{
+    ret_code_t err_code;
+
+    /*
+    // m_bh1792.prm.msr      = BH1792_PRM_MSR_SINGLE, none
+    if (m_bh1792.prm.msr <= BH1792_PRM_MSR_1024HZ) {
+      while(FlexiTimer2::count == 1999);
+    }
+    */
+
+    uint32_t timeout = BH1792_TWI_TIMEOUT;
+
+    err_code = nrf_drv_twi_tx(&m_twi, slv_adr, &reg_adr, 1, false);
+    if(err_code != NRF_SUCCESS) return err_code;
+
+    while((!twi_tx_done) && --timeout);
+    if(!timeout) return NRF_ERROR_TIMEOUT;
+    twi_tx_done = false;
+
+    err_code = nrf_drv_twi_rx(&m_twi, slv_adr, reg, reg_size);
+    if(err_code != NRF_SUCCESS) return err_code;
+
+    timeout = BH1792_TWI_TIMEOUT;
+    while((!twi_rx_done) && --timeout);
+    if(!timeout) return NRF_ERROR_TIMEOUT;
+    twi_rx_done = false;
+
+    //return rc;  //rc:0 is normal, rc:4 is error. but in nrf5 when case of error, already return
+    return 0;
+}
+
+/*
+void error_check(int32_t ret, String msg)
+{
+  if(ret < 0) {
+    msg = "Error: " + msg;
+    msg += " function";
+    NRF_LOG_INFO("%s\n", msg);
+    NRF_LOG_INFO("ret = ");
+    NRF_LOG_INFO("%d", ret);
+    if(ret == BH1792_I2C_ERR) {
+      NRF_LOG_INFO("i2c_ret = ");
+      NRF_LOG_INFO("%d\n", m_bh1792.i2c_err);
+    }
+    while(1);
+  }
+}
+*/
+
+
+
+
+
+
+/** @brief: Function for handling the RTC0 interrupts.
+ * Triggered on TICK and COMPARE0 match.
+ */
+static volatile int Tick_count = 0;
+static volatile int Enter_sleep_count = 0;
+static volatile int Boot_count = 0;
+static volatile int Wait_sleep_count = 0;
+
+void wait_for_flash_ready(nrf_fstorage_t const * p_fstorage);
+
+const uint8_t write_count = 4;
+const uint32_t Flash_start_address = 0x60000;
+static volatile uint32_t write_index = Flash_start_address;
+static uint8_t flash_ff_padding[4096] = {0xFF};
+
+static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
+{
+    ret_code_t rc;
+    if (int_type == NRF_DRV_RTC_INT_TICK)
     {
-        nrf_pwr_mgmt_run();
+        if (Tick_count == 4 || Tick_count == 8)
+        {
+            m_xfer_done = true;
+        }
+
+
+        /*Blink/light up LED display state, State_keeper.
+        // Blink GREEN: Advertising that Before Pairing, 0
+        // GREEN: Pairing and Idle state, 1
+        // RED: Measring state and Pairing, 2
+        // Blink GREEN and RED: Emergency, 3
+        // Blink RED: Measuring and Adverting, 4
+        // BLUE: boot, reboot from sleep, 5
+        // Blink BLUE: go to sleep, 6
+        */
+        if (LED_output_state)
+        {
+            if (Boot_count < 8)
+            {
+                // BLUE: boot, reboot from sleep, 5
+                nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                nrf_drv_gpiote_out_clear(LED_3_COLOR_BLUE_PIN);
+
+                if(Boot_count == 4)
+                {
+                    memset(&flash_ff_padding[0], 0xFF, sizeof(flash_ff_padding));
+                    NRF_LOG_INFO("ff[0000]: 0x%x", flash_ff_padding[0]);
+                    NRF_LOG_INFO("ff[2016]: 0x%x ", flash_ff_padding[2016]);
+                    NRF_LOG_INFO("ff[4095]: 0x%x ", flash_ff_padding[4095]);
+                }
+                else if (Boot_count == 5)
+                {
+                    rc = nrf_fstorage_write(&fstorage, write_index, &flash_ff_padding[0], sizeof(flash_ff_padding), NULL);
+                    APP_ERROR_CHECK(rc);
+                }
+                else if (Boot_count == 6)
+                {
+                    rc = nrf_fstorage_write(&fstorage, write_index + 0x1000, &flash_ff_padding[0], sizeof(flash_ff_padding), NULL);
+                    APP_ERROR_CHECK(rc);
+                }
+                else if (Boot_count == 7)
+                {
+                    rc = nrf_fstorage_write(&fstorage, write_index + 0x2000, &flash_ff_padding[0], sizeof(flash_ff_padding), NULL);
+                    APP_ERROR_CHECK(rc);
+                }
+                Boot_count++;
+            }
+            else
+            {
+                switch (State_keeper)
+                {
+                    case 0: //STATE_ADVERTISING:
+                        // Blink GREEN: Advertising that Before Pairing, 0
+                        if (Tick_count == 0)
+                        {
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                            nrf_drv_gpiote_out_clear(LED_3_COLOR_GREEN_PIN);
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                            }
+                        else
+                        {
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);               
+                        }
+                        break;
+                    case 1: //STATE_PAIRING:
+                        // GREEN: Pairing and Idle state, 1
+                        nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                        nrf_drv_gpiote_out_clear(LED_3_COLOR_GREEN_PIN);
+                        nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                        break;
+                    case 2: //STATE_MEASURING (and STATE_PAIRING):
+                        // RED: Measring state and Pairing, 2
+                        nrf_drv_gpiote_out_clear(LED_3_COLOR_RED_PIN);
+                        nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                        nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                        break;
+                    case 3: //STATE_EMERGENCY:
+                        // Blink GREEN and RED: Emergency, 3
+                        if (Tick_count % 2 == 0)
+                        {
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                            nrf_drv_gpiote_out_clear(LED_3_COLOR_GREEN_PIN);
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                        }
+                        else
+                        {
+                            nrf_drv_gpiote_out_clear(LED_3_COLOR_RED_PIN);
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                        }
+                        break;
+                    case 4: //STATE_
+                        // Blink RED: Measuring and Adverting, 4
+                        if (Tick_count == 0)
+                        {
+                            nrf_drv_gpiote_out_clear(LED_3_COLOR_RED_PIN);
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                            }
+                        else
+                        {
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                            nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);               
+                        }
+                        break;
+                    case 5:
+                        // BLUE: boot, reboot from sleep, 5
+                        nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                        nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                        nrf_drv_gpiote_out_clear(LED_3_COLOR_BLUE_PIN);
+                        break;
+                    case 6:
+                        // Blink BLUE: go to sleep, 6
+                        nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                        nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                        nrf_drv_gpiote_out_toggle(LED_3_COLOR_BLUE_PIN);
+                        break;
+                    default:
+                        nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                        nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                        nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                }
+            }
+        }
+        else
+        {
+            if (State_keeper == STATE_SLEEPING)
+            {
+                // Blink BLUE: go to sleep, 6
+                nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                nrf_drv_gpiote_out_toggle(LED_3_COLOR_BLUE_PIN);
+            }
+            else
+            {
+                nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+            }
+        }
+
+        if (nrf_gpio_pin_read(SWITCH1_PIN))
+        {
+            //NRF_LOG_INFO("swith1 true");
+            Enter_sleep_count = 0;
+        }
+        else
+        {
+            //NRF_LOG_INFO("switch1 false");
+            Enter_sleep_count++;
+            if (Enter_sleep_count == 24)
+            {
+                //3s long push and software reset
+                /*
+                NRF_LOG_INFO("software reset");
+                NRF_LOG_FLUSH();
+                
+                ret_code_t err_code;
+                err_code = sd_nvic_SystemReset();
+                APP_ERROR_CHECK(err_code);
+                */
+
+                //3s long push and sleep mode enter
+                NRF_LOG_INFO("sleep mode enter");
+
+                rc = app_timer_stop(m_data_record_timer_id);
+                APP_ERROR_CHECK(rc);
+                NRF_LOG_INFO("10 second measure and 10 minutes record stop");
+                if (State_keeper == STATE_MEASURING)
+                {
+                    State_keeper = STATE_PAIRING;
+                    NRF_LOG_INFO("State_keeper: %d", State_keeper);
+                }
+
+                NRF_LOG_FLUSH();
+                sleep_mode_enter();
+            }
+        }
+
+        if (State_keeper == STATE_SLEEPING)
+        {
+            if (Wait_sleep_count < Num_of_data_hr_hr)
+            {
+                /*
+                int index_data_hr_hr = Wait_sleep_count * 4;
+                for(uint8_t i = 0; i < write_count; i++)
+                {
+                    uint8_t write_data[sizeof(data_hr_hr[0])];
+                    *(ble_data_ht_hr_t *) write_data = data_hr_hr[index_data_hr_hr + i];
+                    rc = nrf_fstorage_write(&fstorage, write_index, &write_data, sizeof(write_data), NULL);
+                    APP_ERROR_CHECK(rc);
+                    write_index = write_index + sizeof(write_data);
+                    //wait_for_flash_ready(&fstorage);
+                }
+                */
+
+                /*
+                // for debug begin
+                if (Wait_sleep_count > 0)
+                {
+                    int check_index = Wait_sleep_count - 1;
+                    uint8_t check_read_data[sizeof(data_hr_hr[check_index])];
+                    int check_read_address = write_index - sizeof(data_hr_hr[check_index]);
+                    rc = nrf_fstorage_read(&fstorage, check_read_address, check_read_data, sizeof(check_read_data));
+                    if (rc != NRF_SUCCESS)
+                    {
+                        NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
+                    }
+                    ble_data_ht_hr_t check_data_hr_hr = *(ble_data_ht_hr_t *)(check_read_data);
+                    if (check_data_hr_hr.start_time.year != data_hr_hr[check_index].start_time.year) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.start_time.month != data_hr_hr[check_index].start_time.month) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.start_time.day != data_hr_hr[check_index].start_time.day) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.start_time.hours != data_hr_hr[check_index].start_time.hours) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.start_time.minutes != data_hr_hr[check_index].start_time.minutes) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.start_time.seconds != data_hr_hr[check_index].start_time.seconds) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.heart_rate != data_hr_hr[check_index].heart_rate) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.body_temperature_array[0] != data_hr_hr[check_index].body_temperature_array[0]) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.body_temperature_array[1] != data_hr_hr[check_index].body_temperature_array[1]) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.body_temperature_array[2] != data_hr_hr[check_index].body_temperature_array[2]) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.body_temperature_array[3] != data_hr_hr[check_index].body_temperature_array[3]) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.body_temperature_array[4] != data_hr_hr[check_index].body_temperature_array[4]) { NRF_LOG_INFO("Error write failed"); }
+                    if (check_data_hr_hr.body_temperature_array[5] != data_hr_hr[check_index].body_temperature_array[5]) { NRF_LOG_INFO("Error write failed"); }
+                    NRF_LOG_INFO("Check read done, 0x%x", check_read_address);
+                    NRF_LOG_FLUSH();
+                }
+                // for debug end
+                */
+
+                int index_data_hr_hr = Wait_sleep_count;
+                //for(uint8_t i = 0; i < write_count; i++)
+                //{
+                static uint8_t write_data[sizeof(data_hr_hr[index_data_hr_hr])];
+                *(ble_data_ht_hr_t *) write_data = data_hr_hr[index_data_hr_hr];
+                rc = nrf_fstorage_write(&fstorage, write_index, &write_data, sizeof(write_data), NULL);
+                APP_ERROR_CHECK(rc);
+                write_index = write_index + sizeof(write_data);
+                //wait_for_flash_ready(&fstorage);
+                //}
+                
+/*
+                uint32_t data_size = sizeof(data_hr_hr[0]); 
+                uint8_t write_data[data_size * 4];
+                *(ble_data_ht_hr_t *) write_data[data_size * 0] = data_hr_hr[Wait_sleep_count * 4 + 0];
+                *(ble_data_ht_hr_t *) write_data[data_size * 1] = data_hr_hr[Wait_sleep_count * 4 + 1];
+                *(ble_data_ht_hr_t *) write_data[data_size * 2] = data_hr_hr[Wait_sleep_count * 4 + 2];
+                *(ble_data_ht_hr_t *) write_data[data_size * 3] = data_hr_hr[Wait_sleep_count * 4 + 3];
+                rc = nrf_fstorage_write(&fstorage, write_index, &write_data, sizeof(write_data), NULL);
+                APP_ERROR_CHECK(rc);
+                write_index = write_index + sizeof(write_data);
+*/
+                NRF_LOG_INFO("Done, %d", Wait_sleep_count);
+                NRF_LOG_FLUSH();
+            }
+            else if (Wait_sleep_count == Num_of_data_hr_hr)
+            {
+                //Current time, time_stamp
+                uint8_t write_time_stamp[sizeof(time_stamp)];
+                *(ble_date_time_t *) write_time_stamp = time_stamp;
+                rc = nrf_fstorage_write(&fstorage, write_index, &write_time_stamp, sizeof(write_time_stamp), NULL);
+                APP_ERROR_CHECK(rc);
+                write_index = write_index + sizeof(write_time_stamp);
+
+                NRF_LOG_INFO("Done, %d", Wait_sleep_count);
+                NRF_LOG_FLUSH();
+            }
+            else if (Wait_sleep_count == Num_of_data_hr_hr + 1)
+            {
+                //Write index, Write_index_data_hr_hr
+                uint8_t write_write_index[sizeof(Write_index_data_hr_hr)];
+                *(unsigned int *) write_write_index = Write_index_data_hr_hr;
+                rc = nrf_fstorage_write(&fstorage, write_index, &write_write_index, sizeof(write_write_index), NULL);
+                APP_ERROR_CHECK(rc);
+                write_index = write_index + sizeof(write_write_index);
+
+                NRF_LOG_INFO("Done, %d", Wait_sleep_count);
+                NRF_LOG_FLUSH();
+            }
+            else if (Wait_sleep_count == Num_of_data_hr_hr + 2)
+            {
+                //Read index, Read_index_data_hr_hr
+                uint8_t write_read_index[sizeof(Read_index_data_hr_hr)];
+                *(unsigned int *) write_read_index = Read_index_data_hr_hr;
+                rc = nrf_fstorage_write(&fstorage, write_index, &write_read_index, sizeof(write_read_index), NULL);
+                APP_ERROR_CHECK(rc);
+                write_index = write_index + sizeof(write_read_index);
+
+                NRF_LOG_INFO("Done, %d", Wait_sleep_count);
+                NRF_LOG_FLUSH();
+            }
+            else if (Wait_sleep_count == Num_of_data_hr_hr + 3)
+            {
+                //Count index, Count_index_data_hr_hr
+                uint8_t write_count_index[sizeof(Count_index_data_hr_hr)];
+                *(unsigned int *) write_count_index = Count_index_data_hr_hr;
+                rc = nrf_fstorage_write(&fstorage, write_index, &write_count_index, sizeof(write_count_index), NULL);
+                APP_ERROR_CHECK(rc);
+                write_index = write_index + sizeof(write_count_index);
+
+                NRF_LOG_INFO("Done, %d", Wait_sleep_count);
+                NRF_LOG_FLUSH();
+            }
+            else if (Wait_sleep_count > Num_of_data_hr_hr + 3)
+            {
+                // Go to system-off mode (this function will not return; wakeup will cause a reset).
+                NRF_LOG_INFO("system-off and sleep");
+                NRF_LOG_FLUSH();
+                sd_power_system_off();
+                //rc = sd_power_system_off();
+                //APP_ERROR_CHECK(rc);
+            }
+
+            Wait_sleep_count++;
+        }
+
+        Tick_count++;
+        if (Tick_count > 9)
+        {
+            Tick_count = 0;
+        }
     }
 }
 
+const nrf_drv_rtc_t rtc = NRF_DRV_RTC_INSTANCE(2); /**< Declaring an instance of nrf_drv_rtc for RTC2. */
+/** @brief Function initialization and configuration of RTC driver instance.
+ */
+static void rtc_config(void)
+{
+    uint32_t err_code;
+
+    //Initialize RTC instance
+    nrf_drv_rtc_config_t config = NRF_DRV_RTC_DEFAULT_CONFIG;
+    config.prescaler = 4095;
+    err_code = nrf_drv_rtc_init(&rtc, &config, rtc_handler);
+    APP_ERROR_CHECK(err_code);
+
+    //Enable tick event & interrupt
+    nrf_drv_rtc_tick_enable(&rtc, true);
+
+    //Power on RTC instance
+    nrf_drv_rtc_enable(&rtc);
+}
+
+
+
+/**@brief Function for starting application timers.
+ */
+static void application_timers_start(void)
+{
+    ret_code_t err_code;
+
+    // Start application timers.
+    err_code = app_timer_start(m_battery_timer_id, BATTERY_LEVEL_MEAS_INTERVAL, NULL);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_start(m_heart_rate_timer_id, HEART_RATE_MEAS_INTERVAL, NULL);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_start(m_rr_interval_timer_id, RR_INTERVAL_INTERVAL, NULL);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_start(m_temperature_timer_id, TEMPERATURE_MEAS_INTERVAL, NULL);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_start(m_sensor_contact_timer_id, SENSOR_CONTACT_DETECTED_INTERVAL, NULL);
+    APP_ERROR_CHECK(err_code);
+
+    //err_code = app_timer_start(m_bh1792glc_timer_id, BH1792GLC_MEAS_INTERVAL, NULL);
+    //APP_ERROR_CHECK(err_code);
+
+    //err_code = app_timer_start(m_data_record_timer_id, DATA_RECORD_MEAS_INTERVAL, NULL);
+    //APP_ERROR_CHECK(err_code);
+}
+
+
+
+/**@brief Clear bond information from persistent storage.
+ */
+static void delete_bonds(void)
+{
+    ret_code_t err_code;
+
+    NRF_LOG_INFO("Erase bonds!");
+
+    err_code = pm_peers_delete();
+    APP_ERROR_CHECK(err_code);
+}
 
 /**@brief Function for starting advertising.
  */
@@ -1593,16 +3133,71 @@ static void advertising_start(bool erase_bonds)
 }
 
 
+
+/**@brief Function for handling the idle state (main loop).
+ *
+ * @details If there is no pending log operation, then sleep until next the next event occurs.
+ */
+static void idle_state_handle(void)
+{
+    //UNUSED_RETURN_VALUE(NRF_LOG_PROCESS());
+    //nrf_pwr_mgmt_run();
+    /*
+    if (NRF_LOG_PROCESS() == false)
+    {
+        nrf_pwr_mgmt_run();
+    }
+    */
+    do
+    {
+        //__WFE();
+        nrf_pwr_mgmt_run();
+    }while (m_xfer_done == false);
+    NRF_LOG_FLUSH();
+    m_xfer_done = false;
+}
+
+
+
+static void print_flash_info(nrf_fstorage_t * p_fstorage)
+{
+    NRF_LOG_INFO("========| flash info |========");
+    NRF_LOG_INFO("erase unit: \t%d bytes",      p_fstorage->p_flash_info->erase_unit);
+    NRF_LOG_INFO("program unit: \t%d bytes",    p_fstorage->p_flash_info->program_unit);
+    NRF_LOG_INFO("==============================");
+}
+
+void wait_for_flash_ready(nrf_fstorage_t const * p_fstorage)
+{
+    /* While fstorage is busy, sleep and wait for an event. */
+    while (nrf_fstorage_is_busy(p_fstorage))
+    {
+        //power_manage();
+        //sd_app_evt_wait();
+        nrf_pwr_mgmt_run();
+    }
+}
+
+
+
+
+
+
 /**@brief Application main function.
  */
 int main(void)
-{
+  {
     bool erase_bonds;
 
     // Initialize.
-    uart_init();
+    State_keeper = STATE_BOOTING;
+    Boot_count = 0;
     log_init();
+    uart_init();
     NRF_LOG_INFO("Finish uart init, log init");
+    lfclk_request();
+    gpio_init();
+    NRF_LOG_INFO("Finish gpio init");;
     timers_init();
     NRF_LOG_INFO("Finish timers init");    
     buttons_leds_init(&erase_bonds);
@@ -1624,21 +3219,216 @@ int main(void)
     conn_params_init();
     NRF_LOG_INFO("Finish conn params init");
     peer_manager_init();
-    NRF_LOG_INFO("Finish peer manager init");
-    saadc_init();
     NRF_LOG_INFO("Finish saadc_init init");
     saadc_sampling_event_init();
+    NRF_LOG_INFO("Finish peer manager init");
+    saadc_init();
     NRF_LOG_INFO("Finish saadc_sampling_event_init init");
     saadc_sampling_event_enable();
     NRF_LOG_INFO("SAADC HAL simple example started.");
+    //NRF_LOG_INFO("TWI sensor example started.");
+    NRF_LOG_FLUSH();
+    //twi_init();
+    //NRF_LOG_INFO("finished twi init.");
+    rtc_config();
+    NRF_LOG_INFO("finished rtc config.")
+
+    ret_code_t rc;
+    NRF_LOG_INFO("fstorage example started.");
+    nrf_fstorage_api_t * p_fs_api;
+    NRF_LOG_INFO("SoftDevice is present.");
+    NRF_LOG_INFO("Initializing nrf_fstorage_sd implementation...");
+    /* Initialize an fstorage instance using the nrf_fstorage_sd backend.
+     * nrf_fstorage_sd uses the SoftDevice to write to flash. This implementation can safely be
+     * used whenever there is a SoftDevice, regardless of its status (enabled/disabled). */
+    p_fs_api = &nrf_fstorage_sd;
+    rc = nrf_fstorage_init(&fstorage, p_fs_api, NULL);
+    APP_ERROR_CHECK(rc);
+    print_flash_info(&fstorage);
+    /* It is possible to set the start and end addresses of an fstorage instance at runtime.
+     * They can be set multiple times, should it be needed. The helper function below can
+     * be used to determine the last address on the last page of flash memory available to
+     * store data. */
+    (void) nrf5_flash_end_addr_get();
+
+    /* Let's write to flash. */
+    /*
+    uint32_t test_write_address = 0x60000;
+    NRF_LOG_INFO("Writing \"%x\" to flash.", m_data);
+    rc = nrf_fstorage_write(&fstorage, test_write_address, &m_data, sizeof(m_data), NULL);
+    APP_ERROR_CHECK(rc);
+
+    wait_for_flash_ready(&fstorage);
+    NRF_LOG_INFO("Done.");
+
+    uint8_t    data[256] = {0};
+
+    rc = nrf_fstorage_read(&fstorage, test_write_address, data, 8);
+    if (rc != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
+    }
+
+    for (uint32_t i = 0; i < 8; i++)
+    {
+        NRF_LOG_INFO("0x%x ", data[i]);
+    }
+    */
+
+    uint32_t i = 0;
+    uint32_t read_address = Flash_start_address;
+    
+    for (i = 0; i <  Num_of_data_hr_hr; i++)
+    {
+        uint8_t read_data[sizeof(data_hr_hr[i])];
+        rc = nrf_fstorage_read(&fstorage, read_address, read_data, sizeof(read_data));
+        if (rc != NRF_SUCCESS)
+        {
+            NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
+        }
+        data_hr_hr[i] = *(ble_data_ht_hr_t *)(read_data);
+        NRF_LOG_INFO("Read done, %d, 0x%x", i, read_address);
+        NRF_LOG_FLUSH();
+        read_address = read_address + sizeof(read_data);
+    }
+
+    //Current time, time_stamp
+    uint8_t read_time_stamp[sizeof(time_stamp)];
+    rc = nrf_fstorage_read(&fstorage, read_address, read_time_stamp, sizeof(read_time_stamp));
+    if (rc != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
+    }
+    //time_stamp = *(ble_date_time_t *)(read_time_stamp);
+    ble_date_time_t temp_stamp = *(ble_date_time_t *)(read_time_stamp);
+    if (temp_stamp.year < 1900 && temp_stamp.year > 2200)
+    {
+        time_stamp.year = temp_stamp.year;
+    }
+    if (temp_stamp.month > 0 && temp_stamp.month < 13)
+    {
+        time_stamp.month = temp_stamp.month;
+    }
+    if (temp_stamp.day > 0 && temp_stamp.day < 32)
+    {
+        time_stamp.day = temp_stamp.day;
+    }
+    if (temp_stamp.hours < 24)
+    {
+        time_stamp.hours = temp_stamp.hours;
+    }
+    if (temp_stamp.minutes < 60)
+    {
+        time_stamp.minutes = temp_stamp.minutes;
+    }
+    if (temp_stamp.seconds < 60)
+    {
+        time_stamp.seconds = temp_stamp.seconds;
+    }
+    NRF_LOG_INFO("%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
+    NRF_LOG_INFO("Read done, 0x%x", read_address);
+    NRF_LOG_FLUSH();
+    read_address = read_address + sizeof(read_time_stamp);
+
+    //Write index, Write_index_data_hr_hr
+    uint8_t read_write_index[sizeof(Write_index_data_hr_hr)];
+    rc = nrf_fstorage_read(&fstorage, read_address, read_write_index, sizeof(read_write_index));
+    if (rc != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
+    }
+    unsigned int temp_Write_index_data_hr_hr = *(unsigned int *)(read_write_index);
+    if (temp_Write_index_data_hr_hr < Num_of_data_hr_hr)
+    {
+        Write_index_data_hr_hr = temp_Write_index_data_hr_hr;
+    }
+    else
+    {
+        Write_index_data_hr_hr = 0;
+    }
+    NRF_LOG_INFO("Read done, 0x%x", read_address);
+    NRF_LOG_FLUSH();
+    read_address = read_address + sizeof(read_write_index);
+
+    //Read index, Read_index_data_hr_hr
+    uint8_t read_read_index[sizeof(Read_index_data_hr_hr)];
+    rc = nrf_fstorage_read(&fstorage, read_address, read_read_index, sizeof(read_read_index));
+    if (rc != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
+    }
+    unsigned int temp_Read_index_data_hr_hr = *(unsigned int *)(read_read_index);
+    if (temp_Read_index_data_hr_hr < Num_of_data_hr_hr)
+    {
+        Read_index_data_hr_hr = temp_Read_index_data_hr_hr;
+    }
+    else
+    {
+        Read_index_data_hr_hr = 0;
+    }
+    NRF_LOG_INFO("Read done, 0x%x", read_address);
+    NRF_LOG_FLUSH();
+    read_address = read_address + sizeof(read_read_index);
+
+    //Count index, Count_index_data_hr_hr
+    uint8_t read_count_index[sizeof(Count_index_data_hr_hr)];
+    rc = nrf_fstorage_read(&fstorage, read_address, read_count_index, sizeof(read_count_index));
+    if (rc != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
+    }
+    unsigned int temp_Count_index_data_hr_hr = *(unsigned int *)(read_count_index);
+    if (temp_Count_index_data_hr_hr <= Num_of_data_hr_hr)
+    {
+        Count_index_data_hr_hr = temp_Count_index_data_hr_hr;
+    }
+    else
+    {
+        Count_index_data_hr_hr = 0;
+    }
+    NRF_LOG_INFO("temp Count index : 0x%x", temp_Count_index_data_hr_hr);
+    NRF_LOG_INFO("Read done, 0x%x", read_address);
+    NRF_LOG_FLUSH();
+    read_address = read_address + sizeof(read_count_index);
+
+    NRF_LOG_INFO("==============================");
+    NRF_LOG_INFO("Write index: %d", Write_index_data_hr_hr);
+    NRF_LOG_INFO("Read index : %d", Read_index_data_hr_hr);
+    NRF_LOG_INFO("Count index: %d", Count_index_data_hr_hr);
+    NRF_LOG_INFO("==============================");
+
+    //flash erase
+    uint32_t erase_address = Flash_start_address;
+    uint32_t pages_cnt = 3;
+    rc = nrf_fstorage_erase(&fstorage, erase_address, pages_cnt, NULL);
+    if (rc != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("nrf_fstorage_erase() returned: %s\n", nrf_strerror_get(rc));
+    }
 
     // Start execution.
     printf("\r\nUART started.\r\n");
     NRF_LOG_INFO("Debug logging for UART over RTT started.");
     NRF_LOG_INFO("Heart Rate Sensor example started.");
     NRF_LOG_INFO("Health Thermometer example started.");
+
     application_timers_start();
+    //NRF_LOG_FLUSH();
+
+    /*
+    nrf_drv_gpiote_in_event_disable(BH1792GLC_INT_PIN);
+    ret_code_t err_code;
+    err_code = app_timer_stop(m_bh1792glc_timer_id);
+    APP_ERROR_CHECK(err_code);
+    int32_t ret = 0;
+    ret = bh1792_StopMeasure();
+    error_check(ret, "bh1792_StopMeasure");
+    NRF_LOG_INFO("finished bh1792_StopMeasure.");
+    */
+
     advertising_start(erase_bonds);
+    State_keeper = STATE_ADVERTISING;
+    //NRF_LOG_FLUSH();
 
     // Enter main loop.
     for (;;)
