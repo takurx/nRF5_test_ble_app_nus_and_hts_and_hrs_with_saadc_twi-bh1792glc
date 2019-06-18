@@ -2741,7 +2741,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
         */
         if (LED_output_state)
         {
-            if (Boot_count < 8)
+            if (Boot_count < 24)
             {
                 // BLUE: boot, reboot from sleep, 5
                 nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
