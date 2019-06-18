@@ -2397,6 +2397,24 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
             {
                 bat_percent = (bat_voltage - 3.40) / 0.70 * 100;    // 0.70 = 4.10 - 3.40, max 4.2 V - min 3.3 V, I found that battery stop 4.05V
             }
+            
+            if (bat_voltage < 3.25)
+            {
+                //low battery and sleep mode enter
+                NRF_LOG_INFO("sleep mode enter, low battery");
+
+                err_code = app_timer_stop(m_data_record_timer_id);
+                APP_ERROR_CHECK(err_code);
+                NRF_LOG_INFO("10 second measure and 10 minutes record stop");
+                if (State_keeper == STATE_MEASURING)
+                {
+                    State_keeper = STATE_PAIRING;
+                    NRF_LOG_INFO("State_keeper: %d", State_keeper);
+                }
+
+                NRF_LOG_FLUSH();
+                sleep_mode_enter();
+            }
 
             if(Debug_output_battery_voltage == true)
             {
