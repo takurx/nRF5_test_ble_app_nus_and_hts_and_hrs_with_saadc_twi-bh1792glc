@@ -1723,7 +1723,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                             APP_ERROR_CHECK(err_code);
                             NRF_LOG_INFO("10 second measure and 10 minutes record start");
                             Meas10sec = 0;
-                            Count_index_data_hr_hr = 0;
+                            //Count_index_data_hr_hr = 0;
                             State_keeper = STATE_MEASURING;
                             NRF_LOG_INFO("State_keeper: %d", State_keeper);
                             reslength = 3;
