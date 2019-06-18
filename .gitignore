@@ -9654,3 +9654,4 @@ examples/peripheral/flash_fstorage/pca10040/s132/ses/Output/flash_fstorage_s132_
 examples/peripheral/flash_fstorage/pca10040/s132/ses/Output/Release/Exe/flash_fstorage_s132_pca10040.elf
 examples/peripheral/flash_fstorage/pca10040/s132/ses/Output/Release/Exe/flash_fstorage_s132_pca10040.hex
 examples/peripheral/flash_fstorage/pca10040/s132/ses/Output/Release/Exe/flash_fstorage_s132_pca10040.map
+examples/ble_peripheral/ble_app_uart/main.c.bak
