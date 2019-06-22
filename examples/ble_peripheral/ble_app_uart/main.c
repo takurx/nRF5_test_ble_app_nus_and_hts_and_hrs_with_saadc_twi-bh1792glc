@@ -1028,8 +1028,8 @@ void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
 /**
  * @brief Measurement data record events handler.
  */
-//#define Num_of_data_hr_hr   256
-#define Num_of_data_hr_hr   32
+#define Num_of_data_hr_hr   256
+//#define Num_of_data_hr_hr   32
 static volatile unsigned int Meas10sec = 0;
 static volatile unsigned int Write_index_data_hr_hr = 0;
 static volatile unsigned int Read_index_data_hr_hr = 0;
@@ -2751,9 +2751,9 @@ static volatile uint32_t write_index = Flash_start_address;
 static uint8_t flash_ff_padding[4096] = {0xFF};
 
 static volatile int size_write_data = sizeof(data_hr_hr[0]);
-const int size_write_buffer = sizeof(data_hr_hr[0]) * 4;
-static uint8_t write_buffer[sizeof(data_hr_hr[0]) * 4];
-const int Flash_write_count_for_sleep = Num_of_data_hr_hr / 4;
+const int size_write_buffer = sizeof(data_hr_hr[0]) * 8;
+static uint8_t write_buffer[sizeof(data_hr_hr[0]) * 8];
+const int Flash_write_count_for_sleep = Num_of_data_hr_hr / 8;
 
 static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
 {
@@ -2933,16 +2933,6 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
             Enter_sleep_count++;
             if (Enter_sleep_count == 24)
             {
-                //3s long push and software reset
-                /*
-                NRF_LOG_INFO("software reset");
-                NRF_LOG_FLUSH();
-                
-                ret_code_t err_code;
-                err_code = sd_nvic_SystemReset();
-                APP_ERROR_CHECK(err_code);
-                */
-
                 //3s long push and sleep mode enter
                 NRF_LOG_INFO("sleep mode enter");
 
@@ -2996,54 +2986,17 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 // for debug end
                 */
 
-                /*
-                int index_data_hr_hr = Wait_sleep_count * 4;
-                for(uint8_t i = 0; i < write_count; i++)
-                {
-                    uint8_t write_data[sizeof(data_hr_hr[0])];
-                    *(ble_data_ht_hr_t *) write_data = data_hr_hr[index_data_hr_hr + i];
-                    rc = nrf_fstorage_write(&fstorage, write_index, &write_data, sizeof(write_data), NULL);
-                    APP_ERROR_CHECK(rc);
-                    write_index = write_index + sizeof(write_data);
-                    //wait_for_flash_ready(&fstorage);
-                }
-                */
-
-                /*
-                int index_data_hr_hr = Wait_sleep_count;
-                static uint8_t write_data[sizeof(data_hr_hr[index_data_hr_hr])];
-                *(ble_data_ht_hr_t *) write_data = data_hr_hr[index_data_hr_hr];
-                rc = nrf_fstorage_write(&fstorage, write_index, &write_data, sizeof(write_data), NULL);
-                APP_ERROR_CHECK(rc);
-                write_index = write_index + sizeof(write_data);
-                */
-
-                //int index_data_hr_hr = Wait_sleep_count;
-                //int size_write_data = sizeof(data_hr_hr[index_data_hr_hr]);
-                //int size_write_buffer = size_write_data * 4;
-                //static uint8_t write_data[sizeof(data_hr_hr[index_data_hr_hr])];
-                //static uint8_t write_data[size_write_data];
-                //static uint8_t write_buffer[size_write_buffer];
-                //memcpy(&twi_tx_buffer[1], &reg[0], reg_size);
-                memcpy(&write_buffer[size_write_data * 0], (const void *)(&data_hr_hr[Wait_sleep_count * 4 + 0]), size_write_data);
-                memcpy(&write_buffer[size_write_data * 1], (const void *)(&data_hr_hr[Wait_sleep_count * 4 + 1]), size_write_data);
-                memcpy(&write_buffer[size_write_data * 2], (const void *)(&data_hr_hr[Wait_sleep_count * 4 + 2]), size_write_data);
-                memcpy(&write_buffer[size_write_data * 3], (const void *)(&data_hr_hr[Wait_sleep_count * 4 + 3]), size_write_data);
+                memcpy(&write_buffer[size_write_data * 0], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 0]), size_write_data);
+                memcpy(&write_buffer[size_write_data * 1], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 1]), size_write_data);
+                memcpy(&write_buffer[size_write_data * 2], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 2]), size_write_data);
+                memcpy(&write_buffer[size_write_data * 3], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 3]), size_write_data);
+                memcpy(&write_buffer[size_write_data * 4], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 4]), size_write_data);
+                memcpy(&write_buffer[size_write_data * 5], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 5]), size_write_data);
+                memcpy(&write_buffer[size_write_data * 6], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 6]), size_write_data);
+                memcpy(&write_buffer[size_write_data * 7], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 7]), size_write_data);
                 rc = nrf_fstorage_write(&fstorage, write_index, &write_buffer, sizeof(write_buffer), NULL);
                 APP_ERROR_CHECK(rc);
                 write_index = write_index + sizeof(write_buffer);
-
-                /*
-                uint32_t data_size = sizeof(data_hr_hr[0]); 
-                uint8_t write_data[data_size * 4];
-                *(ble_data_ht_hr_t *) write_data[data_size * 0] = data_hr_hr[Wait_sleep_count * 4 + 0];
-                *(ble_data_ht_hr_t *) write_data[data_size * 1] = data_hr_hr[Wait_sleep_count * 4 + 1];
-                *(ble_data_ht_hr_t *) write_data[data_size * 2] = data_hr_hr[Wait_sleep_count * 4 + 2];
-                *(ble_data_ht_hr_t *) write_data[data_size * 3] = data_hr_hr[Wait_sleep_count * 4 + 3];
-                rc = nrf_fstorage_write(&fstorage, write_index, &write_data, sizeof(write_data), NULL);
-                APP_ERROR_CHECK(rc);
-                write_index = write_index + sizeof(write_data);
-                */
 
                 NRF_LOG_INFO("Done, %d", Wait_sleep_count);
                 NRF_LOG_FLUSH();
@@ -3373,29 +3326,53 @@ int main(void)
     }
     //time_stamp = *(ble_date_time_t *)(read_time_stamp);
     ble_date_time_t temp_stamp = *(ble_date_time_t *)(read_time_stamp);
-    if (temp_stamp.year < 1900 && temp_stamp.year > 2200)
+    if (temp_stamp.year > 1900 && temp_stamp.year < 2200)
     {
         time_stamp.year = temp_stamp.year;
+    }
+    else
+    {
+        NRF_LOG_INFO("Read error: year, %d", temp_stamp.year);
     }
     if (temp_stamp.month > 0 && temp_stamp.month < 13)
     {
         time_stamp.month = temp_stamp.month;
     }
+    else
+    {
+        NRF_LOG_INFO("Read error: month, %d", temp_stamp.month);
+    }
     if (temp_stamp.day > 0 && temp_stamp.day < 32)
     {
         time_stamp.day = temp_stamp.day;
+    }
+    else
+    {
+        NRF_LOG_INFO("Read error: day, %d", temp_stamp.day);
     }
     if (temp_stamp.hours < 24)
     {
         time_stamp.hours = temp_stamp.hours;
     }
+    else
+    {
+        NRF_LOG_INFO("Read error: hours, %d", temp_stamp.hours);
+    }
     if (temp_stamp.minutes < 60)
     {
         time_stamp.minutes = temp_stamp.minutes;
     }
+    else
+    {
+        NRF_LOG_INFO("Read error: minutes, %d", temp_stamp.minutes);
+    }
     if (temp_stamp.seconds < 60)
     {
         time_stamp.seconds = temp_stamp.seconds;
+    }
+    else
+    {
+        NRF_LOG_INFO("Read error: seconds, %d", temp_stamp.seconds);
     }
     NRF_LOG_INFO("%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
     NRF_LOG_INFO("Read done, 0x%x", read_address);
