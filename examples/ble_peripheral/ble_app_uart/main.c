@@ -2753,6 +2753,7 @@ static uint8_t flash_ff_padding[4096] = {0xFF};
 static volatile int size_write_data = sizeof(data_hr_hr[0]);
 const int size_write_buffer = sizeof(data_hr_hr[0]) * 4;
 static uint8_t write_buffer[sizeof(data_hr_hr[0]) * 4];
+const int Flash_write_count_for_sleep = Num_of_data_hr_hr / 4;
 
 static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
 {
@@ -2961,7 +2962,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
 
         if (State_keeper == STATE_SLEEPING)
         {
-            if (Wait_sleep_count < Num_of_data_hr_hr / 4)
+            if (Wait_sleep_count < Flash_write_count_for_sleep)
             {
                 /*
                 // for debug begin
@@ -3047,7 +3048,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 NRF_LOG_INFO("Done, %d", Wait_sleep_count);
                 NRF_LOG_FLUSH();
             }
-            else if (Wait_sleep_count == Num_of_data_hr_hr / 4)
+            else if (Wait_sleep_count == Flash_write_count_for_sleep)
             {
                 //Current time, time_stamp
                 uint8_t write_time_stamp[sizeof(time_stamp)];
@@ -3059,7 +3060,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 NRF_LOG_INFO("Done, %d", Wait_sleep_count);
                 NRF_LOG_FLUSH();
             }
-            else if (Wait_sleep_count == Num_of_data_hr_hr / 4 + 1)
+            else if (Wait_sleep_count == Flash_write_count_for_sleep + 1)
             {
                 //Write index, Write_index_data_hr_hr
                 uint8_t write_write_index[sizeof(Write_index_data_hr_hr)];
@@ -3071,7 +3072,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 NRF_LOG_INFO("Done, %d", Wait_sleep_count);
                 NRF_LOG_FLUSH();
             }
-            else if (Wait_sleep_count == Num_of_data_hr_hr / 4 + 2)
+            else if (Wait_sleep_count == Flash_write_count_for_sleep + 2)
             {
                 //Read index, Read_index_data_hr_hr
                 uint8_t write_read_index[sizeof(Read_index_data_hr_hr)];
@@ -3083,7 +3084,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 NRF_LOG_INFO("Done, %d", Wait_sleep_count);
                 NRF_LOG_FLUSH();
             }
-            else if (Wait_sleep_count == Num_of_data_hr_hr / 4 + 3)
+            else if (Wait_sleep_count == Flash_write_count_for_sleep + 3)
             {
                 //Count index, Count_index_data_hr_hr
                 uint8_t write_count_index[sizeof(Count_index_data_hr_hr)];
@@ -3095,7 +3096,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 NRF_LOG_INFO("Done, %d", Wait_sleep_count);
                 NRF_LOG_FLUSH();
             }
-            else if (Wait_sleep_count > Num_of_data_hr_hr / 4 + 3)
+            else if (Wait_sleep_count > Flash_write_count_for_sleep + 3)
             {
                 // Go to system-off mode (this function will not return; wakeup will cause a reset).
                 NRF_LOG_INFO("system-off and sleep");
