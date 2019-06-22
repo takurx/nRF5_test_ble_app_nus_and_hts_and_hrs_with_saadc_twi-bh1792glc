@@ -2750,6 +2750,10 @@ const uint32_t Flash_start_address = 0x60000;
 static volatile uint32_t write_index = Flash_start_address;
 static uint8_t flash_ff_padding[4096] = {0xFF};
 
+static volatile int size_write_data = sizeof(data_hr_hr[0]);
+const int size_write_buffer = sizeof(data_hr_hr[0]) * 4;
+static uint8_t write_buffer[sizeof(data_hr_hr[0]) * 4];
+
 static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
 {
     ret_code_t rc;
@@ -2957,21 +2961,8 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
 
         if (State_keeper == STATE_SLEEPING)
         {
-            if (Wait_sleep_count < Num_of_data_hr_hr)
+            if (Wait_sleep_count < Num_of_data_hr_hr / 4)
             {
-                /*
-                int index_data_hr_hr = Wait_sleep_count * 4;
-                for(uint8_t i = 0; i < write_count; i++)
-                {
-                    uint8_t write_data[sizeof(data_hr_hr[0])];
-                    *(ble_data_ht_hr_t *) write_data = data_hr_hr[index_data_hr_hr + i];
-                    rc = nrf_fstorage_write(&fstorage, write_index, &write_data, sizeof(write_data), NULL);
-                    APP_ERROR_CHECK(rc);
-                    write_index = write_index + sizeof(write_data);
-                    //wait_for_flash_ready(&fstorage);
-                }
-                */
-
                 /*
                 // for debug begin
                 if (Wait_sleep_count > 0)
@@ -3004,18 +2995,44 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 // for debug end
                 */
 
+                /*
+                int index_data_hr_hr = Wait_sleep_count * 4;
+                for(uint8_t i = 0; i < write_count; i++)
+                {
+                    uint8_t write_data[sizeof(data_hr_hr[0])];
+                    *(ble_data_ht_hr_t *) write_data = data_hr_hr[index_data_hr_hr + i];
+                    rc = nrf_fstorage_write(&fstorage, write_index, &write_data, sizeof(write_data), NULL);
+                    APP_ERROR_CHECK(rc);
+                    write_index = write_index + sizeof(write_data);
+                    //wait_for_flash_ready(&fstorage);
+                }
+                */
+
+                /*
                 int index_data_hr_hr = Wait_sleep_count;
-                //for(uint8_t i = 0; i < write_count; i++)
-                //{
                 static uint8_t write_data[sizeof(data_hr_hr[index_data_hr_hr])];
                 *(ble_data_ht_hr_t *) write_data = data_hr_hr[index_data_hr_hr];
                 rc = nrf_fstorage_write(&fstorage, write_index, &write_data, sizeof(write_data), NULL);
                 APP_ERROR_CHECK(rc);
                 write_index = write_index + sizeof(write_data);
-                //wait_for_flash_ready(&fstorage);
-                //}
-                
-/*
+                */
+
+                //int index_data_hr_hr = Wait_sleep_count;
+                //int size_write_data = sizeof(data_hr_hr[index_data_hr_hr]);
+                //int size_write_buffer = size_write_data * 4;
+                //static uint8_t write_data[sizeof(data_hr_hr[index_data_hr_hr])];
+                //static uint8_t write_data[size_write_data];
+                //static uint8_t write_buffer[size_write_buffer];
+                //memcpy(&twi_tx_buffer[1], &reg[0], reg_size);
+                memcpy(&write_buffer[size_write_data * 0], (const void *)(&data_hr_hr[Wait_sleep_count * 4 + 0]), size_write_data);
+                memcpy(&write_buffer[size_write_data * 1], (const void *)(&data_hr_hr[Wait_sleep_count * 4 + 1]), size_write_data);
+                memcpy(&write_buffer[size_write_data * 2], (const void *)(&data_hr_hr[Wait_sleep_count * 4 + 2]), size_write_data);
+                memcpy(&write_buffer[size_write_data * 3], (const void *)(&data_hr_hr[Wait_sleep_count * 4 + 3]), size_write_data);
+                rc = nrf_fstorage_write(&fstorage, write_index, &write_buffer, sizeof(write_buffer), NULL);
+                APP_ERROR_CHECK(rc);
+                write_index = write_index + sizeof(write_buffer);
+
+                /*
                 uint32_t data_size = sizeof(data_hr_hr[0]); 
                 uint8_t write_data[data_size * 4];
                 *(ble_data_ht_hr_t *) write_data[data_size * 0] = data_hr_hr[Wait_sleep_count * 4 + 0];
@@ -3025,11 +3042,12 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 rc = nrf_fstorage_write(&fstorage, write_index, &write_data, sizeof(write_data), NULL);
                 APP_ERROR_CHECK(rc);
                 write_index = write_index + sizeof(write_data);
-*/
+                */
+
                 NRF_LOG_INFO("Done, %d", Wait_sleep_count);
                 NRF_LOG_FLUSH();
             }
-            else if (Wait_sleep_count == Num_of_data_hr_hr)
+            else if (Wait_sleep_count == Num_of_data_hr_hr / 4)
             {
                 //Current time, time_stamp
                 uint8_t write_time_stamp[sizeof(time_stamp)];
@@ -3041,7 +3059,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 NRF_LOG_INFO("Done, %d", Wait_sleep_count);
                 NRF_LOG_FLUSH();
             }
-            else if (Wait_sleep_count == Num_of_data_hr_hr + 1)
+            else if (Wait_sleep_count == Num_of_data_hr_hr / 4 + 1)
             {
                 //Write index, Write_index_data_hr_hr
                 uint8_t write_write_index[sizeof(Write_index_data_hr_hr)];
@@ -3053,7 +3071,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 NRF_LOG_INFO("Done, %d", Wait_sleep_count);
                 NRF_LOG_FLUSH();
             }
-            else if (Wait_sleep_count == Num_of_data_hr_hr + 2)
+            else if (Wait_sleep_count == Num_of_data_hr_hr / 4 + 2)
             {
                 //Read index, Read_index_data_hr_hr
                 uint8_t write_read_index[sizeof(Read_index_data_hr_hr)];
@@ -3065,7 +3083,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 NRF_LOG_INFO("Done, %d", Wait_sleep_count);
                 NRF_LOG_FLUSH();
             }
-            else if (Wait_sleep_count == Num_of_data_hr_hr + 3)
+            else if (Wait_sleep_count == Num_of_data_hr_hr / 4 + 3)
             {
                 //Count index, Count_index_data_hr_hr
                 uint8_t write_count_index[sizeof(Count_index_data_hr_hr)];
@@ -3077,7 +3095,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 NRF_LOG_INFO("Done, %d", Wait_sleep_count);
                 NRF_LOG_FLUSH();
             }
-            else if (Wait_sleep_count > Num_of_data_hr_hr + 3)
+            else if (Wait_sleep_count > Num_of_data_hr_hr / 4 + 3)
             {
                 // Go to system-off mode (this function will not return; wakeup will cause a reset).
                 NRF_LOG_INFO("system-off and sleep");
