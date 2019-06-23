@@ -1028,8 +1028,8 @@ void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
 /**
  * @brief Measurement data record events handler.
  */
-#define Num_of_data_hr_hr   256
-//#define Num_of_data_hr_hr   32
+//#define Num_of_data_hr_hr   256
+#define Num_of_data_hr_hr   32
 static volatile unsigned int Meas10sec = 0;
 static volatile unsigned int Write_index_data_hr_hr = 0;
 static volatile unsigned int Read_index_data_hr_hr = 0;
