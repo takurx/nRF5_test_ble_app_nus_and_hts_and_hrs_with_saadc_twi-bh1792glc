@@ -1128,11 +1128,11 @@ static void meas_data_output_timeout_handler(void * p_context)
     uint16_t j;
     int ind;
 
-    char restime[] =    "2018-12-25T12:20:15";
-    char resdatanum[] = "100";
-    char respulse[] =   "100";
-    char restemp[] =    "36.00,36.01,36.02,36.03,36.04,36.05";
-    char resdata[128] = "";
+    static char restime[19] =   "";
+    static char resdatanum[3] = "";
+    static char respulse[3] =   "";
+    static char restemp[35] =   "";
+    static char resdata[128] =  "";
     uint16_t reslength;
 
     //NRF_LOG_INFO("it will measurement data output");
