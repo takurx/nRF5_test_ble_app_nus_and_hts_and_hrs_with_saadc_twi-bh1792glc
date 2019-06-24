@@ -180,7 +180,9 @@
 #define SENSOR_CONTACT_DETECTED_INTERVAL    APP_TIMER_TICKS(5000)                   /**< Sensor Contact Detected toggle interval (ticks). */
 
 #define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(10000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+//for debug setting
 //#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(100)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+
 #define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(25)                     /**< nus(nordic uart service) data output interval (ticks). */
 //#define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(40)                     /**< nus(nordic uart service) data output interval (ticks). */
 
@@ -1029,6 +1031,7 @@ void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
  * @brief Measurement data record events handler.
  */
 #define Num_of_data_hr_hr   256
+//for debug setting
 //#define Num_of_data_hr_hr   32
 static volatile unsigned int Meas10sec = 0;
 static volatile unsigned int Write_index_data_hr_hr = 0;
@@ -1122,6 +1125,7 @@ static void meas_data_record_timeout_handler(void * p_context)
 
     Meas10sec++;
     if (Meas10sec > 59)   // 10 minutes
+    //for debug setting
     //if (Meas10sec > 9)   // 100 seconds
     {
         Meas10sec = 0;
@@ -1137,10 +1141,10 @@ static void meas_data_output_timeout_handler(void * p_context)
     //uint16_t j;
     //unsigned int ind;
 
-    static char restime[19] =   "";
-    static char resdatanum[3] = "";
-    static char respulse[3] =   "";
-    static char restemp[35] =   "";
+    static char restime[20] =   "";
+    static char resdatanum[4] = "";
+    static char respulse[4] =   "";
+    static char restemp[36] =   "";
     static char resdata[128] =  "";
     uint16_t reslength;
 
@@ -1673,10 +1677,10 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         uint16_t buf_ind;
         int ind;
 
-        char restime[19] =   ""; //"2018-12-25T12:20:15";
-        char resdatanum[3] = "";
-        //char respulse[3] =   "";
-        char restemp[35] =   ""; //"36.00,36.01,36.02,36.03,36.04,36.05";
+        char restime[20] =   ""; //"2018-12-25T12:20:15";
+        char resdatanum[4] = "";
+        //char respulse[4] =   "";
+        char restemp[36] =   ""; //"36.00,36.01,36.02,36.03,36.04,36.05";
         char resdata[128] =  "";
 
         for (i = 0; i < p_evt->params.rx_data.length; i++)
@@ -3302,10 +3306,10 @@ int main(void)
 
     uint32_t i = 0;
     uint32_t read_address = Flash_start_address;
-    
+    static uint8_t read_data[sizeof(data_hr_hr[0])];
+
     for (i = 0; i <  Num_of_data_hr_hr; i++)
     {
-        uint8_t read_data[sizeof(data_hr_hr[i])];
         rc = nrf_fstorage_read(&fstorage, read_address, read_data, sizeof(read_data));
         if (rc != NRF_SUCCESS)
         {
@@ -3318,14 +3322,14 @@ int main(void)
     }
 
     //Current time, time_stamp
-    uint8_t read_time_stamp[sizeof(time_stamp)];
+    static uint8_t read_time_stamp[sizeof(time_stamp)];
     rc = nrf_fstorage_read(&fstorage, read_address, read_time_stamp, sizeof(read_time_stamp));
     if (rc != NRF_SUCCESS)
     {
         NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
     }
     //time_stamp = *(ble_date_time_t *)(read_time_stamp);
-    ble_date_time_t temp_stamp = *(ble_date_time_t *)(read_time_stamp);
+    volatile ble_date_time_t temp_stamp = *(ble_date_time_t *)(read_time_stamp);
     if (temp_stamp.year > 1900 && temp_stamp.year < 2200)
     {
         time_stamp.year = temp_stamp.year;
@@ -3380,13 +3384,13 @@ int main(void)
     read_address = read_address + sizeof(read_time_stamp);
 
     //Write index, Write_index_data_hr_hr
-    uint8_t read_write_index[sizeof(Write_index_data_hr_hr)];
+    static uint8_t read_write_index[sizeof(Write_index_data_hr_hr)];
     rc = nrf_fstorage_read(&fstorage, read_address, read_write_index, sizeof(read_write_index));
     if (rc != NRF_SUCCESS)
     {
         NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
     }
-    unsigned int temp_Write_index_data_hr_hr = *(unsigned int *)(read_write_index);
+    volatile unsigned int temp_Write_index_data_hr_hr = *(unsigned int *)(read_write_index);
     if (temp_Write_index_data_hr_hr < Num_of_data_hr_hr)
     {
         Write_index_data_hr_hr = temp_Write_index_data_hr_hr;
@@ -3400,13 +3404,13 @@ int main(void)
     read_address = read_address + sizeof(read_write_index);
 
     //Read index, Read_index_data_hr_hr
-    uint8_t read_read_index[sizeof(Read_index_data_hr_hr)];
+    static uint8_t read_read_index[sizeof(Read_index_data_hr_hr)];
     rc = nrf_fstorage_read(&fstorage, read_address, read_read_index, sizeof(read_read_index));
     if (rc != NRF_SUCCESS)
     {
         NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
     }
-    unsigned int temp_Read_index_data_hr_hr = *(unsigned int *)(read_read_index);
+    volatile unsigned int temp_Read_index_data_hr_hr = *(unsigned int *)(read_read_index);
     if (temp_Read_index_data_hr_hr < Num_of_data_hr_hr)
     {
         Read_index_data_hr_hr = temp_Read_index_data_hr_hr;
@@ -3420,13 +3424,13 @@ int main(void)
     read_address = read_address + sizeof(read_read_index);
 
     //Count index, Count_index_data_hr_hr
-    uint8_t read_count_index[sizeof(Count_index_data_hr_hr)];
+    static uint8_t read_count_index[sizeof(Count_index_data_hr_hr)];
     rc = nrf_fstorage_read(&fstorage, read_address, read_count_index, sizeof(read_count_index));
     if (rc != NRF_SUCCESS)
     {
         NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
     }
-    unsigned int temp_Count_index_data_hr_hr = *(unsigned int *)(read_count_index);
+    volatile unsigned int temp_Count_index_data_hr_hr = *(unsigned int *)(read_count_index);
     if (temp_Count_index_data_hr_hr <= Num_of_data_hr_hr)
     {
         Count_index_data_hr_hr = temp_Count_index_data_hr_hr;
