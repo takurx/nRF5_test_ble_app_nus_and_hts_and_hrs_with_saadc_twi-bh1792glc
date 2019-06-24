@@ -3306,10 +3306,10 @@ int main(void)
 
     uint32_t i = 0;
     uint32_t read_address = Flash_start_address;
-    
+    uint8_t read_data[sizeof(data_hr_hr[0])];
+
     for (i = 0; i <  Num_of_data_hr_hr; i++)
     {
-        uint8_t read_data[sizeof(data_hr_hr[i])];
         rc = nrf_fstorage_read(&fstorage, read_address, read_data, sizeof(read_data));
         if (rc != NRF_SUCCESS)
         {
