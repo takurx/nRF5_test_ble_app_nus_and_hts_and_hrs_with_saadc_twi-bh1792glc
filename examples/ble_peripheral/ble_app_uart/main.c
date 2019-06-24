@@ -724,7 +724,7 @@ volatile bool Debug_output_battery_voltage = false;
 volatile bool Debug_output_current_time = true;
 
 // Volatile Variables, used in the interrupt service routine!
-volatile int BPM;                   // int that holds raw Analog in 0. updated every 2mS
+volatile uint16_t BPM;                   // int that holds raw Analog in 0. updated every 2mS
 volatile int Signal;                // holds the incoming raw data
 volatile int IBI = 600;             // int that holds the time interval between beats! Must be seeded!
 volatile bool Pulse = false;     // "True" when User's live heartbeat is detected. "False" when not a "live beat".
@@ -1040,7 +1040,7 @@ typedef struct
 {
     ble_date_time_t start_time; 
     float body_temperature_array[6];
-    int heart_rate;
+    uint16_t heart_rate;
 } ble_data_ht_hr_t;
 static volatile ble_data_ht_hr_t data_hr_hr[Num_of_data_hr_hr] = {};
 //static ble_date_time_t time_stamp = { 2019, 2, 28, 23, 59, 50 };
@@ -1050,7 +1050,6 @@ static void meas_data_record_timeout_handler(void * p_context)
     UNUSED_PARAMETER(p_context);
 
     //NRF_LOG_INFO("10 second interval, it will measurement dara record");
-    Meas10sec++;
 
     //  measure 10 seconds, record 10 minutes
     if (Meas10sec < 7)
@@ -1065,6 +1064,7 @@ static void meas_data_record_timeout_handler(void * p_context)
             data_hr_hr[Write_index_data_hr_hr].start_time.minutes  = time_stamp.minutes;
             data_hr_hr[Write_index_data_hr_hr].start_time.seconds  = time_stamp.seconds;
 
+            /*
             if (Count_index_data_hr_hr > Num_of_data_hr_hr - 1)
             {
                 Read_index_data_hr_hr = Write_index_data_hr_hr + 1;
@@ -1073,6 +1073,7 @@ static void meas_data_record_timeout_handler(void * p_context)
                     Read_index_data_hr_hr = Read_index_data_hr_hr - Num_of_data_hr_hr;
                 }
             }
+            */
         }
 
         data_hr_hr[Write_index_data_hr_hr].body_temperature_array[Meas10sec - 1] = Body_temperature;
@@ -1086,7 +1087,8 @@ static void meas_data_record_timeout_handler(void * p_context)
             Write_index_data_hr_hr++;
             if (Write_index_data_hr_hr > Num_of_data_hr_hr - 1)
             {
-                Write_index_data_hr_hr = Write_index_data_hr_hr - Num_of_data_hr_hr;
+                //Write_index_data_hr_hr = Write_index_data_hr_hr - Num_of_data_hr_hr;
+                Write_index_data_hr_hr = 0;
             }
 
             Count_index_data_hr_hr++;
@@ -1108,6 +1110,7 @@ static void meas_data_record_timeout_handler(void * p_context)
         }
     }
 
+    Meas10sec++;
     //if (Meas10sec > 59)   // 10 minutes
     if (Meas10sec > 9)   // 100 seconds
     {
@@ -1131,7 +1134,7 @@ static void meas_data_output_timeout_handler(void * p_context)
     char resdata[128] = "";
     uint16_t reslength;
 
-    NRF_LOG_INFO("it will measurement data output");
+    //NRF_LOG_INFO("it will measurement data output");
 
     //for (j = 0; j < Count_index_data_hr_hr; j++)
     //{
@@ -1188,7 +1191,8 @@ static void meas_data_output_timeout_handler(void * p_context)
     //Read_index_data_hr_hr = Read_index_data_hr_hr + Count_index_data_hr_hr;
     if (Read_index_data_hr_hr > Num_of_data_hr_hr - 1)
     {
-        Read_index_data_hr_hr = Read_index_data_hr_hr - Num_of_data_hr_hr;
+        //Read_index_data_hr_hr = Read_index_data_hr_hr - Num_of_data_hr_hr;
+        Read_index_data_hr_hr = 0;
     }
 
     //Count_index_data_hr_hr = 0;
@@ -1651,11 +1655,11 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         uint16_t buf_ind;
         int ind;
 
-        char restime[] =    "2018-12-25T12:20:15";
-        char resdatanum[] = "100";
-        char respulse[] =   "100";
-        char restemp[] =    "36.00,36.01,36.02,36.03,36.04,36.05";
-        char resdata[128] = "";
+        char restime[19] =   ""; //"2018-12-25T12:20:15";
+        char resdatanum[3] = "";
+        //char respulse[3] =   "";
+        char restemp[35] =   ""; //"36.00,36.01,36.02,36.03,36.04,36.05";
+        char resdata[128] =  "";
 
         for (i = 0; i < p_evt->params.rx_data.length; i++)
         {
