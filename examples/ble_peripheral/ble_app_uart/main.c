@@ -175,8 +175,8 @@
 
 #define SENSOR_CONTACT_DETECTED_INTERVAL    APP_TIMER_TICKS(5000)                   /**< Sensor Contact Detected toggle interval (ticks). */
 
-//#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(10000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
-#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(100)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(10000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+//#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(100)                   /**< Body Temp. and Heart rate data record interval (ticks). */
 #define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(25)                     /**< nus(nordic uart service) data output interval (ticks). */
 
 #define TEMP_TYPE_AS_CHARACTERISTIC     0                                           /**< Determines if temperature type is given as characteristic (1) or as a field of measurement (0). */
@@ -957,8 +957,8 @@ void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
 /**
  * @brief Measurement data record events handler.
  */
-//#define Num_of_data_hr_hr   256
-#define Num_of_data_hr_hr   8
+#define Num_of_data_hr_hr   256
+//#define Num_of_data_hr_hr   8
 static volatile int Meas10sec = 0;
 static volatile int Write_index_data_hr_hr = 0;
 static volatile int Read_index_data_hr_hr = 0;
@@ -1044,8 +1044,8 @@ static void meas_data_record_timeout_handler(void * p_context)
         }
     }
 
-    //if (Meas10sec > 59)   // 10 minutes
-    if (Meas10sec > 9)   // 100 seconds
+    if (Meas10sec > 59)   // 10 minutes
+    //if (Meas10sec > 9)   // 100 seconds
     {
         Meas10sec = 0;
     }
