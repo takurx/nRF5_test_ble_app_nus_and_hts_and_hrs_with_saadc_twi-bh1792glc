@@ -3306,7 +3306,7 @@ int main(void)
 
     uint32_t i = 0;
     uint32_t read_address = Flash_start_address;
-    uint8_t read_data[sizeof(data_hr_hr[0])];
+    static uint8_t read_data[sizeof(data_hr_hr[0])];
 
     for (i = 0; i <  Num_of_data_hr_hr; i++)
     {
@@ -3322,14 +3322,14 @@ int main(void)
     }
 
     //Current time, time_stamp
-    uint8_t read_time_stamp[sizeof(time_stamp)];
+    static uint8_t read_time_stamp[sizeof(time_stamp)];
     rc = nrf_fstorage_read(&fstorage, read_address, read_time_stamp, sizeof(read_time_stamp));
     if (rc != NRF_SUCCESS)
     {
         NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
     }
     //time_stamp = *(ble_date_time_t *)(read_time_stamp);
-    ble_date_time_t temp_stamp = *(ble_date_time_t *)(read_time_stamp);
+    volatile ble_date_time_t temp_stamp = *(ble_date_time_t *)(read_time_stamp);
     if (temp_stamp.year > 1900 && temp_stamp.year < 2200)
     {
         time_stamp.year = temp_stamp.year;
@@ -3384,13 +3384,13 @@ int main(void)
     read_address = read_address + sizeof(read_time_stamp);
 
     //Write index, Write_index_data_hr_hr
-    uint8_t read_write_index[sizeof(Write_index_data_hr_hr)];
+    static uint8_t read_write_index[sizeof(Write_index_data_hr_hr)];
     rc = nrf_fstorage_read(&fstorage, read_address, read_write_index, sizeof(read_write_index));
     if (rc != NRF_SUCCESS)
     {
         NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
     }
-    unsigned int temp_Write_index_data_hr_hr = *(unsigned int *)(read_write_index);
+    volatile unsigned int temp_Write_index_data_hr_hr = *(unsigned int *)(read_write_index);
     if (temp_Write_index_data_hr_hr < Num_of_data_hr_hr)
     {
         Write_index_data_hr_hr = temp_Write_index_data_hr_hr;
@@ -3404,13 +3404,13 @@ int main(void)
     read_address = read_address + sizeof(read_write_index);
 
     //Read index, Read_index_data_hr_hr
-    uint8_t read_read_index[sizeof(Read_index_data_hr_hr)];
+    static uint8_t read_read_index[sizeof(Read_index_data_hr_hr)];
     rc = nrf_fstorage_read(&fstorage, read_address, read_read_index, sizeof(read_read_index));
     if (rc != NRF_SUCCESS)
     {
         NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
     }
-    unsigned int temp_Read_index_data_hr_hr = *(unsigned int *)(read_read_index);
+    volatile unsigned int temp_Read_index_data_hr_hr = *(unsigned int *)(read_read_index);
     if (temp_Read_index_data_hr_hr < Num_of_data_hr_hr)
     {
         Read_index_data_hr_hr = temp_Read_index_data_hr_hr;
@@ -3424,13 +3424,13 @@ int main(void)
     read_address = read_address + sizeof(read_read_index);
 
     //Count index, Count_index_data_hr_hr
-    uint8_t read_count_index[sizeof(Count_index_data_hr_hr)];
+    static uint8_t read_count_index[sizeof(Count_index_data_hr_hr)];
     rc = nrf_fstorage_read(&fstorage, read_address, read_count_index, sizeof(read_count_index));
     if (rc != NRF_SUCCESS)
     {
         NRF_LOG_INFO("nrf_fstorage_read() returned: %s\n", nrf_strerror_get(rc));
     }
-    unsigned int temp_Count_index_data_hr_hr = *(unsigned int *)(read_count_index);
+    volatile unsigned int temp_Count_index_data_hr_hr = *(unsigned int *)(read_count_index);
     if (temp_Count_index_data_hr_hr <= Num_of_data_hr_hr)
     {
         Count_index_data_hr_hr = temp_Count_index_data_hr_hr;
