@@ -1076,10 +1076,11 @@ static void meas_data_record_timeout_handler(void * p_context)
             */
         }
 
-        data_hr_hr[Write_index_data_hr_hr].body_temperature_array[Meas10sec - 1] = Body_temperature;
+        //data_hr_hr[Write_index_data_hr_hr].body_temperature_array[Meas10sec - 1] = Body_temperature;
+        data_hr_hr[Write_index_data_hr_hr].body_temperature_array[Meas10sec] = Body_temperature;
         NRF_LOG_INFO("R10sec %d:" NRF_LOG_FLOAT_MARKER "", Meas10sec, NRF_LOG_FLOAT(Body_temperature));
         
-        if (Meas10sec == 6)
+        if (Meas10sec == 5)
         {
             //data_hr_hr[Write_index_data_hr_hr].heart_rate = BPM;
             data_hr_hr[Write_index_data_hr_hr].heart_rate = 0;
