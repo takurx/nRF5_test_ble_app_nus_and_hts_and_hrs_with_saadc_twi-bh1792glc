@@ -1128,10 +1128,10 @@ static void meas_data_output_timeout_handler(void * p_context)
     uint16_t j;
     int ind;
 
-    static char restime[19] =   "";
-    static char resdatanum[3] = "";
-    static char respulse[3] =   "";
-    static char restemp[35] =   "";
+    static char restime[20] =   "";
+    static char resdatanum[4] = "";
+    static char respulse[4] =   "";
+    static char restemp[36] =   "";
     static char resdata[128] =  "";
     uint16_t reslength;
 
@@ -1656,10 +1656,10 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         uint16_t buf_ind;
         int ind;
 
-        char restime[19] =   ""; //"2018-12-25T12:20:15";
-        char resdatanum[3] = "";
-        //char respulse[3] =   "";
-        char restemp[35] =   ""; //"36.00,36.01,36.02,36.03,36.04,36.05";
+        char restime[20] =   ""; //"2018-12-25T12:20:15";
+        char resdatanum[4] = "";
+        //char respulse[4] =   "";
+        char restemp[36] =   ""; //"36.00,36.01,36.02,36.03,36.04,36.05";
         char resdata[128] =  "";
 
         for (i = 0; i < p_evt->params.rx_data.length; i++)
