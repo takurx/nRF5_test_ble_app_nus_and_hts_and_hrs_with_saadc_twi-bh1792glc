@@ -139,7 +139,7 @@
 #include "nrf_fstorage.h"
 #include "nrf_fstorage_sd.h"
 
-#define FIRMWARE_VERSION                "1p0p1"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
+#define FIRMWARE_VERSION                "1p0p2"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
 #define DEVICE_NAME                     "Herbio"                               /**< Name of device. Will be included in the advertising data. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 #define MANUFACTURER_NAME               "Herbio Co., Ltd."                       /**< Manufacturer. Will be passed to Device Information Service. */
@@ -2989,81 +2989,106 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 }
                 // for debug end
                 */
+                
+                //while (nrf_fstorage_is_busy(p_fstorage))
+                if (nrf_fstorage_is_busy(&fstorage) == false)
+                {
+                    memcpy(&write_buffer[size_write_data * 0], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 0]), size_write_data);
+                    memcpy(&write_buffer[size_write_data * 1], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 1]), size_write_data);
+                    memcpy(&write_buffer[size_write_data * 2], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 2]), size_write_data);
+                    memcpy(&write_buffer[size_write_data * 3], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 3]), size_write_data);
+                    memcpy(&write_buffer[size_write_data * 4], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 4]), size_write_data);
+                    memcpy(&write_buffer[size_write_data * 5], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 5]), size_write_data);
+                    memcpy(&write_buffer[size_write_data * 6], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 6]), size_write_data);
+                    memcpy(&write_buffer[size_write_data * 7], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 7]), size_write_data);
+                    rc = nrf_fstorage_write(&fstorage, write_index, &write_buffer, sizeof(write_buffer), NULL);
+                    APP_ERROR_CHECK(rc);
+                    write_index = write_index + sizeof(write_buffer);
 
-                memcpy(&write_buffer[size_write_data * 0], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 0]), size_write_data);
-                memcpy(&write_buffer[size_write_data * 1], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 1]), size_write_data);
-                memcpy(&write_buffer[size_write_data * 2], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 2]), size_write_data);
-                memcpy(&write_buffer[size_write_data * 3], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 3]), size_write_data);
-                memcpy(&write_buffer[size_write_data * 4], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 4]), size_write_data);
-                memcpy(&write_buffer[size_write_data * 5], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 5]), size_write_data);
-                memcpy(&write_buffer[size_write_data * 6], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 6]), size_write_data);
-                memcpy(&write_buffer[size_write_data * 7], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 7]), size_write_data);
-                rc = nrf_fstorage_write(&fstorage, write_index, &write_buffer, sizeof(write_buffer), NULL);
-                APP_ERROR_CHECK(rc);
-                write_index = write_index + sizeof(write_buffer);
-
-                NRF_LOG_INFO("Done, %d", Wait_sleep_count);
-                NRF_LOG_FLUSH();
+                    NRF_LOG_INFO("Done, %d", Wait_sleep_count);
+                    NRF_LOG_FLUSH();
+                    Wait_sleep_count++;
+                }
             }
             else if (Wait_sleep_count == Flash_write_count_for_sleep)
             {
-                //Current time, time_stamp
-                uint8_t write_time_stamp[sizeof(time_stamp)];
-                *(ble_date_time_t *) write_time_stamp = time_stamp;
-                rc = nrf_fstorage_write(&fstorage, write_index, &write_time_stamp, sizeof(write_time_stamp), NULL);
-                APP_ERROR_CHECK(rc);
-                write_index = write_index + sizeof(write_time_stamp);
+                if (nrf_fstorage_is_busy(&fstorage) == false)
+                {
+                    //Current time, time_stamp
+                    static uint8_t write_time_stamp[sizeof(time_stamp)];
+                    *(ble_date_time_t *) write_time_stamp = time_stamp;
+                    rc = nrf_fstorage_write(&fstorage, write_index, &write_time_stamp, sizeof(write_time_stamp), NULL);
+                    APP_ERROR_CHECK(rc);
+                    write_index = write_index + sizeof(write_time_stamp);
 
-                NRF_LOG_INFO("Done, %d", Wait_sleep_count);
-                NRF_LOG_FLUSH();
+                    NRF_LOG_INFO("Done, %d", Wait_sleep_count);
+                    NRF_LOG_FLUSH();
+                    Wait_sleep_count++;
+                }
             }
             else if (Wait_sleep_count == Flash_write_count_for_sleep + 1)
             {
-                //Write index, Write_index_data_hr_hr
-                uint8_t write_write_index[sizeof(Write_index_data_hr_hr)];
-                *(unsigned int *) write_write_index = Write_index_data_hr_hr;
-                rc = nrf_fstorage_write(&fstorage, write_index, &write_write_index, sizeof(write_write_index), NULL);
-                APP_ERROR_CHECK(rc);
-                write_index = write_index + sizeof(write_write_index);
+                if (nrf_fstorage_is_busy(&fstorage) == false)
+                {
+                    //Write index, Write_index_data_hr_hr
+                    static uint8_t write_write_index[sizeof(Write_index_data_hr_hr)];
+                    *(unsigned int *) write_write_index = Write_index_data_hr_hr;
+                    rc = nrf_fstorage_write(&fstorage, write_index, &write_write_index, sizeof(write_write_index), NULL);
+                    APP_ERROR_CHECK(rc);
+                    write_index = write_index + sizeof(write_write_index);
 
-                NRF_LOG_INFO("Done, %d", Wait_sleep_count);
-                NRF_LOG_FLUSH();
+                    NRF_LOG_INFO("Done, %d", Wait_sleep_count);
+                    NRF_LOG_FLUSH();
+                    Wait_sleep_count++;
+                }
             }
             else if (Wait_sleep_count == Flash_write_count_for_sleep + 2)
             {
-                //Read index, Read_index_data_hr_hr
-                uint8_t write_read_index[sizeof(Read_index_data_hr_hr)];
-                *(unsigned int *) write_read_index = Read_index_data_hr_hr;
-                rc = nrf_fstorage_write(&fstorage, write_index, &write_read_index, sizeof(write_read_index), NULL);
-                APP_ERROR_CHECK(rc);
-                write_index = write_index + sizeof(write_read_index);
+                if (nrf_fstorage_is_busy(&fstorage) == false)
+                {
+                    //Read index, Read_index_data_hr_hr
+                    static uint8_t write_read_index[sizeof(Read_index_data_hr_hr)];
+                    *(unsigned int *) write_read_index = Read_index_data_hr_hr;
+                    rc = nrf_fstorage_write(&fstorage, write_index, &write_read_index, sizeof(write_read_index), NULL);
+                    APP_ERROR_CHECK(rc);
+                    write_index = write_index + sizeof(write_read_index);
 
-                NRF_LOG_INFO("Done, %d", Wait_sleep_count);
-                NRF_LOG_FLUSH();
+                    NRF_LOG_INFO("Done, %d", Wait_sleep_count);
+                    NRF_LOG_FLUSH();
+                    Wait_sleep_count++;
+                }
             }
             else if (Wait_sleep_count == Flash_write_count_for_sleep + 3)
             {
-                //Count index, Count_index_data_hr_hr
-                uint8_t write_count_index[sizeof(Count_index_data_hr_hr)];
-                *(unsigned int *) write_count_index = Count_index_data_hr_hr;
-                rc = nrf_fstorage_write(&fstorage, write_index, &write_count_index, sizeof(write_count_index), NULL);
-                APP_ERROR_CHECK(rc);
-                write_index = write_index + sizeof(write_count_index);
+                if (nrf_fstorage_is_busy(&fstorage) == false)
+                {
+                    //Count index, Count_index_data_hr_hr
+                    static uint8_t write_count_index[sizeof(Count_index_data_hr_hr)];
+                    *(unsigned int *) write_count_index = Count_index_data_hr_hr;
+                    rc = nrf_fstorage_write(&fstorage, write_index, &write_count_index, sizeof(write_count_index), NULL);
+                    APP_ERROR_CHECK(rc);
+                    write_index = write_index + sizeof(write_count_index);
 
-                NRF_LOG_INFO("Done, %d", Wait_sleep_count);
-                NRF_LOG_FLUSH();
+                    NRF_LOG_INFO("Done, %d", Wait_sleep_count);
+                    NRF_LOG_FLUSH();
+                    Wait_sleep_count++;
+                }
             }
             else if (Wait_sleep_count > Flash_write_count_for_sleep + 3)
             {
-                // Go to system-off mode (this function will not return; wakeup will cause a reset).
-                NRF_LOG_INFO("system-off and sleep");
-                NRF_LOG_FLUSH();
-                sd_power_system_off();
-                //rc = sd_power_system_off();
-                //APP_ERROR_CHECK(rc);
+                if (nrf_fstorage_is_busy(&fstorage) == false)
+                {
+                    // Go to system-off mode (this function will not return; wakeup will cause a reset).
+                    NRF_LOG_INFO("system-off and sleep");
+                    NRF_LOG_FLUSH();
+                    sd_power_system_off();
+                    //rc = sd_power_system_off();
+                    //APP_ERROR_CHECK(rc);
+                    Wait_sleep_count++;
+                }
             }
 
-            Wait_sleep_count++;
+            //Wait_sleep_count++;
         }
 
         if (Boot_count < 24)
