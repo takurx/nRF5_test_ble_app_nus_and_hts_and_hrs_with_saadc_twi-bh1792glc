@@ -2923,6 +2923,13 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                     nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
             }
         }
+        else
+        {
+            // when finish boot count, LED_output_state = false; not state_emergency and not state_sleeping
+            nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+            nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+            nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+        }
 
         if (nrf_gpio_pin_read(SWITCH1_PIN))
         {
@@ -3072,21 +3079,32 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                     Wait_sleep_count++;
                 }
             }
-            else if (Wait_sleep_count > Flash_write_count_for_sleep + 3)
+            else if (Wait_sleep_count == Flash_write_count_for_sleep + 4)
             {
                 if (nrf_fstorage_is_busy(&fstorage) == false)
                 {
-                    // Go to system-off mode (this function will not return; wakeup will cause a reset).
-                    nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
-                    nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
-                    nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
-                    NRF_LOG_INFO("system-off and sleep");
-                    NRF_LOG_FLUSH();
-                    sd_power_system_off();
-                    //rc = sd_power_system_off();
-                    //APP_ERROR_CHECK(rc);
-                    //Wait_sleep_count++;
+                    //nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                    //nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                    //nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                    if (nrf_gpio_pin_read(SWITCH1_PIN))
+                    {
+                        // released button check 
+                        Wait_sleep_count++;
+                    }
                 }
+            }
+            else if (Wait_sleep_count > Flash_write_count_for_sleep + 4)
+            {
+                //Wait_sleep_count = 0;
+                // Go to system-off mode (this function will not return; wakeup will cause a reset).
+                nrf_drv_gpiote_out_set(LED_3_COLOR_RED_PIN);
+                nrf_drv_gpiote_out_set(LED_3_COLOR_GREEN_PIN);
+                nrf_drv_gpiote_out_set(LED_3_COLOR_BLUE_PIN);
+                NRF_LOG_INFO("system-off and sleep");
+                NRF_LOG_FLUSH();
+                sd_power_system_off();
+                //rc = sd_power_system_off();
+                //APP_ERROR_CHECK(rc);
             }
 
             //Wait_sleep_count++;
