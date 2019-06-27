@@ -139,7 +139,7 @@
 #include "nrf_fstorage.h"
 #include "nrf_fstorage_sd.h"
 
-#define FIRMWARE_VERSION                "1p0p5"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
+#define FIRMWARE_VERSION                "1p0p6"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
 #define DEVICE_NAME                     "Herbio"                               /**< Name of device. Will be included in the advertising data. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 #define MANUFACTURER_NAME               "Herbio Co., Ltd."                       /**< Manufacturer. Will be passed to Device Information Service. */
@@ -1637,7 +1637,6 @@ static void nrf_qwr_error_handler(uint32_t nrf_error)
     APP_ERROR_HANDLER(nrf_error);
 }
 
-uint16_t Number_of_command = 40;
 static const char * NusCommand[] = 
 {
     "sta",    /* 0: start measurement command */
@@ -1647,16 +1646,18 @@ static const char * NusCommand[] =
     "scd",    /* 4: set current days command  Ex. "scd 2018-12-25" */
     "sct",    /* 5: set current time command  Ex. "sct 12:20:15"   */
     "slp",    /* 6: set sleep enter command */
-    "", "", "",     /* 7-9 */
-    "", "", "", "", "", "", "", "", "", "",     /* 10-19 */
-    "", "", "", "", "", "", "", "", "", "",     /* 20-29 */
+    "nnn", "nnn", "nnn",     /* 7-9 */
+    "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn",     /* 10-19 */
+    "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn",     /* 20-29 */
     "dhr",    /* 30: debug output heart rate command     */
     "dbt",    /* 31: debug output temperature command    */
     "dsp",    /* 32: debug output stop command           */
     "dct",    /* 33: debut output current time */
-    "ver",    /* 34: debug output firmware version "/
-    "", "", "", "", "",     /* 35-39 */
+    "ver",    /* 34: debug output firmware version */
+    "nnn", "nnn", "nnn", "nnn", "nnn",     /* 35-39 */
 };
+uint16_t Number_of_command = 40;
+//uint16_t Number_of_command = sizeof(NusCommand)/sizeof(NusCommand[0]);
 
 static void sleep_mode_enter();
 
@@ -1876,14 +1877,17 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                     default:
                         break;
                 }
+                /*
                 if ((err_code != NRF_ERROR_INVALID_STATE) &&
                     (err_code != NRF_ERROR_RESOURCES) &&
                     (err_code != NRF_ERROR_NOT_FOUND))
                 {
                     APP_ERROR_CHECK(err_code);
-                }
+                }*/
                 break;
             }
+            NRF_LOG_INFO("command check done: %d", i);
+            NRF_LOG_FLUSH();
         }
         if (i == Number_of_command)
         {
@@ -1891,12 +1895,21 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
             NRF_LOG_INFO("Number_of_command: %d", Number_of_command);
             reslength = 3;
             err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
+            /*
             if ((err_code != NRF_ERROR_INVALID_STATE) &&
                 (err_code != NRF_ERROR_RESOURCES) &&
                 (err_code != NRF_ERROR_NOT_FOUND))
             {
                 APP_ERROR_CHECK(err_code);
             }
+            */
+        }
+
+        if ((err_code != NRF_ERROR_INVALID_STATE) &&
+            (err_code != NRF_ERROR_RESOURCES) &&
+            (err_code != NRF_ERROR_NOT_FOUND))
+        {
+            APP_ERROR_CHECK(err_code);
         }
     }
 
