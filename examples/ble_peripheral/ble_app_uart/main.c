@@ -1647,14 +1647,14 @@ static const char * NusCommand[] =
     "sct",    /* 5: set current time command  Ex. "sct 12:20:15"   */
     "slp",    /* 6: set sleep enter command */
     "nnn", "nnn", "nnn",     /* 7-9 */
-    "dhr",    /* 10: debug output heart rate command     */
-    "dbt",    /* 11: debug output temperature command    */
-    "dsp",    /* 12: debug output stop command           */
-    "dct",    /* 13: debut output current time */
-    "ver",    /* 14: debug output firmware version */
-    "nnn", "nnn", "nnn", "nnn", "nnn",     /* 15-19 */
+    "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn",     /* 10-19 */
     "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn",     /* 20-29 */
-    "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn",     /* 30-39 */
+    "dhr",    /* 30: debug output heart rate command     */
+    "dbt",    /* 31: debug output temperature command    */
+    "dsp",    /* 32: debug output stop command           */
+    "dct",    /* 33: debut output current time */
+    "ver",    /* 34: debug output firmware version */
+    "nnn", "nnn", "nnn", "nnn", "nnn",     /* 35-39 */
 };
 uint16_t Number_of_command = 40;
 //uint16_t Number_of_command = sizeof(NusCommand)/sizeof(NusCommand[0]);
@@ -1843,32 +1843,32 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         NRF_LOG_FLUSH();
                         sleep_mode_enter();
                         break;
-                    case 10:   // 10: dhr
+                    case 30:   // 30: dhr
                         Debug_output_heart_rate = true;
                         Debug_output_body_temperature = false;
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         break;
-                    case 11:   // 11: dbt
+                    case 31:   // 31: dbt
                         Debug_output_heart_rate = false;
                         Debug_output_body_temperature = true;
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         break;
-                    case 12:   // 12: dsp
+                    case 32:   // 32: dsp
                         Debug_output_heart_rate = false;
                         Debug_output_body_temperature = false;
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         break;
-                    case 13:   // 13: dct
+                    case 33:   // 33: dct
                         //char restime[] =    "2018-12-25T12:20:15";
                         NRF_LOG_INFO("%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
                         sprintf(restime, "%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
                         reslength = strlen(restime);
                         err_code = ble_nus_data_send(&m_nus, &restime[0], &reslength, m_conn_handle);
                         break;
-                    case 14:   // 14: ver
+                    case 34:   // 34: ver
                         NRF_LOG_INFO("FIRMWARE_VERSION: %s", FIRMWARE_VERSION);
                         sprintf(resdata, "FIRMWARE_VERSION: %s", FIRMWARE_VERSION);
                         reslength = strlen(resdata);
