@@ -1876,12 +1876,13 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                     default:
                         break;
                 }
+                /*
                 if ((err_code != NRF_ERROR_INVALID_STATE) &&
                     (err_code != NRF_ERROR_RESOURCES) &&
                     (err_code != NRF_ERROR_NOT_FOUND))
                 {
                     APP_ERROR_CHECK(err_code);
-                }
+                }*/
                 break;
             }
         }
@@ -1891,12 +1892,21 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
             NRF_LOG_INFO("Number_of_command: %d", Number_of_command);
             reslength = 3;
             err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
+            /*
             if ((err_code != NRF_ERROR_INVALID_STATE) &&
                 (err_code != NRF_ERROR_RESOURCES) &&
                 (err_code != NRF_ERROR_NOT_FOUND))
             {
                 APP_ERROR_CHECK(err_code);
             }
+            */
+        }
+
+        if ((err_code != NRF_ERROR_INVALID_STATE) &&
+            (err_code != NRF_ERROR_RESOURCES) &&
+            (err_code != NRF_ERROR_NOT_FOUND))
+        {
+            APP_ERROR_CHECK(err_code);
         }
     }
 
