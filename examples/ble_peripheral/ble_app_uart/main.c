@@ -1656,8 +1656,8 @@ static const char * NusCommand[] =
     "ver",    /* 34: debug output firmware version */
     "nnn", "nnn", "nnn", "nnn", "nnn",     /* 35-39 */
 };
-uint16_t Number_of_command = 40;
-//uint16_t Number_of_command = sizeof(NusCommand)/sizeof(NusCommand[0]);
+//uint16_t Number_of_command = 40;
+uint16_t Number_of_command = sizeof(NusCommand)/sizeof(char *);
 
 static void sleep_mode_enter();
 
@@ -1719,6 +1719,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         long temp_seconds;
         long max_temp_days;
 
+        NRF_LOG_INFO("number of command: %d", Number_of_command);
         for (i = 0; i < Number_of_command; i++)
         {
             if((strncmp(com_buf, NusCommand[i], 3)) == 0)
@@ -1892,7 +1893,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         if (i == Number_of_command)
         {
             //NRF_LOG_INFO("nak");
-            NRF_LOG_INFO("Number_of_command: %d", Number_of_command);
+            //NRF_LOG_INFO("Number_of_command: %d", Number_of_command);
             reslength = 3;
             err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
             /*
