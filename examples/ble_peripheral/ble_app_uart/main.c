@@ -1637,7 +1637,6 @@ static void nrf_qwr_error_handler(uint32_t nrf_error)
     APP_ERROR_HANDLER(nrf_error);
 }
 
-uint16_t Number_of_command = 40;
 static const char * NusCommand[] = 
 {
     "sta",    /* 0: start measurement command */
@@ -1647,16 +1646,16 @@ static const char * NusCommand[] =
     "scd",    /* 4: set current days command  Ex. "scd 2018-12-25" */
     "sct",    /* 5: set current time command  Ex. "sct 12:20:15"   */
     "slp",    /* 6: set sleep enter command */
-    "", "", "",     /* 7-9 */
-    "", "", "", "", "", "", "", "", "", "",     /* 10-19 */
-    "", "", "", "", "", "", "", "", "", "",     /* 20-29 */
-    "dhr",    /* 30: debug output heart rate command     */
-    "dbt",    /* 31: debug output temperature command    */
-    "dsp",    /* 32: debug output stop command           */
-    "dct",    /* 33: debut output current time */
-    "ver",    /* 34: debug output firmware version "/
-    "", "", "", "", "",     /* 35-39 */
+    "nnn", "nnn", "nnn",     /* 7-9 */
+    "dhr",    /* 10: debug output heart rate command     */
+    "dbt",    /* 11: debug output temperature command    */
+    "dsp",    /* 12: debug output stop command           */
+    "dct",    /* 13: debut output current time */
+    "ver",    /* 14: debug output firmware version */
+    "nnn", "nnn", "nnn", "nnn", "nnn",     /* 15-19 */
 };
+uint16_t Number_of_command = 20;
+//uint16_t Number_of_command = sizeof(NusCommand)/sizeof(NusCommand[0]);
 
 static void sleep_mode_enter();
 
@@ -1842,32 +1841,32 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         NRF_LOG_FLUSH();
                         sleep_mode_enter();
                         break;
-                    case 30:   // 30: dhr
+                    case 10:   // 10: dhr
                         Debug_output_heart_rate = true;
                         Debug_output_body_temperature = false;
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         break;
-                    case 31:   // 31: dbt
+                    case 11:   // 11: dbt
                         Debug_output_heart_rate = false;
                         Debug_output_body_temperature = true;
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         break;
-                    case 32:   // 32: dsp
+                    case 12:   // 12: dsp
                         Debug_output_heart_rate = false;
                         Debug_output_body_temperature = false;
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         break;
-                    case 33:   // 33: dct
+                    case 13:   // 13: dct
                         //char restime[] =    "2018-12-25T12:20:15";
                         NRF_LOG_INFO("%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
                         sprintf(restime, "%04d-%02d-%02dT%02d:%02d:%02d", time_stamp.year, time_stamp.month, time_stamp.day, time_stamp.hours, time_stamp.minutes, time_stamp.seconds);
                         reslength = strlen(restime);
                         err_code = ble_nus_data_send(&m_nus, &restime[0], &reslength, m_conn_handle);
                         break;
-                    case 34:   // 34: ver
+                    case 14:   // 14: ver
                         NRF_LOG_INFO("FIRMWARE_VERSION: %s", FIRMWARE_VERSION);
                         sprintf(resdata, "FIRMWARE_VERSION: %s", FIRMWARE_VERSION);
                         reslength = strlen(resdata);
@@ -1885,6 +1884,8 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                 }*/
                 break;
             }
+            NRF_LOG_INFO("command check done: %d", i);
+            NRF_LOG_FLUSH();
         }
         if (i == Number_of_command)
         {
