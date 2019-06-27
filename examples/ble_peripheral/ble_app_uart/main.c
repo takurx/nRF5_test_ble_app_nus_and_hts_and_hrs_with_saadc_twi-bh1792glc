@@ -139,7 +139,7 @@
 #include "nrf_fstorage.h"
 #include "nrf_fstorage_sd.h"
 
-#define FIRMWARE_VERSION                "1p0p4"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
+#define FIRMWARE_VERSION                "1p0p5"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
 #define DEVICE_NAME                     "Herbio"                               /**< Name of device. Will be included in the advertising data. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 #define MANUFACTURER_NAME               "Herbio Co., Ltd."                       /**< Manufacturer. Will be passed to Device Information Service. */
@@ -351,8 +351,8 @@ NRF_FSTORAGE_DEF(nrf_fstorage_t fstorage) =
 };
 
 /* Dummy data to write to flash. */
-static uint32_t m_data          = 0xBADC0FFE;
-static char     m_hello_world[] = "hello world";
+//static uint32_t m_data          = 0xBADC0FFE;
+//static char     m_hello_world[] = "hello world";
 
 
 
@@ -1646,7 +1646,8 @@ static const char * NusCommand[] =
     "rqd",    /* 3: request data command      */
     "scd",    /* 4: set current days command  Ex. "scd 2018-12-25" */
     "sct",    /* 5: set current time command  Ex. "sct 12:20:15"   */
-    "", "", "", "",     /* 6-9 */
+    "slp",    /* 6: set sleep enter command */
+    "", "", "",     /* 7-9 */
     "", "", "", "", "", "", "", "", "", "",     /* 10-19 */
     "", "", "", "", "", "", "", "", "", "",     /* 20-29 */
     "dhr",    /* 30: debug output heart rate command     */
@@ -1656,6 +1657,8 @@ static const char * NusCommand[] =
     "ver",    /* 34: debug output firmware version "/
     "", "", "", "", "",     /* 35-39 */
 };
+
+static void sleep_mode_enter();
 
 /**@brief Function for handling the data from the Nordic UART Service.
  *
@@ -1831,6 +1834,13 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                           reslength = 3;
                           err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
                         }
+                        break;
+                    case 6: // 6: slp, set sleep enter command
+                        reslength = 3;
+                        err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        NRF_LOG_INFO("set sleep, good night");
+                        NRF_LOG_FLUSH();
+                        sleep_mode_enter();
                         break;
                     case 30:   // 30: dhr
                         Debug_output_heart_rate = true;
