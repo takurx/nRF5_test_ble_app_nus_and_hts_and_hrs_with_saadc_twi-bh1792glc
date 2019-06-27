@@ -1653,8 +1653,10 @@ static const char * NusCommand[] =
     "dct",    /* 13: debut output current time */
     "ver",    /* 14: debug output firmware version */
     "nnn", "nnn", "nnn", "nnn", "nnn",     /* 15-19 */
+    "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn",     /* 20-29 */
+    "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn",     /* 30-39 */
 };
-uint16_t Number_of_command = 20;
+uint16_t Number_of_command = 40;
 //uint16_t Number_of_command = sizeof(NusCommand)/sizeof(NusCommand[0]);
 
 static void sleep_mode_enter();
