@@ -2331,6 +2331,7 @@ static nrf_saadc_channel_config_t  channel_0_config = NRF_DRV_SAADC_DEFAULT_CHAN
 static nrf_saadc_channel_config_t  channel_1_config = NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN1);    //NRF_SAADC_INPUT_AIN1: P0.03, battery temprature
 static nrf_saadc_channel_config_t  channel_5_config = NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN5);    //NRF_SAADC_INPUT_AIN5: P0.29, battery voltage
 const float Over_battery_temperature  = 45.00;
+const float Over_warning_battery_temperature  = 42.00;
 const float Under_battery_temperature =  0.00;
 
 void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
@@ -2415,7 +2416,25 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
             }
             Battery_temperature = temperature;
 
-            if (Battery_temperature > Over_battery_temperature || Battery_temperature < Under_battery_temperature)
+            if (Battery_temperature > Over_battery_temperature && State_emergency_lock == true)
+            {
+                //over temprature and sleep mode enter
+                NRF_LOG_INFO("sleep mode enter, over temprature");
+
+                err_code = app_timer_stop(m_data_record_timer_id);
+                APP_ERROR_CHECK(err_code);
+                NRF_LOG_INFO("10 second measure and 10 minutes record stop");
+                if (State_keeper == STATE_MEASURING)
+                {
+                    State_keeper = STATE_PAIRING;
+                    NRF_LOG_INFO("State_keeper: %d", State_keeper);
+                }
+
+                NRF_LOG_FLUSH();
+                sleep_mode_enter();
+            }
+
+            if (Battery_temperature > Over_warning_battery_temperature || Battery_temperature < Under_battery_temperature)
             {
                 State_keeper = STATE_EMERGENCY;
                 State_emergency_lock = true;
