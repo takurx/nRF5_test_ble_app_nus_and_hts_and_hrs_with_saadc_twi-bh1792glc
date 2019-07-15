@@ -1,6 +1,6 @@
 /**
  * The 3-Clause BSD License
- * Copyright 2019 takurx
+ * Copyright (C) 2019 takurx
  *
  * Redistribution and use in source and binary forms, with or without modification,
  * are permitted provided that the following conditions are met:
@@ -801,7 +801,7 @@ static void rr_interval_timeout_handler(void * p_context)
 volatile float Body_temperature = 0.0;
 volatile float Battery_temperature = 0.0;
 
-static ble_date_time_t time_stamp = { 2019, 6, 16, 15, 8, 50 };
+static ble_date_time_t time_stamp = { 2019, 7, 15, 15, 8, 50 };
 static const int month_days[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
 static void hts_measurement(ble_hts_meas_t * p_meas)
