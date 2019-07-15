@@ -139,7 +139,7 @@
 #include "nrf_fstorage.h"
 #include "nrf_fstorage_sd.h"
 
-#define FIRMWARE_VERSION                "1p0p7"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
+#define FIRMWARE_VERSION                "1p0p8"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
 #define DEVICE_NAME                     "Herbio"                               /**< Name of device. Will be included in the advertising data. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 #define MANUFACTURER_NAME               "Herbio Co., Ltd."                       /**< Manufacturer. Will be passed to Device Information Service. */
@@ -1033,6 +1033,11 @@ void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
 #define Num_of_data_hr_hr   256
 //for debug setting
 //#define Num_of_data_hr_hr   32
+
+static volatile unsigned int Count_10sec = 59;
+//for debug setting
+//static volatile unsigned int Count_10sec = 9;
+
 static volatile unsigned int Meas10sec = 0;
 static volatile unsigned int Write_index_data_hr_hr = 0;
 static volatile unsigned int Read_index_data_hr_hr = 0;
@@ -1124,7 +1129,8 @@ static void meas_data_record_timeout_handler(void * p_context)
     }
 
     Meas10sec++;
-    if (Meas10sec > 59)   // 10 minutes
+    if(Meas10sec > Count_10sec)
+    //if (Meas10sec > 59)   // 10 minutes
     //for debug setting
     //if (Meas10sec > 9)   // 100 seconds
     {
@@ -1654,7 +1660,9 @@ static const char * NusCommand[] =
     "dsp",    /* 32: debug output stop command           */
     "dct",    /* 33: debut output current time */
     "ver",    /* 34: debug output firmware version */
-    "nnn", "nnn", "nnn", "nnn", "nnn",     /* 35-39 */
+    "dcm",    /* 35: debug Change measurement interval, Count_10sec */
+    "dmi",    /* 36: debug output measurement interval, Count_10sec */
+    "nnn", "nnn", "nnn",     /* 37-39 */
 };
 //uint16_t Number_of_command = 40;
 uint16_t Number_of_command = sizeof(NusCommand)/sizeof(char *);
@@ -1718,6 +1726,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         long temp_minutes;
         long temp_seconds;
         long max_temp_days;
+        unsigned int temp_time_interval;
 
         NRF_LOG_INFO("number of command: %d", Number_of_command);
         for (i = 0; i < Number_of_command; i++)
@@ -1872,6 +1881,30 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                     case 34:   // 34: ver
                         NRF_LOG_INFO("FIRMWARE_VERSION: %s", FIRMWARE_VERSION);
                         sprintf(resdata, "FIRMWARE_VERSION: %s", FIRMWARE_VERSION);
+                        reslength = strlen(resdata);
+                        err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
+                        break;
+                    case 35:   //35: "dcm", debug Change measurement interval, Meas10sec
+                        /* Ex. "dcm 0060", range: 060 - 990 */
+                        temp_time_interval = strtol((const char *)(&com_buf[4]), NULL, 10);
+                        NRF_LOG_INFO("SET MEAS INTERVAL: %03d", temp_time_interval);
+                        
+                        if (temp_time_interval >= 60 && temp_time_interval <= 990)
+                        {
+                          Count_10sec = temp_time_interval / 10 - 1;
+                          reslength = 3;
+                          err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        }
+                        else
+                        {
+                          reslength = 3;
+                          err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
+                        }
+                        break;
+                    case 36:  //36: "dmi", debug output measurement interval, Meas10sec
+                        temp_time_interval = (Count_10sec + 1) * 10;
+                        NRF_LOG_INFO("MEAS INTERVAL: %03d", temp_time_interval);
+                        sprintf(resdata, "MEAS INTERVAL: %03d", temp_time_interval);
                         reslength = strlen(resdata);
                         err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
                         break;
