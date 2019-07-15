@@ -271,13 +271,13 @@ static nrf_ppi_channel_t     m_ppi_channel;
 
 //typedef enum
 //{
-static const int     STATE_ADVERTISING = 0;   // Blink GREEN: Advertising that Before Pairing, 0
-static const int     STATE_PAIRING     = 1;   // GREEN: Pairing and Idle state, 1
-static const int     STATE_MEASURING   = 2;   // RED: Measring state and Pairing, 2
-static const int     STATE_EMERGENCY   = 3;   // Blink GREEN and RED: Emergency, 3
-static const int     STATE_MEASURINGADVERTISING  = 4;   // Blink RED: Measuring and Adverting, 4
-static const int     STATE_BOOTING     = 5;   // BLUE: boot, reboot from sleep, 5
-static const int     STATE_SLEEPING    = 6;   // Blink BLUE: go to sleep, 6
+static const int     STATE_ADVERTISING          = 0;   // 0: Blink GREEN: Advertising that Before Pairing
+static const int     STATE_PAIRING              = 1;   // 1: GREEN: Pairing and Idle state
+static const int     STATE_MEASURING            = 2;   // 2: RED: Measring state and Pairing
+static const int     STATE_EMERGENCY            = 3;   // 3: Blink GREEN and RED: Emergency
+static const int     STATE_MEASURINGADVERTISING = 4;   // 4: Blink RED: Measuring and Adverting
+static const int     STATE_BOOTING              = 5;   // 5: BLUE: boot, reboot from sleep
+static const int     STATE_SLEEPING             = 6;   // 6: Blink BLUE: go to sleep
 
 //static volatile int State_keeper = 0;
 static volatile int State_keeper = STATE_ADVERTISING;
