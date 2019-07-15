@@ -139,7 +139,7 @@
 #include "nrf_fstorage.h"
 #include "nrf_fstorage_sd.h"
 
-#define FIRMWARE_VERSION                "1p0p8"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
+#define FIRMWARE_VERSION                "1p0p9"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
 #define DEVICE_NAME                     "Herbio"                               /**< Name of device. Will be included in the advertising data. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 #define MANUFACTURER_NAME               "Herbio Co., Ltd."                       /**< Manufacturer. Will be passed to Device Information Service. */
@@ -271,13 +271,13 @@ static nrf_ppi_channel_t     m_ppi_channel;
 
 //typedef enum
 //{
-static const int     STATE_ADVERTISING = 0;   // Blink GREEN: Advertising that Before Pairing, 0
-static const int     STATE_PAIRING     = 1;   // GREEN: Pairing and Idle state, 1
-static const int     STATE_MEASURING   = 2;   // RED: Measring state and Pairing, 2
-static const int     STATE_EMERGENCY   = 3;   // Blink GREEN and RED: Emergency, 3
-static const int     STATE_MEASURINGADVERTISING  = 4;   // Blink RED: Measuring and Adverting, 4
-static const int     STATE_BOOTING     = 5;   // BLUE: boot, reboot from sleep, 5
-static const int     STATE_SLEEPING    = 6;   // Blink BLUE: go to sleep, 6
+static const int     STATE_ADVERTISING          = 0;   // 0: Blink GREEN: Advertising that Before Pairing
+static const int     STATE_PAIRING              = 1;   // 1: GREEN: Pairing and Idle state
+static const int     STATE_MEASURING            = 2;   // 2: RED: Measring state and Pairing
+static const int     STATE_EMERGENCY            = 3;   // 3: Blink GREEN and RED: Emergency
+static const int     STATE_MEASURINGADVERTISING = 4;   // 4: Blink RED: Measuring and Adverting
+static const int     STATE_BOOTING              = 5;   // 5: BLUE: boot, reboot from sleep
+static const int     STATE_SLEEPING             = 6;   // 6: Blink BLUE: go to sleep
 
 //static volatile int State_keeper = 0;
 static volatile int State_keeper = STATE_ADVERTISING;
@@ -2331,6 +2331,7 @@ static nrf_saadc_channel_config_t  channel_0_config = NRF_DRV_SAADC_DEFAULT_CHAN
 static nrf_saadc_channel_config_t  channel_1_config = NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN1);    //NRF_SAADC_INPUT_AIN1: P0.03, battery temprature
 static nrf_saadc_channel_config_t  channel_5_config = NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN5);    //NRF_SAADC_INPUT_AIN5: P0.29, battery voltage
 const float Over_battery_temperature  = 45.00;
+const float Over_warning_battery_temperature  = 42.00;
 const float Under_battery_temperature =  0.00;
 
 void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
@@ -2415,7 +2416,25 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
             }
             Battery_temperature = temperature;
 
-            if (Battery_temperature > Over_battery_temperature || Battery_temperature < Under_battery_temperature)
+            if (Battery_temperature > Over_battery_temperature && State_emergency_lock == true)
+            {
+                //over temprature and sleep mode enter
+                NRF_LOG_INFO("sleep mode enter, over temprature");
+
+                err_code = app_timer_stop(m_data_record_timer_id);
+                APP_ERROR_CHECK(err_code);
+                NRF_LOG_INFO("10 second measure and 10 minutes record stop");
+                if (State_keeper == STATE_MEASURING)
+                {
+                    State_keeper = STATE_PAIRING;
+                    NRF_LOG_INFO("State_keeper: %d", State_keeper);
+                }
+
+                NRF_LOG_FLUSH();
+                sleep_mode_enter();
+            }
+
+            if (Battery_temperature > Over_warning_battery_temperature || Battery_temperature < Under_battery_temperature)
             {
                 State_keeper = STATE_EMERGENCY;
                 State_emergency_lock = true;
