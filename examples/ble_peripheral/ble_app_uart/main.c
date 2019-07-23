@@ -139,7 +139,7 @@
 #include "nrf_fstorage.h"
 #include "nrf_fstorage_sd.h"
 
-#define FIRMWARE_VERSION                "1p0p9"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
+#define FIRMWARE_VERSION                "1p0p10"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
 #define DEVICE_NAME                     "Herbio"                               /**< Name of device. Will be included in the advertising data. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 #define MANUFACTURER_NAME               "Herbio Co., Ltd."                       /**< Manufacturer. Will be passed to Device Information Service. */
@@ -801,7 +801,7 @@ static void rr_interval_timeout_handler(void * p_context)
 volatile float Body_temperature = 0.0;
 volatile float Battery_temperature = 0.0;
 
-static ble_date_time_t time_stamp = { 2019, 7, 15, 15, 8, 50 };
+static ble_date_time_t time_stamp = { 2019, 7, 24, 10, 8, 40 };
 static const int month_days[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
 static void hts_measurement(ble_hts_meas_t * p_meas)
@@ -1662,7 +1662,8 @@ static const char * NusCommand[] =
     "ver",    /* 34: debug output firmware version */
     "dcm",    /* 35: debug Change measurement interval, Count_10sec */
     "dmi",    /* 36: debug output measurement interval, Count_10sec */
-    "nnn", "nnn", "nnn",     /* 37-39 */
+    "dba",    /* 37: debug output battery percentage */
+    "nnn", "nnn",     /* 38-39 */
 };
 //uint16_t Number_of_command = 40;
 uint16_t Number_of_command = sizeof(NusCommand)/sizeof(char *);
@@ -1905,6 +1906,13 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         temp_time_interval = (Count_10sec + 1) * 10;
                         NRF_LOG_INFO("MEAS INTERVAL: %03d", temp_time_interval);
                         sprintf(resdata, "MEAS INTERVAL: %03d", temp_time_interval);
+                        reslength = strlen(resdata);
+                        err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
+                        break;
+                    case 37: // 37: "dba", debug output battery percentage
+                        NRF_LOG_INFO("BAT: " NRF_LOG_FLOAT_MARKER "", NRF_LOG_FLOAT(Battery_percent));
+                        sprintf(resdata, "BAT: %03d", (int)(Battery_percent));
+                        //sprintf(resdata, "BAT: ", NRF_LOG_FLOAT_MARKER " %", NRF_LOG_FLOAT(Battery_percent));
                         reslength = strlen(resdata);
                         err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
                         break;
