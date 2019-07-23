@@ -1662,7 +1662,8 @@ static const char * NusCommand[] =
     "ver",    /* 34: debug output firmware version */
     "dcm",    /* 35: debug Change measurement interval, Count_10sec */
     "dmi",    /* 36: debug output measurement interval, Count_10sec */
-    "nnn", "nnn", "nnn",     /* 37-39 */
+    "dba",    /* 37: debug output battery percentage */
+    "nnn", "nnn",     /* 38-39 */
 };
 //uint16_t Number_of_command = 40;
 uint16_t Number_of_command = sizeof(NusCommand)/sizeof(char *);
@@ -1905,6 +1906,13 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         temp_time_interval = (Count_10sec + 1) * 10;
                         NRF_LOG_INFO("MEAS INTERVAL: %03d", temp_time_interval);
                         sprintf(resdata, "MEAS INTERVAL: %03d", temp_time_interval);
+                        reslength = strlen(resdata);
+                        err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
+                        break;
+                    case 37: // 37: "dba", debug output battery percentage
+                        NRF_LOG_INFO("BAT: " NRF_LOG_FLOAT_MARKER "", NRF_LOG_FLOAT(Battery_percent));
+                        sprintf(resdata, "BAT: %03d", (int)(Battery_percent));
+                        //sprintf(resdata, "BAT: ", NRF_LOG_FLOAT_MARKER " %", NRF_LOG_FLOAT(Battery_percent));
                         reslength = strlen(resdata);
                         err_code = ble_nus_data_send(&m_nus, &resdata[0], &reslength, m_conn_handle);
                         break;
