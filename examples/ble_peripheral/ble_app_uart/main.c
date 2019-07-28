@@ -116,6 +116,7 @@
 #include "nrf_drv_twi.h"
 #include "nrf_delay.h"
 #include <bh1792.h>
+#include <hr_bh1792.h>
 #include "bsp_btn_ble.h"
 #include "fds.h"
 #include "ble_conn_state.h"
@@ -139,8 +140,8 @@
 #include "nrf_fstorage.h"
 #include "nrf_fstorage_sd.h"
 
-#define FIRMWARE_VERSION                "1p0p10"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
-#define DEVICE_NAME                     "Herbio"                               /**< Name of device. Will be included in the advertising data. */
+#define FIRMWARE_VERSION                "2p0p0"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
+#define DEVICE_NAME                     "Herbio+"                               /**< Name of device. Will be included in the advertising data. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 #define MANUFACTURER_NAME               "Herbio Co., Ltd."                       /**< Manufacturer. Will be passed to Device Information Service. */
 //#define MODEL_NUM                       "EXAMPLE"                            /**< Model number. Will be passed to Device Information Service. */
@@ -309,7 +310,8 @@ static volatile bool State_emergency_lock = false;
 APP_TIMER_DEF(m_bh1792glc_timer_id);
 //#define BH1792GLC_MEAS_INTERVAL         APP_TIMER_TICKS(1000)   //1 Hz Timer
 //#define BH1792GLC_MEAS_INTERVAL         APP_TIMER_TICKS(25)       //40 Hz Timer
-#define BH1792GLC_MEAS_INTERVAL         APP_TIMER_TICKS(10)       //100 Hz Timer
+//#define BH1792GLC_MEAS_INTERVAL         APP_TIMER_TICKS(10)       //100 Hz Timer
+#define BH1792GLC_MEAS_INTERVAL         APP_TIMER_TICKS(31)       //32.258 Hz Timer
 //#define BH1792GLC_MEAS_INTERVAL         APP_TIMER_TICKS(2)       //500 Hz Timer
 
 /* Indicates if operation on TWI has ended (when received). */
@@ -964,8 +966,17 @@ static void timer_isr(void * p_context)
       }
     } else {
     */
-      ret = bh1792_StartMeasure();
-      //error_check(ret, "bh1792_StartMeasure");
+    
+    //m_bh1792.prm.led_cur1 = BH1792_PRM_LED_CUR1_MA(0);
+    //m_bh1792.prm.led_cur2 = BH1792_PRM_LED_CUR2_MA(0);
+    pw_GetParam(BH1792_PRM_CTRL2_CUR_LED1, &(m_bh1792.prm.led_cur1));
+    pw_GetParam(BH1792_PRM_CTRL3_CUR_LED2, &(m_bh1792.prm.led_cur2));
+    ret = bh1792_SetParams();
+    //ret = bh1792_StartMeasure();
+    //error_check(ret, "bh1792_StartMeasure");
+    ret = hr_bh1792_StartMeasure();
+    //error_check(ret, "hr_bh1792_StartMeasure");
+
     /*
     }
     */
@@ -2578,8 +2589,12 @@ void twi_init (void)
     m_bh1792.fnWrite      = i2c_write;
     m_bh1792.fnRead       = i2c_read;
     ret = bh1792_Reg_Init(&m_bh1792);
-    NRF_LOG_INFO("finished bh1792_Init.");
-    //error_check(ret, "bh1792_Init");
+    NRF_LOG_INFO("finished bh1792_Reg_Init.");
+    //error_check(ret, "bh1792_Reg_Init");
+
+    ret = hr_bh1792_Init();
+    NRF_LOG_INFO("finished hr_bh1792_Init.");
+    //error_check(ret, "hr_bh1792_Init");
 
     m_bh1792.prm.sel_adc  = BH1792_PRM_SEL_ADC_GREEN;
     m_bh1792.prm.msr      = BH1792_PRM_MSR_SINGLE;//BH1792_PRM_MSR_1024HZ;
@@ -2595,26 +2610,51 @@ void twi_init (void)
 
     //NRF_LOG_INFO("GDATA(@LED_ON),GDATA(@LED_OFF)\n");
 
-    ret = bh1792_StartMeasure();
+    //ret = bh1792_StartMeasure();
     //error_check(ret, "bh1792_StartMeasure");
-    NRF_LOG_INFO("finished bh1792_StartMeasure.");
+    //NRF_LOG_INFO("finished bh1792_StartMeasure.");
 
-    /*
-    ret = bh1792_StopMeasure();
+    ret = hr_bh1792_StartMeasure();
+    //error_check(ret, "hr_bh1792_StartMeasure");
+    NRF_LOG_INFO("finished Hr_bh1792_StartMeasure.");
+
+    //ret = bh1792_StopMeasure();
     //error_check(ret, "bh1792_StopMeasure");
-    NRF_LOG_INFO("finished bh1792_StopMeasure.");
-    */
+    //NRF_LOG_INFO("finished bh1792_StopMeasure.");
 }
+
+
+
+static uint8_t    s_cnt_freq = 0;
 
 void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
 {
     int32_t ret = 0;
     //uint8_t i   = 0;
+    u16_pair_t s_pwData_test;
+    float32_t pw_test;
+    static uint8_t  bpm     = 0U;
+    static uint8_t  wearing = 0U;
 
     nrf_drv_gpiote_in_event_disable(BH1792GLC_INT_PIN);
 
-    ret = bh1792_GetMeasData(&m_bh1792_dat);
+    //ret = bh1792_GetMeasData(&m_bh1792_dat);
     //error_check(ret, "bh1792_GetMeasData");
+    //ret = hr_bh1792_Calc(s_cnt_freq);
+    //s_pwData_test = m_bh1792_dat.green;
+    ret = hr_bh1792_Calc(s_cnt_freq, &m_bh1792_dat, &s_pwData_test, &pw_test);
+    s_cnt_freq++;
+    if (s_cnt_freq >= 31)
+    {
+        s_cnt_freq = 0;
+        hr_bh1792_GetData(&bpm, &wearing);
+        //NRF_LOG_RAW_INFO("%d, %d\n", bpm, wearing);
+    }
+    NRF_LOG_RAW_INFO("%d, %d, %d, %d, ", bpm, wearing, s_pwData_test.on, s_pwData_test.off);
+    NRF_LOG_RAW_INFO("" NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(pw_test));
+
+    //ret = hr_bh1792_Calc(s_cnt_freq, &s_pwData_test, &pw_test);
+    //error_check(ret, "hr_bh1792_Calc");
 
     // became else root, m_bh1792.prm.msr = BH1792_PRM_MSR_SINGLE
     /*
@@ -2649,10 +2689,11 @@ void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
     //Serial.println(Signal);
     //NRF_LOG_RAW_INFO("%d,%d,%d\n", BPM, IBI, Signal);
     
-    if(Debug_output_heart_rate == true){
-      NRF_LOG_RAW_INFO("%d,%d,%d,%d,%d\n", BPM, IBI, Signal, m_bh1792_dat.green.on, m_bh1792_dat.green.off);
-    }
+    //if(Debug_output_heart_rate == true){
+    //  NRF_LOG_RAW_INFO("%d,%d,%d,%d,%d\n", BPM, IBI, Signal, m_bh1792_dat.green.on, m_bh1792_dat.green.off);
+    //}
 
+    /*
     //Signal = analogRead(pulsePin);              // read the Pulse Sensor
     Signal = m_bh1792_dat.green.on;              // read the Pulse Sensor
     sampleCounter += 10;                         // keep track of the time in mS with this variable
@@ -2729,7 +2770,8 @@ void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
       firstBeat = true;                      // set these to avoid noise
       secondBeat = false;                    // when we get the heartbeat back
     }
-        /*
+    */
+    /*
       } else {
         NRF_LOG_RAW_INFO("%d,%d\n", m_bh1792_dat.ir.on, m_bh1792_dat.ir.off)
       }

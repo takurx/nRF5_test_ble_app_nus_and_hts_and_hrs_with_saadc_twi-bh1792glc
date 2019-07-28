@@ -9655,3 +9655,35 @@ examples/peripheral/flash_fstorage/pca10040/s132/ses/Output/Release/Exe/flash_fs
 examples/peripheral/flash_fstorage/pca10040/s132/ses/Output/Release/Exe/flash_fstorage_s132_pca10040.hex
 examples/peripheral/flash_fstorage/pca10040/s132/ses/Output/Release/Exe/flash_fstorage_s132_pca10040.map
 examples/ble_peripheral/ble_app_uart/main.c.bak
+
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/heartRate\.o
+
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/hr_bh1792\.d
+
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/hr_bh1792\.o
+
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/iirFilter\.d
+
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/iirFilter\.o
+
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/lxCtrl\.d
+
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/lxCtrl\.o
+
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/movingAverage\.d
+
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/movingAverage\.o
+
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/pw_bh1792\.d
+
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/pw_bh1792\.o
+
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/pwCalc\.d
+
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/pwCalc\.o
+
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/touchDet\.d
+
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/touchDet\.o
+
+examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Debug/Obj/heartRate\.d
