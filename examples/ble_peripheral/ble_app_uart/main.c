@@ -2577,7 +2577,7 @@ void twi_init (void)
     // BH1792
     m_bh1792.fnWrite      = i2c_write;
     m_bh1792.fnRead       = i2c_read;
-    ret = bh1792_Init(&m_bh1792);
+    ret = bh1792_Reg_Init(&m_bh1792);
     NRF_LOG_INFO("finished bh1792_Init.");
     //error_check(ret, "bh1792_Init");
 
