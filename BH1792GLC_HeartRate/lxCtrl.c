@@ -75,7 +75,7 @@ uint16_t lxCtrl_Init(void)
     s_th_up      = LX_TH_UP_INIT;
     s_cnt_lv_sel = 0U;
     
-    ret16 = pw_SetParam(BH1792_PRM_CTRL2_CUR_LED1, BH1792_PRM_LED_CUR1_MA(3));
+    ret16 = pw_SetParam(BH1792_PRM_CTRL2_CUR_LED1, BH1792_PRM_LED_CUR1_MA(0));
     if (ret16 == ERROR_NONE) {
         ret16 = pw_SetParam(BH1792_PRM_CTRL3_CUR_LED2, BH1792_PRM_LED_CUR2_MA(0));
     }
