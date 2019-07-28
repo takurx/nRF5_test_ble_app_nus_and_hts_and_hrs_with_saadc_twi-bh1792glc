@@ -574,8 +574,11 @@ static void gpio_init(void)
     err_code = nrf_drv_gpiote_in_init(BH1792GLC_INT_PIN, &in_config_bh1792, bh1792_isr);
     APP_ERROR_CHECK(err_code);
 
-    //nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
+#ifndef TWI_DISABLE
+    nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
+#else
     nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, false);
+#endif
 
     // 3-color LED  LED_3_COLOR_BLUE_PIN, 20
     nrf_drv_gpiote_out_config_t out_config_blue = GPIOTE_CONFIG_OUT_SIMPLE(true);
@@ -3293,8 +3296,10 @@ static void application_timers_start(void)
     err_code = app_timer_start(m_sensor_contact_timer_id, SENSOR_CONTACT_DETECTED_INTERVAL, NULL);
     APP_ERROR_CHECK(err_code);
 
-    //err_code = app_timer_start(m_bh1792glc_timer_id, BH1792GLC_MEAS_INTERVAL, NULL);
-    //APP_ERROR_CHECK(err_code);
+#ifndef TWI_DISABLE
+    err_code = app_timer_start(m_bh1792glc_timer_id, BH1792GLC_MEAS_INTERVAL, NULL);
+    APP_ERROR_CHECK(err_code);
+#endif
 
     //err_code = app_timer_start(m_data_record_timer_id, DATA_RECORD_MEAS_INTERVAL, NULL);
     //APP_ERROR_CHECK(err_code);
@@ -3425,10 +3430,14 @@ int main(void)
     NRF_LOG_INFO("Finish saadc_sampling_event_init init");
     saadc_sampling_event_enable();
     NRF_LOG_INFO("SAADC HAL simple example started.");
-    //NRF_LOG_INFO("TWI sensor example started.");
+
+#ifndef TWI_DISABLE
+    NRF_LOG_INFO("TWI sensor example started.");
     NRF_LOG_FLUSH();
-    //twi_init();
-    //NRF_LOG_INFO("finished twi init.");
+    twi_init();
+    NRF_LOG_INFO("finished twi init.");
+#endif
+
     rtc_config();
     NRF_LOG_INFO("finished rtc config.")
 
