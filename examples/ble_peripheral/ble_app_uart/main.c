@@ -180,16 +180,19 @@
 
 #define SENSOR_CONTACT_DETECTED_INTERVAL    APP_TIMER_TICKS(5000)                   /**< Sensor Contact Detected toggle interval (ticks). */
 
-#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(10000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+//#define DEBUG_MEAS_INTERVAL             1
+//#define TWI_DISABLE                     1
+#define CODE_NOT_WEARING                0                                           /**< heartbeat not measuring, not wearing or not start >**/
 
+#ifndef DEBUG_MEAS_INTERVAL
+#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(10000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+#else
 //for debug setting
-//#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(100)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(100)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+#endif
 
 #define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(25)                     /**< nus(nordic uart service) data output interval (ticks). */
 //#define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(40)                     /**< nus(nordic uart service) data output interval (ticks). */
-
-//#define TWI_DISABLE                     1
-#define CODE_NOT_WEARING                0                                           /**< heartbeat not measuring, not wearing or not start >**/
 
 #define TEMP_TYPE_AS_CHARACTERISTIC     0                                           /**< Determines if temperature type is given as characteristic (1) or as a field of measurement (0). */
 
@@ -1051,13 +1054,15 @@ void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
 /**
  * @brief Measurement data record events handler.
  */
+#ifndef DEBUG_MEAS_INTERVAL
 #define Num_of_data_hr_hr   256
+static volatile unsigned int Count_10sec = 59;   // 10 minutes
+#else
 //for debug setting
-//#define Num_of_data_hr_hr   32
-
-static volatile unsigned int Count_10sec = 59;
+#define Num_of_data_hr_hr   32
 //for debug setting
-//static volatile unsigned int Count_10sec = 9;
+static volatile unsigned int Count_10sec = 9;   // 100 seconds
+#endif
 
 static volatile unsigned int Meas10sec = 0;
 static volatile unsigned int Write_index_data_hr_hr = 0;
@@ -1158,9 +1163,6 @@ static void meas_data_record_timeout_handler(void * p_context)
 
     Meas10sec++;
     if(Meas10sec > Count_10sec)
-    //if (Meas10sec > 59)   // 10 minutes
-    //for debug setting
-    //if (Meas10sec > 9)   // 100 seconds
     {
         Meas10sec = 0;
     }
