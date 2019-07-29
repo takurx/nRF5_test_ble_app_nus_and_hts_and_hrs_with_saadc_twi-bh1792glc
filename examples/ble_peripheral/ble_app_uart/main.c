@@ -181,11 +181,15 @@
 #define SENSOR_CONTACT_DETECTED_INTERVAL    APP_TIMER_TICKS(5000)                   /**< Sensor Contact Detected toggle interval (ticks). */
 
 #define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(10000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+
 //for debug setting
 //#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(100)                   /**< Body Temp. and Heart rate data record interval (ticks). */
 
 #define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(25)                     /**< nus(nordic uart service) data output interval (ticks). */
 //#define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(40)                     /**< nus(nordic uart service) data output interval (ticks). */
+
+//#define TWI_DISABLE                     1
+#define CODE_NOT_WEARING                0                                           /**< heartbeat not measuring, not wearing or not start >**/
 
 #define TEMP_TYPE_AS_CHARACTERISTIC     0                                           /**< Determines if temperature type is given as characteristic (1) or as a field of measurement (0). */
 
@@ -726,11 +730,14 @@ static void battery_level_meas_timeout_handler(void * p_context)
  * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
  *                       app_start_timer() call to the timeout handler.
  */
-volatile bool Debug_output_heart_rate = false;
-volatile bool Debug_output_body_temperature = false;
-volatile bool Debug_output_battery_temperature = false;
-volatile bool Debug_output_battery_voltage = false;
-volatile bool Debug_output_current_time = true;
+bool Debug_output_heart_rate = false;
+bool Debug_output_body_temperature = false;
+bool Debug_output_battery_temperature = false;
+bool Debug_output_battery_voltage = false;
+bool Debug_output_current_time = true;
+
+uint8_t   Bpm     = 0U;
+uint8_t   Wearing = 0U;
 
 // Volatile Variables, used in the interrupt service routine!
 volatile uint16_t BPM;                   // int that holds raw Analog in 0. updated every 2mS
@@ -1107,7 +1114,14 @@ static void meas_data_record_timeout_handler(void * p_context)
         if (Meas10sec == 5)
         {
             //data_hr_hr[Write_index_data_hr_hr].heart_rate = BPM;
-            temp_data_hr_hr.heart_rate = 0;
+            if (Wearing == 1)
+            {
+              temp_data_hr_hr.heart_rate = Bpm;
+            }
+            else
+            {
+              temp_data_hr_hr.heart_rate = CODE_NOT_WEARING;
+            }
 
             data_hr_hr[Write_index_data_hr_hr] = temp_data_hr_hr;
 
@@ -2629,9 +2643,6 @@ void twi_init (void)
 
 
 
-static uint8_t    Bpm     = 0U;
-static uint8_t    Wearing = 0U;
-
 void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
 {
     int32_t ret = 0;
@@ -2655,8 +2666,8 @@ void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
         s_cnt_freq = 0;
         hr_bh1792_GetData(&Bpm, &Wearing);
         //NRF_LOG_RAW_INFO("%d, %d\n", bpm, wearing);
-        //NRF_LOG_RAW_INFO("%d, %d, %d, %d, ", bpm, wearing, s_pwData_test.on, s_pwData_test.off);
-        //NRF_LOG_RAW_INFO("" NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(pw_test));
+        NRF_LOG_RAW_INFO("%d, %d, %d, %d, ", Bpm, Wearing, s_pwData_test.on, s_pwData_test.off);
+        NRF_LOG_RAW_INFO("" NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(pw_test));
     }
     //NRF_LOG_RAW_INFO("%d, %d, %d, %d, ", bpm, wearing, s_pwData_test.on, s_pwData_test.off);
     //NRF_LOG_RAW_INFO("" NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(pw_test));
