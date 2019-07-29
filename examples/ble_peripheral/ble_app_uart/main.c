@@ -1685,10 +1685,13 @@ static const char * NusCommand[] =
     "slp",    /* 6: set sleep enter command */
     "nnn", "nnn", "nnn",     /* 7-9 */
     "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn",     /* 10-19 */
-    "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn",     /* 20-29 */
-    "dhr",    /* 30: debug output heart rate command     */
-    "dbt",    /* 31: debug output temperature command    */
-    "dsp",    /* 32: debug output stop command           */
+    "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn",                          /* 20-26 */
+    "dhs",    /* 27: debug heartrate measure start */
+    "dhe",    /* 28: debug heartrate measure end  */ 
+    "dhg",    /* 29: debug output heartrate */
+    "dhr",    /* 30: debug output heart rate command (state change) */
+    "dbt",    /* 31: debug output temperature command (state change) */
+    "dsp",    /* 32: debug output stop command (state change) */
     "dct",    /* 33: debut output current time */
     "ver",    /* 34: debug output firmware version */
     "dcm",    /* 35: debug Change measurement interval, Count_10sec */
@@ -1886,26 +1889,54 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                           err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
                         }
                         break;
-                    case 6: // 6: slp, set sleep enter command
+                    case 6:   // 6: slp, set sleep enter command
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         NRF_LOG_INFO("set sleep, good night");
                         NRF_LOG_FLUSH();
                         sleep_mode_enter();
                         break;
-                    case 30:   // 30: dhr
+                    case 27:    //dhs, 27: debug heartrate measure start
+                        err_code = app_timer_start(m_bh1792glc_timer_id, BH1792GLC_MEAS_INTERVAL, NULL);
+                        APP_ERROR_CHECK(err_code);
+                        //nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
+
+                        reslength = 3;
+                        err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        break;
+                    case 28:    //dhe, 28: debug heartrate measure end
+                        err_code = app_timer_stop(m_bh1792glc_timer_id);
+                        APP_ERROR_CHECK(err_code);
+                        //nrf_drv_gpiote_in_event_disable(BH1792GLC_INT_PIN);
+
+                        reslength = 3;
+                        err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        break;
+                    case 29:    //dhg, 29: debug output heartrate
+                        if (Wearing == 1)
+                        {
+                            sprintf(resdatanum, "%03d", Bpm);
+                        }
+                        else
+                        {
+                            sprintf(resdatanum, "%03d", CODE_NOT_WEARING);
+                        }
+                        reslength = 3;
+                        err_code = ble_nus_data_send(&m_nus, resdatanum, &reslength, m_conn_handle);
+                        break;
+                    case 30:    // 30: dhr
                         Debug_output_heart_rate = true;
                         Debug_output_body_temperature = false;
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         break;
-                    case 31:   // 31: dbt
+                    case 31:    // 31: dbt
                         Debug_output_heart_rate = false;
                         Debug_output_body_temperature = true;
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         break;
-                    case 32:   // 32: dsp
+                    case 32:    // 32: dsp
                         Debug_output_heart_rate = false;
                         Debug_output_body_temperature = false;
                         reslength = 3;
