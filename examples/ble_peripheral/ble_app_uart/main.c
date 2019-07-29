@@ -2630,6 +2630,8 @@ void twi_init (void)
 
 
 static uint8_t    s_cnt_freq = 0;
+static uint8_t  bpm     = 0U;
+static uint8_t  wearing = 0U;
 
 void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
 {
@@ -2637,8 +2639,8 @@ void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
     //uint8_t i   = 0;
     u16_pair_t s_pwData_test;
     float32_t pw_test;
-    static uint8_t  bpm     = 0U;
-    static uint8_t  wearing = 0U;
+    //static uint8_t  bpm     = 0U;
+    //static uint8_t  wearing = 0U;
 
     nrf_drv_gpiote_in_event_disable(BH1792GLC_INT_PIN);
 
@@ -2653,8 +2655,8 @@ void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
         s_cnt_freq = 0;
         hr_bh1792_GetData(&bpm, &wearing);
         //NRF_LOG_RAW_INFO("%d, %d\n", bpm, wearing);
-        NRF_LOG_RAW_INFO("%d, %d, %d, %d, ", bpm, wearing, s_pwData_test.on, s_pwData_test.off);
-        NRF_LOG_RAW_INFO("" NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(pw_test));
+        //NRF_LOG_RAW_INFO("%d, %d, %d, %d, ", bpm, wearing, s_pwData_test.on, s_pwData_test.off);
+        //NRF_LOG_RAW_INFO("" NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(pw_test));
     }
     //NRF_LOG_RAW_INFO("%d, %d, %d, %d, ", bpm, wearing, s_pwData_test.on, s_pwData_test.off);
     //NRF_LOG_RAW_INFO("" NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(pw_test));
