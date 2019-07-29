@@ -182,7 +182,7 @@
 
 //#define DEBUG_MEAS_INTERVAL             1
 //#define TWI_DISABLE                     1
-#define CODE_NOT_WEARING                0                                           /**< heartbeat not measuring, not wearing or not start >**/
+#define CODE_NOT_WEARING                1                                           /**< heartbeat not measuring, not wearing or not start >**/
 
 #ifndef DEBUG_MEAS_INTERVAL
 #define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(10000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
@@ -583,8 +583,9 @@ static void gpio_init(void)
 
 #ifndef TWI_DISABLE
     nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
+    //nrf_drv_gpiote_in_event_disable(BH1792GLC_INT_PIN);
 #else
-    nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, false);
+    //nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, false);
 #endif
 
     // 3-color LED  LED_3_COLOR_BLUE_PIN, 20
@@ -1769,6 +1770,10 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                     case 0:   // 0: sta
                         if (State_keeper == STATE_PAIRING)
                         {
+                            err_code = app_timer_start(m_bh1792glc_timer_id, BH1792GLC_MEAS_INTERVAL, NULL);
+                            APP_ERROR_CHECK(err_code);
+                            //nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
+
                             err_code = app_timer_start(m_data_record_timer_id, DATA_RECORD_MEAS_INTERVAL, NULL);
                             APP_ERROR_CHECK(err_code);
                             NRF_LOG_INFO("10 second measure and 10 minutes record start");
@@ -1787,6 +1792,10 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         }
                         break;
                     case 1:   // 1: sto
+                        err_code = app_timer_stop(m_bh1792glc_timer_id);
+                        APP_ERROR_CHECK(err_code);
+                        //nrf_drv_gpiote_in_event_disable(BH1792GLC_INT_PIN);
+                        
                         err_code = app_timer_stop(m_data_record_timer_id);
                         APP_ERROR_CHECK(err_code);
                         NRF_LOG_INFO("10 second measure and 10 minutes record stop");
@@ -3315,8 +3324,8 @@ static void application_timers_start(void)
     APP_ERROR_CHECK(err_code);
 
 #ifndef TWI_DISABLE
-    err_code = app_timer_start(m_bh1792glc_timer_id, BH1792GLC_MEAS_INTERVAL, NULL);
-    APP_ERROR_CHECK(err_code);
+    //err_code = app_timer_start(m_bh1792glc_timer_id, BH1792GLC_MEAS_INTERVAL, NULL);
+    //APP_ERROR_CHECK(err_code);
 #endif
 
     //err_code = app_timer_start(m_data_record_timer_id, DATA_RECORD_MEAS_INTERVAL, NULL);
