@@ -2629,9 +2629,8 @@ void twi_init (void)
 
 
 
-static uint8_t    s_cnt_freq = 0;
-static uint8_t  bpm     = 0U;
-static uint8_t  wearing = 0U;
+static uint8_t    Bpm     = 0U;
+static uint8_t    Wearing = 0U;
 
 void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
 {
@@ -2641,6 +2640,7 @@ void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
     float32_t pw_test;
     //static uint8_t  bpm     = 0U;
     //static uint8_t  wearing = 0U;
+    static uint8_t    s_cnt_freq = 0;
 
     nrf_drv_gpiote_in_event_disable(BH1792GLC_INT_PIN);
 
@@ -2653,7 +2653,7 @@ void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
     if (s_cnt_freq >= 31)
     {
         s_cnt_freq = 0;
-        hr_bh1792_GetData(&bpm, &wearing);
+        hr_bh1792_GetData(&Bpm, &Wearing);
         //NRF_LOG_RAW_INFO("%d, %d\n", bpm, wearing);
         //NRF_LOG_RAW_INFO("%d, %d, %d, %d, ", bpm, wearing, s_pwData_test.on, s_pwData_test.off);
         //NRF_LOG_RAW_INFO("" NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(pw_test));
