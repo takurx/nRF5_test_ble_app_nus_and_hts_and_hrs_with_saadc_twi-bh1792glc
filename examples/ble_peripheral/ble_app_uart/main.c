@@ -116,6 +116,7 @@
 #include "nrf_drv_twi.h"
 #include "nrf_delay.h"
 #include <bh1792.h>
+#include <hr_bh1792.h>
 #include "bsp_btn_ble.h"
 #include "fds.h"
 #include "ble_conn_state.h"
@@ -139,8 +140,8 @@
 #include "nrf_fstorage.h"
 #include "nrf_fstorage_sd.h"
 
-#define FIRMWARE_VERSION                "1p0p10"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
-#define DEVICE_NAME                     "Herbio"                               /**< Name of device. Will be included in the advertising data. */
+#define FIRMWARE_VERSION                "2p0p0"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
+#define DEVICE_NAME                     "Herbio+"                               /**< Name of device. Will be included in the advertising data. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 #define MANUFACTURER_NAME               "Herbio Co., Ltd."                       /**< Manufacturer. Will be passed to Device Information Service. */
 //#define MODEL_NUM                       "EXAMPLE"                            /**< Model number. Will be passed to Device Information Service. */
@@ -179,9 +180,16 @@
 
 #define SENSOR_CONTACT_DETECTED_INTERVAL    APP_TIMER_TICKS(5000)                   /**< Sensor Contact Detected toggle interval (ticks). */
 
+//#define DEBUG_MEAS_INTERVAL             1
+//#define TWI_DISABLE                     1
+#define CODE_NOT_WEARING                1                                           /**< heartbeat not measuring, not wearing or not start >**/
+
+#ifndef DEBUG_MEAS_INTERVAL
 #define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(10000)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+#else
 //for debug setting
-//#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(100)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+#define DATA_RECORD_MEAS_INTERVAL           APP_TIMER_TICKS(100)                   /**< Body Temp. and Heart rate data record interval (ticks). */
+#endif
 
 #define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(25)                     /**< nus(nordic uart service) data output interval (ticks). */
 //#define DATA_OUTPUT_INTERVAL                APP_TIMER_TICKS(40)                     /**< nus(nordic uart service) data output interval (ticks). */
@@ -309,7 +317,8 @@ static volatile bool State_emergency_lock = false;
 APP_TIMER_DEF(m_bh1792glc_timer_id);
 //#define BH1792GLC_MEAS_INTERVAL         APP_TIMER_TICKS(1000)   //1 Hz Timer
 //#define BH1792GLC_MEAS_INTERVAL         APP_TIMER_TICKS(25)       //40 Hz Timer
-#define BH1792GLC_MEAS_INTERVAL         APP_TIMER_TICKS(10)       //100 Hz Timer
+//#define BH1792GLC_MEAS_INTERVAL         APP_TIMER_TICKS(10)       //100 Hz Timer
+#define BH1792GLC_MEAS_INTERVAL         APP_TIMER_TICKS(31)       //32.258 Hz Timer
 //#define BH1792GLC_MEAS_INTERVAL         APP_TIMER_TICKS(2)       //500 Hz Timer
 
 /* Indicates if operation on TWI has ended (when received). */
@@ -572,8 +581,12 @@ static void gpio_init(void)
     err_code = nrf_drv_gpiote_in_init(BH1792GLC_INT_PIN, &in_config_bh1792, bh1792_isr);
     APP_ERROR_CHECK(err_code);
 
-    //nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
-    nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, false);
+#ifndef TWI_DISABLE
+    nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
+    //nrf_drv_gpiote_in_event_disable(BH1792GLC_INT_PIN);
+#else
+    //nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, false);
+#endif
 
     // 3-color LED  LED_3_COLOR_BLUE_PIN, 20
     nrf_drv_gpiote_out_config_t out_config_blue = GPIOTE_CONFIG_OUT_SIMPLE(true);
@@ -721,11 +734,14 @@ static void battery_level_meas_timeout_handler(void * p_context)
  * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
  *                       app_start_timer() call to the timeout handler.
  */
-volatile bool Debug_output_heart_rate = false;
-volatile bool Debug_output_body_temperature = false;
-volatile bool Debug_output_battery_temperature = false;
-volatile bool Debug_output_battery_voltage = false;
-volatile bool Debug_output_current_time = true;
+bool Debug_output_heart_rate = false;
+bool Debug_output_body_temperature = false;
+bool Debug_output_battery_temperature = false;
+bool Debug_output_battery_voltage = false;
+bool Debug_output_current_time = true;
+
+uint8_t   Bpm     = 0U;
+uint8_t   Wearing = 0U;
 
 // Volatile Variables, used in the interrupt service routine!
 volatile uint16_t BPM;                   // int that holds raw Analog in 0. updated every 2mS
@@ -964,8 +980,17 @@ static void timer_isr(void * p_context)
       }
     } else {
     */
-      ret = bh1792_StartMeasure();
-      //error_check(ret, "bh1792_StartMeasure");
+    
+    //m_bh1792.prm.led_cur1 = BH1792_PRM_LED_CUR1_MA(0);
+    //m_bh1792.prm.led_cur2 = BH1792_PRM_LED_CUR2_MA(0);
+    pw_GetParam(BH1792_PRM_CTRL2_CUR_LED1, &(m_bh1792.prm.led_cur1));
+    pw_GetParam(BH1792_PRM_CTRL3_CUR_LED2, &(m_bh1792.prm.led_cur2));
+    ret = bh1792_SetParams();
+    //ret = bh1792_StartMeasure();
+    //error_check(ret, "bh1792_StartMeasure");
+    ret = hr_bh1792_StartMeasure();
+    //error_check(ret, "hr_bh1792_StartMeasure");
+
     /*
     }
     */
@@ -1030,13 +1055,15 @@ void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
 /**
  * @brief Measurement data record events handler.
  */
+#ifndef DEBUG_MEAS_INTERVAL
 #define Num_of_data_hr_hr   256
+static volatile unsigned int Count_10sec = 59;   // 10 minutes
+#else
 //for debug setting
-//#define Num_of_data_hr_hr   32
-
-static volatile unsigned int Count_10sec = 59;
+#define Num_of_data_hr_hr   32
 //for debug setting
-//static volatile unsigned int Count_10sec = 9;
+static volatile unsigned int Count_10sec = 9;   // 100 seconds
+#endif
 
 static volatile unsigned int Meas10sec = 0;
 static volatile unsigned int Write_index_data_hr_hr = 0;
@@ -1093,7 +1120,14 @@ static void meas_data_record_timeout_handler(void * p_context)
         if (Meas10sec == 5)
         {
             //data_hr_hr[Write_index_data_hr_hr].heart_rate = BPM;
-            temp_data_hr_hr.heart_rate = 0;
+            if (Wearing == 1)
+            {
+              temp_data_hr_hr.heart_rate = Bpm;
+            }
+            else
+            {
+              temp_data_hr_hr.heart_rate = CODE_NOT_WEARING;
+            }
 
             data_hr_hr[Write_index_data_hr_hr] = temp_data_hr_hr;
 
@@ -1130,9 +1164,6 @@ static void meas_data_record_timeout_handler(void * p_context)
 
     Meas10sec++;
     if(Meas10sec > Count_10sec)
-    //if (Meas10sec > 59)   // 10 minutes
-    //for debug setting
-    //if (Meas10sec > 9)   // 100 seconds
     {
         Meas10sec = 0;
     }
@@ -1654,10 +1685,13 @@ static const char * NusCommand[] =
     "slp",    /* 6: set sleep enter command */
     "nnn", "nnn", "nnn",     /* 7-9 */
     "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn",     /* 10-19 */
-    "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn",     /* 20-29 */
-    "dhr",    /* 30: debug output heart rate command     */
-    "dbt",    /* 31: debug output temperature command    */
-    "dsp",    /* 32: debug output stop command           */
+    "nnn", "nnn", "nnn", "nnn", "nnn", "nnn", "nnn",                          /* 20-26 */
+    "dhs",    /* 27: debug heartrate measure start */
+    "dhe",    /* 28: debug heartrate measure end  */ 
+    "dhg",    /* 29: debug output heartrate */
+    "dhr",    /* 30: debug output heart rate command (state change) */
+    "dbt",    /* 31: debug output temperature command (state change) */
+    "dsp",    /* 32: debug output stop command (state change) */
     "dct",    /* 33: debut output current time */
     "ver",    /* 34: debug output firmware version */
     "dcm",    /* 35: debug Change measurement interval, Count_10sec */
@@ -1739,6 +1773,10 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                     case 0:   // 0: sta
                         if (State_keeper == STATE_PAIRING)
                         {
+                            err_code = app_timer_start(m_bh1792glc_timer_id, BH1792GLC_MEAS_INTERVAL, NULL);
+                            APP_ERROR_CHECK(err_code);
+                            //nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
+
                             err_code = app_timer_start(m_data_record_timer_id, DATA_RECORD_MEAS_INTERVAL, NULL);
                             APP_ERROR_CHECK(err_code);
                             NRF_LOG_INFO("10 second measure and 10 minutes record start");
@@ -1757,6 +1795,10 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         }
                         break;
                     case 1:   // 1: sto
+                        err_code = app_timer_stop(m_bh1792glc_timer_id);
+                        APP_ERROR_CHECK(err_code);
+                        //nrf_drv_gpiote_in_event_disable(BH1792GLC_INT_PIN);
+                        
                         err_code = app_timer_stop(m_data_record_timer_id);
                         APP_ERROR_CHECK(err_code);
                         NRF_LOG_INFO("10 second measure and 10 minutes record stop");
@@ -1847,26 +1889,54 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                           err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
                         }
                         break;
-                    case 6: // 6: slp, set sleep enter command
+                    case 6:   // 6: slp, set sleep enter command
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         NRF_LOG_INFO("set sleep, good night");
                         NRF_LOG_FLUSH();
                         sleep_mode_enter();
                         break;
-                    case 30:   // 30: dhr
+                    case 27:    //dhs, 27: debug heartrate measure start
+                        err_code = app_timer_start(m_bh1792glc_timer_id, BH1792GLC_MEAS_INTERVAL, NULL);
+                        APP_ERROR_CHECK(err_code);
+                        //nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
+
+                        reslength = 3;
+                        err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        break;
+                    case 28:    //dhe, 28: debug heartrate measure end
+                        err_code = app_timer_stop(m_bh1792glc_timer_id);
+                        APP_ERROR_CHECK(err_code);
+                        //nrf_drv_gpiote_in_event_disable(BH1792GLC_INT_PIN);
+
+                        reslength = 3;
+                        err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+                        break;
+                    case 29:    //dhg, 29: debug output heartrate
+                        if (Wearing == 1)
+                        {
+                            sprintf(resdatanum, "%03d", Bpm);
+                        }
+                        else
+                        {
+                            sprintf(resdatanum, "%03d", CODE_NOT_WEARING);
+                        }
+                        reslength = 3;
+                        err_code = ble_nus_data_send(&m_nus, resdatanum, &reslength, m_conn_handle);
+                        break;
+                    case 30:    // 30: dhr
                         Debug_output_heart_rate = true;
                         Debug_output_body_temperature = false;
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         break;
-                    case 31:   // 31: dbt
+                    case 31:    // 31: dbt
                         Debug_output_heart_rate = false;
                         Debug_output_body_temperature = true;
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
                         break;
-                    case 32:   // 32: dsp
+                    case 32:    // 32: dsp
                         Debug_output_heart_rate = false;
                         Debug_output_body_temperature = false;
                         reslength = 3;
@@ -2577,13 +2647,18 @@ void twi_init (void)
     // BH1792
     m_bh1792.fnWrite      = i2c_write;
     m_bh1792.fnRead       = i2c_read;
-    ret = bh1792_Init(&m_bh1792);
-    NRF_LOG_INFO("finished bh1792_Init.");
-    //error_check(ret, "bh1792_Init");
+    ret = bh1792_Reg_Init(&m_bh1792);
+    NRF_LOG_INFO("finished bh1792_Reg_Init.");
+    //error_check(ret, "bh1792_Reg_Init");
+
+    ret = hr_bh1792_Init();
+    NRF_LOG_INFO("finished hr_bh1792_Init.");
+    //error_check(ret, "hr_bh1792_Init");
 
     m_bh1792.prm.sel_adc  = BH1792_PRM_SEL_ADC_GREEN;
     m_bh1792.prm.msr      = BH1792_PRM_MSR_SINGLE;//BH1792_PRM_MSR_1024HZ;
     m_bh1792.prm.led_en   = (BH1792_PRM_LED_EN1_0 << 1) | BH1792_PRM_LED_EN2_0;
+    //m_bh1792.prm.led_cur1 = BH1792_PRM_LED_CUR1_MA(1);
     m_bh1792.prm.led_cur1 = BH1792_PRM_LED_CUR1_MA(0);
     m_bh1792.prm.led_cur2 = BH1792_PRM_LED_CUR2_MA(0);
     m_bh1792.prm.ir_th    = 0xFFFC;
@@ -2595,26 +2670,52 @@ void twi_init (void)
 
     //NRF_LOG_INFO("GDATA(@LED_ON),GDATA(@LED_OFF)\n");
 
-    ret = bh1792_StartMeasure();
+    //ret = bh1792_StartMeasure();
     //error_check(ret, "bh1792_StartMeasure");
-    NRF_LOG_INFO("finished bh1792_StartMeasure.");
+    //NRF_LOG_INFO("finished bh1792_StartMeasure.");
 
-    /*
-    ret = bh1792_StopMeasure();
+    ret = hr_bh1792_StartMeasure();
+    //error_check(ret, "hr_bh1792_StartMeasure");
+    NRF_LOG_INFO("finished Hr_bh1792_StartMeasure.");
+
+    //ret = bh1792_StopMeasure();
     //error_check(ret, "bh1792_StopMeasure");
-    NRF_LOG_INFO("finished bh1792_StopMeasure.");
-    */
+    //NRF_LOG_INFO("finished bh1792_StopMeasure.");
 }
+
+
 
 void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
 {
     int32_t ret = 0;
     //uint8_t i   = 0;
+    u16_pair_t s_pwData_test;
+    float32_t pw_test;
+    //static uint8_t  bpm     = 0U;
+    //static uint8_t  wearing = 0U;
+    static uint8_t    s_cnt_freq = 0;
 
     nrf_drv_gpiote_in_event_disable(BH1792GLC_INT_PIN);
 
-    ret = bh1792_GetMeasData(&m_bh1792_dat);
+    //ret = bh1792_GetMeasData(&m_bh1792_dat);
     //error_check(ret, "bh1792_GetMeasData");
+    //ret = hr_bh1792_Calc(s_cnt_freq);
+    //s_pwData_test = m_bh1792_dat.green;
+    ret = hr_bh1792_Calc(s_cnt_freq, &m_bh1792_dat, &s_pwData_test, &pw_test);
+    s_cnt_freq++;
+    if (s_cnt_freq >= 31)
+    {
+        s_cnt_freq = 0;
+        hr_bh1792_GetData(&Bpm, &Wearing);
+        //NRF_LOG_RAW_INFO("%d, %d\n", bpm, wearing);
+        NRF_LOG_RAW_INFO("%d, %d, %d, %d, ", Bpm, Wearing, s_pwData_test.on, s_pwData_test.off);
+        NRF_LOG_RAW_INFO("" NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(pw_test));
+    }
+    //NRF_LOG_RAW_INFO("%d, %d, %d, %d, ", bpm, wearing, s_pwData_test.on, s_pwData_test.off);
+    //NRF_LOG_RAW_INFO("" NRF_LOG_FLOAT_MARKER "\n", NRF_LOG_FLOAT(pw_test));
+
+    //ret = hr_bh1792_Calc(s_cnt_freq, &s_pwData_test, &pw_test);
+    //error_check(ret, "hr_bh1792_Calc");
 
     // became else root, m_bh1792.prm.msr = BH1792_PRM_MSR_SINGLE
     /*
@@ -2649,10 +2750,11 @@ void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
     //Serial.println(Signal);
     //NRF_LOG_RAW_INFO("%d,%d,%d\n", BPM, IBI, Signal);
     
-    if(Debug_output_heart_rate == true){
-      NRF_LOG_RAW_INFO("%d,%d,%d,%d,%d\n", BPM, IBI, Signal, m_bh1792_dat.green.on, m_bh1792_dat.green.off);
-    }
+    //if(Debug_output_heart_rate == true){
+    //  NRF_LOG_RAW_INFO("%d,%d,%d,%d,%d\n", BPM, IBI, Signal, m_bh1792_dat.green.on, m_bh1792_dat.green.off);
+    //}
 
+    /*
     //Signal = analogRead(pulsePin);              // read the Pulse Sensor
     Signal = m_bh1792_dat.green.on;              // read the Pulse Sensor
     sampleCounter += 10;                         // keep track of the time in mS with this variable
@@ -2729,7 +2831,8 @@ void bh1792_isr(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
       firstBeat = true;                      // set these to avoid noise
       secondBeat = false;                    // when we get the heartbeat back
     }
-        /*
+    */
+    /*
       } else {
         NRF_LOG_RAW_INFO("%d,%d\n", m_bh1792_dat.ir.on, m_bh1792_dat.ir.off)
       }
@@ -3251,8 +3354,10 @@ static void application_timers_start(void)
     err_code = app_timer_start(m_sensor_contact_timer_id, SENSOR_CONTACT_DETECTED_INTERVAL, NULL);
     APP_ERROR_CHECK(err_code);
 
+#ifndef TWI_DISABLE
     //err_code = app_timer_start(m_bh1792glc_timer_id, BH1792GLC_MEAS_INTERVAL, NULL);
     //APP_ERROR_CHECK(err_code);
+#endif
 
     //err_code = app_timer_start(m_data_record_timer_id, DATA_RECORD_MEAS_INTERVAL, NULL);
     //APP_ERROR_CHECK(err_code);
@@ -3383,10 +3488,14 @@ int main(void)
     NRF_LOG_INFO("Finish saadc_sampling_event_init init");
     saadc_sampling_event_enable();
     NRF_LOG_INFO("SAADC HAL simple example started.");
-    //NRF_LOG_INFO("TWI sensor example started.");
+
+#ifndef TWI_DISABLE
+    NRF_LOG_INFO("TWI sensor example started.");
     NRF_LOG_FLUSH();
-    //twi_init();
-    //NRF_LOG_INFO("finished twi init.");
+    twi_init();
+    NRF_LOG_INFO("finished twi init.");
+#endif
+
     rtc_config();
     NRF_LOG_INFO("finished rtc config.")
 
