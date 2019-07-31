@@ -140,7 +140,7 @@
 #include "nrf_fstorage.h"
 #include "nrf_fstorage_sd.h"
 
-#define FIRMWARE_VERSION                "2p0p0"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
+#define FIRMWARE_VERSION                "2p0p1"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
 #define DEVICE_NAME                     "Herbio+"                               /**< Name of device. Will be included in the advertising data. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 #define MANUFACTURER_NAME               "Herbio Co., Ltd."                       /**< Manufacturer. Will be passed to Device Information Service. */
@@ -286,6 +286,7 @@ static const int     STATE_EMERGENCY            = 3;   // 3: Blink GREEN and RED
 static const int     STATE_MEASURINGADVERTISING = 4;   // 4: Blink RED: Measuring and Adverting
 static const int     STATE_BOOTING              = 5;   // 5: BLUE: boot, reboot from sleep
 static const int     STATE_SLEEPING             = 6;   // 6: Blink BLUE: go to sleep
+//}
 
 //static volatile int State_keeper = 0;
 static volatile int State_keeper = STATE_ADVERTISING;
@@ -744,6 +745,7 @@ uint8_t   Bpm     = 0U;
 uint8_t   Wearing = 0U;
 
 // Volatile Variables, used in the interrupt service routine!
+/*
 volatile uint16_t BPM;                   // int that holds raw Analog in 0. updated every 2mS
 volatile int Signal;                // holds the incoming raw data
 volatile int IBI = 600;             // int that holds the time interval between beats! Must be seeded!
@@ -759,6 +761,7 @@ volatile int thresh = 33920; //530;                // used to find instant momen
 volatile int amp = 0;                   // used to hold amplitude of pulse waveform, seeded
 volatile bool firstBeat = true;        // used to seed rate array so we startup with reasonable BPM
 volatile bool secondBeat = false;      // used to seed rate array so we startup with reasonable BPM
+*/
 //volatile int put_timing = 0;
 
 static void heart_rate_meas_timeout_handler(void * p_context)
@@ -770,7 +773,7 @@ static void heart_rate_meas_timeout_handler(void * p_context)
     UNUSED_PARAMETER(p_context);
 
     //heart_rate = (uint16_t)sensorsim_measure(&m_heart_rate_sim_state, &m_heart_rate_sim_cfg);
-    heart_rate = BPM;
+    heart_rate = Bpm;
 
     cnt++;
     err_code = ble_hrs_heart_rate_measurement_send(&m_hrs, heart_rate);
