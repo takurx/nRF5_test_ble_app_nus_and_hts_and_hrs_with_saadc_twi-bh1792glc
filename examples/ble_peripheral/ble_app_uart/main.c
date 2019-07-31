@@ -131,7 +131,7 @@
 #include "nrf_fstorage.h"
 #include "nrf_fstorage_sd.h"
 
-#define FIRMWARE_VERSION                "2p0p3"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
+#define FIRMWARE_VERSION                "2p0p4"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
 #define DEVICE_NAME                     "Herbio+"                               /**< Name of device. Will be included in the advertising data. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 #define MANUFACTURER_NAME               "Herbio Co., Ltd."                       /**< Manufacturer. Will be passed to Device Information Service. */
@@ -2625,8 +2625,9 @@ void wait_for_flash_ready(nrf_fstorage_t const * p_fstorage);
 
 const uint8_t write_count = 4;
 const uint32_t Flash_start_address = 0x60000;
-static volatile uint32_t write_index = Flash_start_address;
-static uint8_t flash_ff_padding[4096] = {0xFF};
+uint32_t write_index = Flash_start_address;
+//static uint8_t flash_ff_padding[4096] = {0xFF};
+uint8_t flash_ff_padding[0x1000];
 
 static volatile int size_write_data = sizeof(data_hr_hr[0]);
 const int size_write_buffer = sizeof(data_hr_hr[0]) * 8;
@@ -2681,23 +2682,26 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
             if(Boot_count == 4)
             {
                 memset(&flash_ff_padding[0], 0xFF, sizeof(flash_ff_padding));
-                NRF_LOG_INFO("ff[0000]: 0x%x", flash_ff_padding[0]);
-                NRF_LOG_INFO("ff[2016]: 0x%x ", flash_ff_padding[2016]);
-                NRF_LOG_INFO("ff[4095]: 0x%x ", flash_ff_padding[4095]);
+                NRF_LOG_INFO("ff[0x0000]: 0x%x", flash_ff_padding[0x0000]);
+                NRF_LOG_INFO("ff[0x0500]: 0x%x ", flash_ff_padding[0x0500]);
+                NRF_LOG_INFO("ff[0x0999]: 0x%x ", flash_ff_padding[0x0999]);
+                //NRF_LOG_INFO("ff[0000]: 0x%x", flash_ff_padding[0]);
+                //NRF_LOG_INFO("ff[2016]: 0x%x ", flash_ff_padding[2016]);
+                //NRF_LOG_INFO("ff[4095]: 0x%x ", flash_ff_padding[4095]);
             }
             else if (Boot_count == 5)
             {
-                rc = nrf_fstorage_write(&fstorage, write_index, &flash_ff_padding[0], sizeof(flash_ff_padding), NULL);
+                rc = nrf_fstorage_write(&fstorage, write_index, flash_ff_padding, sizeof(flash_ff_padding), NULL);
                 APP_ERROR_CHECK(rc);
             }
-            else if (Boot_count == 6)
+            else if (Boot_count == 9)
             {
-                rc = nrf_fstorage_write(&fstorage, write_index + 0x1000, &flash_ff_padding[0], sizeof(flash_ff_padding), NULL);
+                rc = nrf_fstorage_write(&fstorage, write_index + 0x1000, flash_ff_padding, sizeof(flash_ff_padding), NULL);
                 APP_ERROR_CHECK(rc);
             }
-            else if (Boot_count == 7)
+            else if (Boot_count == 13)
             {
-                rc = nrf_fstorage_write(&fstorage, write_index + 0x2000, &flash_ff_padding[0], sizeof(flash_ff_padding), NULL);
+                rc = nrf_fstorage_write(&fstorage, write_index + 0x2000, flash_ff_padding, sizeof(flash_ff_padding), NULL);
                 APP_ERROR_CHECK(rc);
             }
             //Boot_count++;
@@ -3388,7 +3392,7 @@ int main(void)
     NRF_LOG_INFO("Debug logging for UART over RTT started.");
     NRF_LOG_INFO("Heart Rate Sensor example started.");
     NRF_LOG_INFO("Health Thermometer example started.");
-
+    
     application_timers_start();
     //NRF_LOG_FLUSH();
 
