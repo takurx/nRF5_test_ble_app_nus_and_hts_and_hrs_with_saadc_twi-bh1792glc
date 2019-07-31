@@ -2694,12 +2694,12 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 rc = nrf_fstorage_write(&fstorage, write_index, flash_ff_padding, sizeof(flash_ff_padding), NULL);
                 APP_ERROR_CHECK(rc);
             }
-            else if (Boot_count == 13)
+            else if (Boot_count == 9)
             {
                 rc = nrf_fstorage_write(&fstorage, write_index + 0x1000, flash_ff_padding, sizeof(flash_ff_padding), NULL);
                 APP_ERROR_CHECK(rc);
             }
-            else if (Boot_count == 21)
+            else if (Boot_count == 13)
             {
                 rc = nrf_fstorage_write(&fstorage, write_index + 0x2000, flash_ff_padding, sizeof(flash_ff_padding), NULL);
                 APP_ERROR_CHECK(rc);
