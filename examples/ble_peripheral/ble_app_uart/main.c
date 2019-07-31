@@ -1610,9 +1610,11 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                     case 0:   // 0: sta
                         if (State_keeper == STATE_PAIRING)
                         {
+#ifndef TWI_DISABLE
                             err_code = app_timer_start(m_bh1792glc_timer_id, BH1792GLC_MEAS_INTERVAL, NULL);
                             APP_ERROR_CHECK(err_code);
                             //nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
+#endif
 
                             err_code = app_timer_start(m_data_record_timer_id, DATA_RECORD_MEAS_INTERVAL, NULL);
                             APP_ERROR_CHECK(err_code);
@@ -1632,10 +1634,12 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         }
                         break;
                     case 1:   // 1: sto
+#ifndef TWI_DISABLE
                         err_code = app_timer_stop(m_bh1792glc_timer_id);
                         APP_ERROR_CHECK(err_code);
                         //nrf_drv_gpiote_in_event_disable(BH1792GLC_INT_PIN);
-                        
+#endif
+    
                         err_code = app_timer_stop(m_data_record_timer_id);
                         APP_ERROR_CHECK(err_code);
                         NRF_LOG_INFO("10 second measure and 10 minutes record stop");
@@ -1734,20 +1738,30 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
                         sleep_mode_enter();
                         break;
                     case 27:    //dhs, 27: debug heartrate measure start
+#ifndef TWI_DISABLE
                         err_code = app_timer_start(m_bh1792glc_timer_id, BH1792GLC_MEAS_INTERVAL, NULL);
                         APP_ERROR_CHECK(err_code);
                         //nrf_drv_gpiote_in_event_enable(BH1792GLC_INT_PIN, true);
 
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+#else
+                        reslength = 3;
+                        err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
+#endif
                         break;
                     case 28:    //dhe, 28: debug heartrate measure end
+#ifndef TWI_DISABLE
                         err_code = app_timer_stop(m_bh1792glc_timer_id);
                         APP_ERROR_CHECK(err_code);
                         //nrf_drv_gpiote_in_event_disable(BH1792GLC_INT_PIN);
 
                         reslength = 3;
                         err_code = ble_nus_data_send(&m_nus, "ack", &reslength, m_conn_handle);
+#else
+                        reslength = 3;
+                        err_code = ble_nus_data_send(&m_nus, "nak", &reslength, m_conn_handle);
+#endif
                         break;
                     case 29:    //dhg, 29: debug output heartrate
                         if (Wearing == 1)
