@@ -744,6 +744,7 @@ uint8_t   Bpm     = 0U;
 uint8_t   Wearing = 0U;
 
 // Volatile Variables, used in the interrupt service routine!
+/*
 volatile uint16_t BPM;                   // int that holds raw Analog in 0. updated every 2mS
 volatile int Signal;                // holds the incoming raw data
 volatile int IBI = 600;             // int that holds the time interval between beats! Must be seeded!
@@ -759,6 +760,7 @@ volatile int thresh = 33920; //530;                // used to find instant momen
 volatile int amp = 0;                   // used to hold amplitude of pulse waveform, seeded
 volatile bool firstBeat = true;        // used to seed rate array so we startup with reasonable BPM
 volatile bool secondBeat = false;      // used to seed rate array so we startup with reasonable BPM
+*/
 //volatile int put_timing = 0;
 
 static void heart_rate_meas_timeout_handler(void * p_context)
@@ -770,7 +772,7 @@ static void heart_rate_meas_timeout_handler(void * p_context)
     UNUSED_PARAMETER(p_context);
 
     //heart_rate = (uint16_t)sensorsim_measure(&m_heart_rate_sim_state, &m_heart_rate_sim_cfg);
-    heart_rate = BPM;
+    heart_rate = Bpm;
 
     cnt++;
     err_code = ble_hrs_heart_rate_measurement_send(&m_hrs, heart_rate);
