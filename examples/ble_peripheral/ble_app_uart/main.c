@@ -140,7 +140,7 @@
 #include "nrf_fstorage.h"
 #include "nrf_fstorage_sd.h"
 
-#define FIRMWARE_VERSION                "2p0p0"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
+#define FIRMWARE_VERSION                "2p0p1"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
 #define DEVICE_NAME                     "Herbio+"                               /**< Name of device. Will be included in the advertising data. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 #define MANUFACTURER_NAME               "Herbio Co., Ltd."                       /**< Manufacturer. Will be passed to Device Information Service. */
@@ -286,6 +286,7 @@ static const int     STATE_EMERGENCY            = 3;   // 3: Blink GREEN and RED
 static const int     STATE_MEASURINGADVERTISING = 4;   // 4: Blink RED: Measuring and Adverting
 static const int     STATE_BOOTING              = 5;   // 5: BLUE: boot, reboot from sleep
 static const int     STATE_SLEEPING             = 6;   // 6: Blink BLUE: go to sleep
+//}
 
 //static volatile int State_keeper = 0;
 static volatile int State_keeper = STATE_ADVERTISING;
