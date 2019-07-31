@@ -5,7 +5,7 @@
 
 I added and modified part of code.
 
-- 5-Clause Nordic License (LICENSE(5-Clause_Nordic_License).txt)
+- 5-Clause Nordic License
 
 This is part of orginally nRF SDK.
 
