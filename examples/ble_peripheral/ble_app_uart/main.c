@@ -1,6 +1,7 @@
 /*
  *  main.c
  *
+ *  Copyright (C) 2019 HERBIO Co., Ltd.
  *  Copyright (C) 2019 takurx, Yoshihiro Nakagawa <taku3wzr@gmail.com>
  *
  *  This program is free software: you can redistribute it and/or modify
@@ -131,8 +132,21 @@
 #include "nrf_fstorage.h"
 #include "nrf_fstorage_sd.h"
 
+
+
+//#define DEBUG_MEAS_INTERVAL             1
+//#define TWI_DISABLE                     1
+
+#ifndef TWI_DISABLE 
 #define FIRMWARE_VERSION                "2p0p5"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
-#define DEVICE_NAME                     "Herbio+"                               /**< Name of device. Will be included in the advertising data. */
+#define DEVICE_NAME                     "Herbio+"                                /**< Name of device. Will be included in the advertising data. */
+#else
+#define FIRMWARE_VERSION                "1p1p5"                                  /* Firmware version, 'ver' command on NUS, :'major'p'minor'p'revision'*/
+#define DEVICE_NAME                     "Herbio"                                 /**< Name of device. Will be included in the advertising data. */
+#endif
+
+
+
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 #define MANUFACTURER_NAME               "Herbio Co., Ltd."                       /**< Manufacturer. Will be passed to Device Information Service. */
 //#define MODEL_NUM                       "EXAMPLE"                            /**< Model number. Will be passed to Device Information Service. */
@@ -171,8 +185,6 @@
 
 #define SENSOR_CONTACT_DETECTED_INTERVAL    APP_TIMER_TICKS(5000)                   /**< Sensor Contact Detected toggle interval (ticks). */
 
-//#define DEBUG_MEAS_INTERVAL             1
-//#define TWI_DISABLE                     1
 #define CODE_NOT_WEARING                1                                           /**< heartbeat not measuring, not wearing or not start >**/
 
 #ifndef DEBUG_MEAS_INTERVAL

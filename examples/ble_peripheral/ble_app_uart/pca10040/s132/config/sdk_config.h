@@ -1,6 +1,7 @@
 /*
  *  sys.config.h
  *
+ *  Copyright (C) 2019 HERBIO Co., Ltd.
  *  Copyright (C) 2019 takurx, Yoshihiro Nakagawa <taku3wzr@gmail.com>
  *
  *  This program is free software: you can redistribute it and/or modify
