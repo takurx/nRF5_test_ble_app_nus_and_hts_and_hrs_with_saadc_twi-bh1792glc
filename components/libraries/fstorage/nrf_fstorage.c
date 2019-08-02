@@ -55,8 +55,8 @@
 NRF_LOG_MODULE_REGISTER();
 
 //#include "nrf_log.h"
-#include "nrf_log_ctrl.h"
-#include "nrf_log_default_backends.h"
+//#include "nrf_log_ctrl.h"
+//#include "nrf_log_default_backends.h"
 
 /* Create the section "fs_data". */
 NRF_SECTION_DEF(fs_data, nrf_fstorage_t);
@@ -148,7 +148,7 @@ ret_code_t nrf_fstorage_write(nrf_fstorage_t const * p_fs,
 
     /* Source and destination addresses must be word-aligned. */
     NRF_FSTORAGE_PARAM_CHECK(addr_is_aligned32(dest),                NRF_ERROR_INVALID_ADDR);
-    NRF_LOG_INFO("addr, (uint32_t)p_src: %d", (uint32_t)p_src);
+    //NRF_LOG_INFO("addr, (uint32_t)p_src: %d", (uint32_t)p_src);
     NRF_FSTORAGE_PARAM_CHECK(addr_is_aligned32((uint32_t)p_src),     NRF_ERROR_INVALID_ADDR);
     NRF_FSTORAGE_PARAM_CHECK(addr_is_within_bounds(p_fs, dest, len), NRF_ERROR_INVALID_ADDR);
 
