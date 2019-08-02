@@ -992,9 +992,11 @@ static volatile unsigned int Count_index_data_hr_hr = 0;
  */
 typedef struct
 {
-    ble_date_time_t start_time; 
-    float body_temperature_array[6];
-    uint16_t heart_rate;
+    ble_date_time_t start_time;         // 7byte = 56 = 16 + 8 + 8 + 8 + 8 + 8
+    //uint8_t reserved_0;                 // 1byte = 8
+    float body_temperature_array[6];    // 4byte = 32
+    uint16_t heart_rate;                // 2byte = 16
+    uint16_t reserved_1;                // 2byte = 16
 } ble_data_ht_hr_t;
 static volatile ble_data_ht_hr_t data_hr_hr[Num_of_data_hr_hr] = {};
 static volatile ble_data_ht_hr_t temp_data_hr_hr = {};
@@ -2627,11 +2629,11 @@ const uint8_t write_count = 4;
 const uint32_t Flash_start_address = 0x60000;
 uint32_t write_index = Flash_start_address;
 //static uint8_t flash_ff_padding[4096] = {0xFF};
-uint8_t flash_ff_padding[0x1000];
+__ALIGN(4) uint8_t flash_ff_padding[0x1000];
 
-static volatile int size_write_data = sizeof(data_hr_hr[0]);
+const int size_write_data = sizeof(data_hr_hr[0]);
 const int size_write_buffer = sizeof(data_hr_hr[0]) * 8;
-static uint8_t write_buffer[sizeof(data_hr_hr[0]) * 8];
+__ALIGN(4) uint8_t write_buffer[sizeof(data_hr_hr[0]) * 8];
 const int Flash_write_count_for_sleep = Num_of_data_hr_hr / 8;
 
 static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
@@ -2821,7 +2823,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
             if (Enter_sleep_count == 24)
             {
                 //3s long push and sleep mode enter
-                NRF_LOG_INFO("sleep mode enter");
+                NRF_LOG_INFO("sleep mode enter, user operation");
 
                 rc = app_timer_stop(m_data_record_timer_id);
                 APP_ERROR_CHECK(rc);
@@ -2876,6 +2878,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 //while (nrf_fstorage_is_busy(p_fstorage))
                 if (nrf_fstorage_is_busy(&fstorage) == false)
                 {
+                    NRF_LOG_INFO("write data to sleep: %d, %d", Wait_sleep_count, size_write_data);
                     memcpy(&write_buffer[size_write_data * 0], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 0]), size_write_data);
                     memcpy(&write_buffer[size_write_data * 1], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 1]), size_write_data);
                     memcpy(&write_buffer[size_write_data * 2], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 2]), size_write_data);
@@ -2884,7 +2887,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                     memcpy(&write_buffer[size_write_data * 5], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 5]), size_write_data);
                     memcpy(&write_buffer[size_write_data * 6], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 6]), size_write_data);
                     memcpy(&write_buffer[size_write_data * 7], (const void *)(&data_hr_hr[Wait_sleep_count * 8 + 7]), size_write_data);
-                    rc = nrf_fstorage_write(&fstorage, write_index, &write_buffer, sizeof(write_buffer), NULL);
+                    rc = nrf_fstorage_write(&fstorage, write_index, write_buffer, sizeof(write_buffer), NULL);
                     APP_ERROR_CHECK(rc);
                     write_index = write_index + sizeof(write_buffer);
 
@@ -2898,9 +2901,9 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 if (nrf_fstorage_is_busy(&fstorage) == false)
                 {
                     //Current time, time_stamp
-                    static uint8_t write_time_stamp[sizeof(time_stamp)];
+                    __ALIGN(4) static uint8_t write_time_stamp[sizeof(time_stamp)];
                     *(ble_date_time_t *) write_time_stamp = time_stamp;
-                    rc = nrf_fstorage_write(&fstorage, write_index, &write_time_stamp, sizeof(write_time_stamp), NULL);
+                    rc = nrf_fstorage_write(&fstorage, write_index, write_time_stamp, sizeof(write_time_stamp), NULL);
                     APP_ERROR_CHECK(rc);
                     write_index = write_index + sizeof(write_time_stamp);
 
@@ -2914,9 +2917,9 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 if (nrf_fstorage_is_busy(&fstorage) == false)
                 {
                     //Write index, Write_index_data_hr_hr
-                    static uint8_t write_write_index[sizeof(Write_index_data_hr_hr)];
+                    __ALIGN(4) static uint8_t write_write_index[sizeof(Write_index_data_hr_hr)];
                     *(unsigned int *) write_write_index = Write_index_data_hr_hr;
-                    rc = nrf_fstorage_write(&fstorage, write_index, &write_write_index, sizeof(write_write_index), NULL);
+                    rc = nrf_fstorage_write(&fstorage, write_index, write_write_index, sizeof(write_write_index), NULL);
                     APP_ERROR_CHECK(rc);
                     write_index = write_index + sizeof(write_write_index);
 
@@ -2930,9 +2933,9 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 if (nrf_fstorage_is_busy(&fstorage) == false)
                 {
                     //Read index, Read_index_data_hr_hr
-                    static uint8_t write_read_index[sizeof(Read_index_data_hr_hr)];
+                    __ALIGN(4) static uint8_t write_read_index[sizeof(Read_index_data_hr_hr)];
                     *(unsigned int *) write_read_index = Read_index_data_hr_hr;
-                    rc = nrf_fstorage_write(&fstorage, write_index, &write_read_index, sizeof(write_read_index), NULL);
+                    rc = nrf_fstorage_write(&fstorage, write_index, write_read_index, sizeof(write_read_index), NULL);
                     APP_ERROR_CHECK(rc);
                     write_index = write_index + sizeof(write_read_index);
 
@@ -2946,9 +2949,9 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
                 if (nrf_fstorage_is_busy(&fstorage) == false)
                 {
                     //Count index, Count_index_data_hr_hr
-                    static uint8_t write_count_index[sizeof(Count_index_data_hr_hr)];
+                    __ALIGN(4) static uint8_t write_count_index[sizeof(Count_index_data_hr_hr)];
                     *(unsigned int *) write_count_index = Count_index_data_hr_hr;
-                    rc = nrf_fstorage_write(&fstorage, write_index, &write_count_index, sizeof(write_count_index), NULL);
+                    rc = nrf_fstorage_write(&fstorage, write_index, write_count_index, sizeof(write_count_index), NULL);
                     APP_ERROR_CHECK(rc);
                     write_index = write_index + sizeof(write_count_index);
 
@@ -3212,7 +3215,7 @@ int main(void)
     /*
     uint32_t test_write_address = 0x60000;
     NRF_LOG_INFO("Writing \"%x\" to flash.", m_data);
-    rc = nrf_fstorage_write(&fstorage, test_write_address, &m_data, sizeof(m_data), NULL);
+    rc = nrf_fstorage_write(&fstorage, test_write_address, m_data, sizeof(m_data), NULL);
     APP_ERROR_CHECK(rc);
 
     wait_for_flash_ready(&fstorage);
