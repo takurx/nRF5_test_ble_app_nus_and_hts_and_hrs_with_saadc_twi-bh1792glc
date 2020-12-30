@@ -9704,3 +9704,7 @@ examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10
 examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Release/Obj/pwCalc.o
 examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Release/Obj/touchDet.d
 examples/ble_peripheral/ble_app_uart/pca10040/s132/ses/Output/ble_app_uart_pca10040_s132 Release/Obj/touchDet.o
+
+document/device_side_save_data_spec_abstruct.pages
+
+document/device_side_save_data_spec_abstruct.pdf
